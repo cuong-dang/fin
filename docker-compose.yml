@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: fin-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fin
+      POSTGRES_PASSWORD: fin
+      POSTGRES_DB: fin
+    ports:
+      - "5432:5432"
+    volumes:
+      - fin-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fin -d fin"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  fin-postgres-data:
