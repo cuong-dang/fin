@@ -71,6 +71,16 @@ export default async function NewAccountPage() {
             />
           </Field>
         )}
+        <Field label="Starting balance (optional)" htmlFor="startingBalance">
+          <Input
+            id="startingBalance"
+            type="number"
+            name="startingBalance"
+            step="any"
+            inputMode="decimal"
+            placeholder="0.00"
+          />
+        </Field>
         <Button type="submit">Create account</Button>
       </form>
     </FormPage>

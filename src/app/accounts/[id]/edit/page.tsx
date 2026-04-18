@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { BackLink } from "@/components/back-link";
 import { FormPage } from "@/components/layout";
@@ -7,7 +7,8 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { db } from "@/db";
-import { accountGroups, accounts } from "@/db/schema";
+import { accountGroups, accounts, transactionLegs } from "@/db/schema";
+import { formatMoney, formatMoneyPlain } from "@/lib/money";
 import { getCurrentSession } from "@/lib/session";
 import { updateAccount } from "../../actions";
 
@@ -27,11 +28,20 @@ export default async function EditAccountPage({
     .limit(1);
   if (!account || account.groupId !== session.groupId) notFound();
 
-  const groups = await db
-    .select()
-    .from(accountGroups)
-    .where(eq(accountGroups.groupId, session.groupId))
-    .orderBy(accountGroups.name);
+  const [groups, [balanceRow]] = await Promise.all([
+    db
+      .select()
+      .from(accountGroups)
+      .where(eq(accountGroups.groupId, session.groupId))
+      .orderBy(accountGroups.name),
+    db
+      .select({
+        current: sql<string>`COALESCE(SUM(${transactionLegs.amount}), 0)`,
+      })
+      .from(transactionLegs)
+      .where(eq(transactionLegs.accountId, id)),
+  ]);
+  const currentBalance = BigInt(balanceRow.current);
 
   const boundUpdate = updateAccount.bind(null, id);
 
@@ -66,6 +76,20 @@ export default async function EditAccountPage({
               </option>
             ))}
           </NativeSelect>
+        </Field>
+        <Field label="Balance" htmlFor="balance">
+          <Input
+            id="balance"
+            type="number"
+            name="balance"
+            step="any"
+            inputMode="decimal"
+            defaultValue={formatMoneyPlain(currentBalance, account.currency)}
+          />
+          <p className="text-muted-foreground text-xs">
+            Current: {formatMoney(currentBalance, account.currency)}. Changing
+            this records an adjustment transaction for the delta.
+          </p>
         </Field>
         <Button type="submit">Save</Button>
       </form>

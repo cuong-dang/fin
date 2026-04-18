@@ -24,6 +24,24 @@ export function formatMoney(
 }
 
 /**
+ * Format an amount as a plain decimal string, with no currency symbol or
+ * thousands separators. Suitable as a default value for <input type="number">.
+ * USD 1234n → "12.34"; JPY 500n → "500"; VND 100000n → "100000".
+ */
+export function formatMoneyPlain(amount: bigint, currency: string): string {
+  const formatter = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+  });
+  const decimals = formatter.resolvedOptions().maximumFractionDigits;
+  if (decimals === undefined) {
+    throw new Error(`No decimal count resolved for currency ${currency}`);
+  }
+  const divisor = 10 ** decimals;
+  return (Number(amount) / divisor).toFixed(decimals);
+}
+
+/**
  * Parse a user-entered display string into minor units for storage.
  * Ignores currency symbols and thousands separators; handles negatives.
  * "$12.34" + USD → 1234n; "500" + JPY → 500n.
