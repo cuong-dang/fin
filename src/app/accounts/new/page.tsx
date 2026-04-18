@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { eq } from "drizzle-orm";
 import { BackLink } from "@/components/back-link";
 import { FormPage } from "@/components/layout";
@@ -10,19 +9,19 @@ import { db } from "@/db";
 import { accountGroups } from "@/db/schema";
 import { getCurrentSession } from "@/lib/session";
 import { createAccount } from "./actions";
+import { GroupSelector } from "./group-selector";
 
 // A small, curated set. Users can type any ISO 4217 code if they need more.
 const COMMON_CURRENCIES = [
   "USD",
+  "AUD",
+  "CAD",
+  "CNY",
   "EUR",
   "GBP",
   "JPY",
-  "CAD",
-  "AUD",
-  "CNY",
-  "VND",
   "KRW",
-  "INR",
+  "VND",
 ];
 
 export default async function NewAccountPage() {
@@ -34,22 +33,6 @@ export default async function NewAccountPage() {
     .from(accountGroups)
     .where(eq(accountGroups.groupId, session.groupId))
     .orderBy(accountGroups.name);
-
-  if (groups.length === 0) {
-    return (
-      <FormPage>
-        <BackLink href="/" />
-        <h1 className="mt-4 text-2xl font-semibold">New account</h1>
-        <p className="text-muted-foreground mt-4 text-sm">
-          You need to create an account group first — accounts are always
-          organized under a group (e.g. Banks, Credit Cards).
-        </p>
-        <Button asChild className="mt-6">
-          <Link href="/account-groups/new">Create account group</Link>
-        </Button>
-      </FormPage>
-    );
-  }
 
   return (
     <FormPage>
@@ -75,25 +58,19 @@ export default async function NewAccountPage() {
             ))}
           </NativeSelect>
         </Field>
-        <Field label="Group" htmlFor="accountGroupId">
-          <NativeSelect id="accountGroupId" name="accountGroupId" required>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </NativeSelect>
-        </Field>
-        <p className="text-muted-foreground text-xs">
-          Need another group?{" "}
-          <Link
-            href="/account-groups/new"
-            className="hover:text-foreground underline"
-          >
-            Create one
-          </Link>
-          .
-        </p>
+        {groups.length > 0 ? (
+          <GroupSelector groups={groups} />
+        ) : (
+          <Field label="New group name" htmlFor="newGroupName">
+            <Input
+              id="newGroupName"
+              name="newGroupName"
+              required
+              maxLength={100}
+              placeholder="Banks"
+            />
+          </Field>
+        )}
         <Button type="submit">Create account</Button>
       </form>
     </FormPage>

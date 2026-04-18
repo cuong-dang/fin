@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/db";
-import { accounts } from "@/db/schema";
+import { accountGroups, accounts } from "@/db/schema";
 import { getCurrentSession } from "@/lib/session";
 
 const schema = z.object({
@@ -13,8 +13,15 @@ const schema = z.object({
     .trim()
     .length(3)
     .transform((s) => s.toUpperCase()),
-  accountGroupId: z.uuid(),
+  accountGroupId: z.uuid().optional(),
+  newGroupName: z.string().trim().min(1).max(100).optional(),
 });
+
+function emptyToUndef(v: FormDataEntryValue | null): string | undefined {
+  if (typeof v !== "string") return undefined;
+  const trimmed = v.trim();
+  return trimmed === "" ? undefined : trimmed;
+}
 
 export async function createAccount(formData: FormData) {
   const session = await getCurrentSession();
@@ -23,14 +30,31 @@ export async function createAccount(formData: FormData) {
   const parsed = schema.parse({
     name: formData.get("name"),
     currency: formData.get("currency"),
-    accountGroupId: formData.get("accountGroupId"),
+    accountGroupId: emptyToUndef(formData.get("accountGroupId")),
+    newGroupName: emptyToUndef(formData.get("newGroupName")),
   });
 
-  await db.insert(accounts).values({
-    groupId: session.groupId,
-    accountGroupId: parsed.accountGroupId,
-    name: parsed.name,
-    currency: parsed.currency,
+  // A new group name, if typed, wins over a picked existing group — you
+  // probably meant the thing you just typed.
+  if (!parsed.accountGroupId && !parsed.newGroupName) {
+    throw new Error("Select an existing group or name a new one");
+  }
+
+  await db.transaction(async (tx) => {
+    let accountGroupId = parsed.accountGroupId;
+    if (parsed.newGroupName) {
+      const [row] = await tx
+        .insert(accountGroups)
+        .values({ groupId: session.groupId, name: parsed.newGroupName })
+        .returning({ id: accountGroups.id });
+      accountGroupId = row.id;
+    }
+    await tx.insert(accounts).values({
+      groupId: session.groupId,
+      accountGroupId: accountGroupId!,
+      name: parsed.name,
+      currency: parsed.currency,
+    });
   });
 
   redirect("/");

@@ -329,8 +329,11 @@ function TransactionRow({
   if (timeStr) metaParts.push(timeStr);
 
   return (
-    <li className="border-border hover:bg-muted/40 border-b px-6 py-3 last:border-0">
-      <div className="flex items-start justify-between gap-4">
+    <li className="border-border border-b last:border-0">
+      <Link
+        href={`/transactions/${tx.id}/edit`}
+        className="hover:bg-muted/40 flex items-start justify-between gap-4 px-6 py-3"
+      >
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium">{primary}</div>
           <div className="text-muted-foreground mt-0.5 truncate text-xs">
@@ -345,7 +348,7 @@ function TransactionRow({
         >
           {formatMoney(amount, currency)}
         </div>
-      </div>
+      </Link>
     </li>
   );
 }

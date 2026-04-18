@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, Settings } from "lucide-react";
 import { eq, sql } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
 import { db } from "@/db";
@@ -112,11 +112,23 @@ function AccountsHeader() {
       <h2 className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
         Accounts
       </h2>
-      <Button asChild variant="ghost" size="icon-xs" aria-label="New account">
-        <Link href="/accounts/new">
-          <Plus />
-        </Link>
-      </Button>
+      <div className="flex items-center">
+        <Button
+          asChild
+          variant="ghost"
+          size="icon-xs"
+          aria-label="Manage accounts"
+        >
+          <Link href="/accounts">
+            <Settings />
+          </Link>
+        </Button>
+        <Button asChild variant="ghost" size="icon-xs" aria-label="New account">
+          <Link href="/accounts/new">
+            <Plus />
+          </Link>
+        </Button>
+      </div>
     </div>
   );
 }
