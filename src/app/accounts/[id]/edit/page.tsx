@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { db } from "@/db";
 import { accountGroups, accounts, transactionLegs } from "@/db/schema";
+import { findOwned } from "@/lib/authz";
 import { formatMoney, formatMoneyPlain } from "@/lib/money";
 import { getCurrentSession } from "@/lib/session";
 import { updateAccount } from "../../actions";
@@ -21,12 +22,8 @@ export default async function EditAccountPage({
   const session = await getCurrentSession();
   if (!session) return null;
 
-  const [account] = await db
-    .select()
-    .from(accounts)
-    .where(eq(accounts.id, id))
-    .limit(1);
-  if (!account || account.groupId !== session.groupId) notFound();
+  const account = await findOwned(accounts, id, session.groupId);
+  if (!account) notFound();
 
   const [groups, [balanceRow]] = await Promise.all([
     db

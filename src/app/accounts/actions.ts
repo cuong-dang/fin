@@ -11,6 +11,7 @@ import {
   transactionLegs,
   transactions,
 } from "@/db/schema";
+import { findOwned } from "@/lib/authz";
 import { parseMoney } from "@/lib/money";
 import { getCurrentSession } from "@/lib/session";
 
@@ -36,23 +37,15 @@ export async function updateAccount(accountId: string, formData: FormData) {
     balance: emptyToUndef(formData.get("balance")),
   });
 
-  const [account] = await db
-    .select({ groupId: accounts.groupId, currency: accounts.currency })
-    .from(accounts)
-    .where(eq(accounts.id, accountId))
-    .limit(1);
-  if (!account || account.groupId !== session.groupId) {
-    throw new Error("Account not found");
-  }
+  const account = await findOwned(accounts, accountId, session.groupId);
+  if (!account) throw new Error("Account not found");
 
-  const [targetGroup] = await db
-    .select({ groupId: accountGroups.groupId })
-    .from(accountGroups)
-    .where(eq(accountGroups.id, parsed.accountGroupId))
-    .limit(1);
-  if (!targetGroup || targetGroup.groupId !== session.groupId) {
-    throw new Error("Destination group not found");
-  }
+  const targetGroup = await findOwned(
+    accountGroups,
+    parsed.accountGroupId,
+    session.groupId,
+  );
+  if (!targetGroup) throw new Error("Destination group not found");
 
   // Compute the balance delta up front so a parse error aborts before we
   // touch the DB.
@@ -104,14 +97,8 @@ export async function deleteAccount(accountId: string) {
   const session = await getCurrentSession();
   if (!session) throw new Error("Unauthenticated");
 
-  const [account] = await db
-    .select({ groupId: accounts.groupId })
-    .from(accounts)
-    .where(eq(accounts.id, accountId))
-    .limit(1);
-  if (!account || account.groupId !== session.groupId) {
-    throw new Error("Account not found");
-  }
+  const account = await findOwned(accounts, accountId, session.groupId);
+  if (!account) throw new Error("Account not found");
 
   // transaction_legs.account_id is ON DELETE RESTRICT. Check first so we can
   // return a helpful message rather than a raw FK violation.

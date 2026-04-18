@@ -1,12 +1,11 @@
-import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { BackLink } from "@/components/back-link";
 import { FormPage } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { db } from "@/db";
 import { accountGroups } from "@/db/schema";
+import { findOwned } from "@/lib/authz";
 import { getCurrentSession } from "@/lib/session";
 import { updateAccountGroup } from "../../actions";
 
@@ -19,12 +18,8 @@ export default async function EditAccountGroupPage({
   const session = await getCurrentSession();
   if (!session) return null;
 
-  const [group] = await db
-    .select()
-    .from(accountGroups)
-    .where(eq(accountGroups.id, id))
-    .limit(1);
-  if (!group || group.groupId !== session.groupId) notFound();
+  const group = await findOwned(accountGroups, id, session.groupId);
+  if (!group) notFound();
 
   const boundUpdate = updateAccountGroup.bind(null, id);
 

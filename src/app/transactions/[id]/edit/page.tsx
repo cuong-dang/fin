@@ -1,4 +1,3 @@
-import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { BackLink } from "@/components/back-link";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
@@ -6,8 +5,8 @@ import { FormPage } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { db } from "@/db";
 import { transactions } from "@/db/schema";
+import { findOwned } from "@/lib/authz";
 import { getCurrentSession } from "@/lib/session";
 import { deleteTransaction, updateTransaction } from "../../actions";
 
@@ -30,12 +29,8 @@ export default async function EditTransactionPage({
   const session = await getCurrentSession();
   if (!session) return null;
 
-  const [tx] = await db
-    .select()
-    .from(transactions)
-    .where(eq(transactions.id, id))
-    .limit(1);
-  if (!tx || tx.groupId !== session.groupId) notFound();
+  const tx = await findOwned(transactions, id, session.groupId);
+  if (!tx) notFound();
 
   const boundUpdate = updateTransaction.bind(null, id);
   const boundDelete = deleteTransaction.bind(null, id);

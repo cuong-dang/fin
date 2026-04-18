@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/db";
 import { transactions } from "@/db/schema";
+import { findOwned } from "@/lib/authz";
 import { getCurrentSession } from "@/lib/session";
 
 const updateSchema = z.object({
@@ -29,14 +30,8 @@ export async function updateTransaction(id: string, formData: FormData) {
     description: pick(formData, "description"),
   });
 
-  const [tx] = await db
-    .select({ groupId: transactions.groupId })
-    .from(transactions)
-    .where(eq(transactions.id, id))
-    .limit(1);
-  if (!tx || tx.groupId !== session.groupId) {
-    throw new Error("Transaction not found");
-  }
+  const tx = await findOwned(transactions, id, session.groupId);
+  if (!tx) throw new Error("Transaction not found");
 
   await db
     .update(transactions)
@@ -54,14 +49,8 @@ export async function deleteTransaction(id: string) {
   const session = await getCurrentSession();
   if (!session) throw new Error("Unauthenticated");
 
-  const [tx] = await db
-    .select({ groupId: transactions.groupId })
-    .from(transactions)
-    .where(eq(transactions.id, id))
-    .limit(1);
-  if (!tx || tx.groupId !== session.groupId) {
-    throw new Error("Transaction not found");
-  }
+  const tx = await findOwned(transactions, id, session.groupId);
+  if (!tx) throw new Error("Transaction not found");
 
   // transaction_legs and transaction_lines both ON DELETE CASCADE, so a
   // single delete here also clears them.

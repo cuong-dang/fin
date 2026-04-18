@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/db";
 import { accountGroups, accounts } from "@/db/schema";
+import { findOwned } from "@/lib/authz";
 import { getCurrentSession } from "@/lib/session";
 
 const updateSchema = z.object({
@@ -18,14 +19,8 @@ export async function updateAccountGroup(id: string, formData: FormData) {
 
   const parsed = updateSchema.parse({ name: formData.get("name") });
 
-  const [group] = await db
-    .select({ groupId: accountGroups.groupId })
-    .from(accountGroups)
-    .where(eq(accountGroups.id, id))
-    .limit(1);
-  if (!group || group.groupId !== session.groupId) {
-    throw new Error("Group not found");
-  }
+  const group = await findOwned(accountGroups, id, session.groupId);
+  if (!group) throw new Error("Group not found");
 
   await db
     .update(accountGroups)
@@ -39,14 +34,8 @@ export async function deleteAccountGroup(id: string) {
   const session = await getCurrentSession();
   if (!session) throw new Error("Unauthenticated");
 
-  const [group] = await db
-    .select({ groupId: accountGroups.groupId })
-    .from(accountGroups)
-    .where(eq(accountGroups.id, id))
-    .limit(1);
-  if (!group || group.groupId !== session.groupId) {
-    throw new Error("Group not found");
-  }
+  const group = await findOwned(accountGroups, id, session.groupId);
+  if (!group) throw new Error("Group not found");
 
   // accounts.account_group_id is ON DELETE RESTRICT.
   const [{ count }] = await db

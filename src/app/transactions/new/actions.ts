@@ -1,6 +1,5 @@
 "use server";
 
-import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/db";
@@ -10,6 +9,7 @@ import {
   transactionLines,
   transactions,
 } from "@/db/schema";
+import { findOwned } from "@/lib/authz";
 import { parseMoney } from "@/lib/money";
 import { getCurrentSession } from "@/lib/session";
 
@@ -74,14 +74,12 @@ export async function createTransaction(formData: FormData) {
     description: pick("description"),
   });
 
-  const [sourceAccount] = await db
-    .select({ currency: accounts.currency, groupId: accounts.groupId })
-    .from(accounts)
-    .where(eq(accounts.id, parsed.accountId))
-    .limit(1);
-  if (!sourceAccount || sourceAccount.groupId !== session.groupId) {
-    throw new Error("Account not found");
-  }
+  const sourceAccount = await findOwned(
+    accounts,
+    parsed.accountId,
+    session.groupId,
+  );
+  if (!sourceAccount) throw new Error("Account not found");
 
   const amountMinor = parseMoney(parsed.amount, sourceAccount.currency);
   if (amountMinor <= 0n) throw new Error("Amount must be positive");
@@ -120,14 +118,12 @@ export async function createTransaction(formData: FormData) {
     if (parsed.accountId === parsed.destinationAccountId) {
       throw new Error("Source and destination accounts must differ");
     }
-    const [destAccount] = await tx
-      .select({ currency: accounts.currency, groupId: accounts.groupId })
-      .from(accounts)
-      .where(eq(accounts.id, parsed.destinationAccountId))
-      .limit(1);
-    if (!destAccount || destAccount.groupId !== session.groupId) {
-      throw new Error("Destination account not found");
-    }
+    const destAccount = await findOwned(
+      accounts,
+      parsed.destinationAccountId,
+      session.groupId,
+    );
+    if (!destAccount) throw new Error("Destination account not found");
     if (destAccount.currency !== sourceAccount.currency) {
       throw new Error(
         "FX transfers not yet supported — accounts must share a currency",
