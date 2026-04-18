@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { and, desc, eq, inArray } from "drizzle-orm";
+import { Button } from "@/components/ui/button";
 import { db } from "@/db";
 import {
   accounts,
@@ -10,6 +11,7 @@ import {
   transactionLines,
   transactions,
 } from "@/db/schema";
+import { groupBy } from "@/lib/collections";
 import { dayKey, formatDayHeader } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
 import type { CurrentSession } from "@/lib/session";
@@ -34,7 +36,7 @@ type EnrichedTx = {
   timestamp: Date;
   type: "income" | "expense" | "transfer" | "adjustment";
   description: string | null;
-  legs: Leg[];
+  legs: [Leg, ...Leg[]];
   lines: Line[];
 };
 
@@ -98,39 +100,23 @@ async function fetchTransactions(
     .leftJoin(tags, eq(tags.id, transactionLines.tagId))
     .where(inArray(transactionLines.transactionId, txIds));
 
-  const legsByTx = new Map<string, Leg[]>();
-  for (const l of legRows) {
-    const list = legsByTx.get(l.transactionId) ?? [];
-    list.push({
-      accountId: l.accountId,
-      accountName: l.accountName,
-      accountCurrency: l.accountCurrency,
-      amount: l.amount,
-    });
-    legsByTx.set(l.transactionId, list);
-  }
+  const legsByTx = groupBy(legRows, (l) => l.transactionId);
+  const linesByTx = groupBy(lineRows, (l) => l.transactionId);
 
-  const linesByTx = new Map<string, Line[]>();
-  for (const l of lineRows) {
-    const list = linesByTx.get(l.transactionId) ?? [];
-    list.push({
-      amount: l.amount,
-      currency: l.currency,
-      categoryName: l.categoryName,
-      subcategoryName: l.subcategoryName,
-      tagName: l.tagName,
-    });
-    linesByTx.set(l.transactionId, list);
-  }
-
-  return txRows.map((t) => ({
-    id: t.id,
-    timestamp: t.timestamp,
-    type: t.type,
-    description: t.description,
-    legs: legsByTx.get(t.id) ?? [],
-    lines: linesByTx.get(t.id) ?? [],
-  }));
+  return txRows.map((t) => {
+    const [head, ...rest] = legsByTx.get(t.id) ?? [];
+    if (!head) {
+      throw new Error(`Invariant: transaction ${t.id} has no legs`);
+    }
+    return {
+      id: t.id,
+      timestamp: t.timestamp,
+      type: t.type,
+      description: t.description,
+      legs: [head, ...rest],
+      lines: linesByTx.get(t.id) ?? [],
+    };
+  });
 }
 
 // ─── Display derivation ───────────────────────────────────────────────────
@@ -152,37 +138,41 @@ function displayShape(tx: EnrichedTx, filterAccountId: string | undefined) {
       const total = tx.lines.reduce((s, l) => s + l.amount, 0n);
       return {
         amount: -total,
-        currency: tx.lines[0]?.currency ?? tx.legs[0]?.accountCurrency ?? "USD",
-        accountLabel: tx.legs[0]?.accountName ?? "",
+        currency: tx.lines[0]?.currency ?? tx.legs[0].accountCurrency,
+        accountLabel: tx.legs[0].accountName,
       };
     }
     case "income": {
       const total = tx.lines.reduce((s, l) => s + l.amount, 0n);
       return {
         amount: total,
-        currency: tx.lines[0]?.currency ?? tx.legs[0]?.accountCurrency ?? "USD",
-        accountLabel: tx.legs[0]?.accountName ?? "",
+        currency: tx.lines[0]?.currency ?? tx.legs[0].accountCurrency,
+        accountLabel: tx.legs[0].accountName,
       };
     }
     case "transfer": {
       const outLeg = tx.legs.find((l) => l.amount < 0n);
       const inLeg = tx.legs.find((l) => l.amount > 0n);
-      const primary = inLeg ?? outLeg;
+      if (!outLeg || !inLeg) {
+        throw new Error(`Invariant: transfer ${tx.id} missing in/out leg`);
+      }
+      if (outLeg.accountId === inLeg.accountId) {
+        throw new Error(
+          `Invariant: transfer ${tx.id} has same source and destination`,
+        );
+      }
       return {
-        amount: primary?.amount ?? 0n,
-        currency: primary?.accountCurrency ?? "USD",
-        accountLabel:
-          outLeg && inLeg
-            ? `${outLeg.accountName} → ${inLeg.accountName}`
-            : (primary?.accountName ?? ""),
+        amount: inLeg.amount,
+        currency: inLeg.accountCurrency,
+        accountLabel: `${outLeg.accountName} → ${inLeg.accountName}`,
       };
     }
     case "adjustment": {
       const leg = tx.legs[0];
       return {
-        amount: leg?.amount ?? 0n,
-        currency: leg?.accountCurrency ?? "USD",
-        accountLabel: leg?.accountName ?? "",
+        amount: leg.amount,
+        currency: leg.accountCurrency,
+        accountLabel: leg.accountName,
       };
     }
   }
@@ -236,7 +226,6 @@ export async function TransactionsList({
   accountId: string | undefined;
   accountName: string | undefined;
 }) {
-  if (!session.groupId) return null;
   const txs = await fetchTransactions(session.groupId, accountId);
 
   if (txs.length === 0) {
@@ -278,20 +267,14 @@ function EmptyState({ accountName }: { accountName: string | undefined }) {
             ? `No transactions for ${accountName} yet.`
             : "No transactions yet."}
         </p>
-        <div className="mt-4 flex items-center justify-center gap-3 text-sm">
-          <Link
-            href="/transactions/new"
-            className="rounded-md bg-zinc-900 px-3 py-1.5 font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-          >
-            Create transaction
-          </Link>
+        <div className="mt-4 flex items-center justify-center gap-2">
+          <Button asChild size="sm">
+            <Link href="/transactions/new">Create transaction</Link>
+          </Button>
           {accountName && (
-            <Link
-              href="/"
-              className="text-zinc-500 underline hover:text-zinc-900 dark:hover:text-zinc-100"
-            >
-              View all accounts
-            </Link>
+            <Button asChild variant="link" size="sm">
+              <Link href="/">View all accounts</Link>
+            </Button>
           )}
         </div>
       </div>
@@ -342,7 +325,7 @@ function TransactionRow({
   if (descriptionIsPrimary && tx.lines[0]) {
     metaParts.push(categoryLabel(tx.lines[0]));
   }
-  if (accountLabel) metaParts.push(accountLabel);
+  metaParts.push(accountLabel);
   if (timeStr) metaParts.push(timeStr);
 
   return (
@@ -352,11 +335,9 @@ function TransactionRow({
           <div className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
             {primary}
           </div>
-          {metaParts.length > 0 && (
-            <div className="mt-0.5 truncate text-xs text-zinc-500">
-              {metaParts.join(" · ")}
-            </div>
-          )}
+          <div className="mt-0.5 truncate text-xs text-zinc-500">
+            {metaParts.join(" · ")}
+          </div>
         </div>
         <div
           className={`text-sm font-medium tabular-nums ${amountColorClass(

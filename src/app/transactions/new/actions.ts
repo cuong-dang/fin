@@ -52,7 +52,7 @@ const schema = z.discriminatedUnion("type", [
 
 export async function createTransaction(formData: FormData) {
   const session = await getCurrentSession();
-  if (!session?.groupId) throw new Error("No active group");
+  if (!session) throw new Error("Unauthenticated");
 
   // Coerce empty form strings to undefined so optional UUIDs validate.
   const pick = (key: string): string | undefined => {
@@ -90,7 +90,7 @@ export async function createTransaction(formData: FormData) {
     const [txRow] = await tx
       .insert(transactions)
       .values({
-        groupId: session.groupId!,
+        groupId: session.groupId,
         userId: session.userId,
         timestamp: parsed.timestamp,
         type: parsed.type,

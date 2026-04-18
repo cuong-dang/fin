@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { eq } from "drizzle-orm";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { db } from "@/db";
 import { accountGroups } from "@/db/schema";
 import { getCurrentSession } from "@/lib/session";
@@ -19,9 +22,12 @@ const COMMON_CURRENCIES = [
   "INR",
 ];
 
+const SELECT_CLASS =
+  "border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 block h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs focus-visible:ring-[3px] focus-visible:outline-none";
+
 export default async function NewAccountPage() {
   const session = await getCurrentSession();
-  if (!session?.groupId) return null;
+  if (!session) return null;
 
   const groups = await db
     .select()
@@ -32,54 +38,46 @@ export default async function NewAccountPage() {
   if (groups.length === 0) {
     return (
       <main className="mx-auto max-w-md p-8">
-        <Link
-          href="/"
-          className="text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-        >
-          ← Back
-        </Link>
+        <Button asChild variant="link" size="sm" className="-ml-2.5 px-0">
+          <Link href="/">← Back</Link>
+        </Button>
         <h1 className="mt-4 text-2xl font-semibold">New account</h1>
-        <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="text-muted-foreground mt-4 text-sm">
           You need to create an account group first — accounts are always
           organized under a group (e.g. Banks, Credit Cards).
         </p>
-        <Link
-          href="/account-groups/new"
-          className="mt-6 inline-block rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-        >
-          Create account group
-        </Link>
+        <Button asChild className="mt-6">
+          <Link href="/account-groups/new">Create account group</Link>
+        </Button>
       </main>
     );
   }
 
   return (
     <main className="mx-auto max-w-md p-8">
-      <Link
-        href="/"
-        className="text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-      >
-        ← Back
-      </Link>
+      <Button asChild variant="link" size="sm" className="-ml-2.5 px-0">
+        <Link href="/">← Back</Link>
+      </Button>
       <h1 className="mt-4 text-2xl font-semibold">New account</h1>
       <form action={createAccount} className="mt-6 space-y-4">
-        <label className="block">
-          <span className="text-sm font-medium">Name</span>
-          <input
+        <div className="space-y-1.5">
+          <Label htmlFor="name">Name</Label>
+          <Input
+            id="name"
             name="name"
             required
             autoFocus
             maxLength={100}
             placeholder="Chase Checking"
-            className="mt-1 block w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900"
           />
-        </label>
-        <label className="block">
-          <span className="text-sm font-medium">Currency</span>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="currency">Currency</Label>
           <select
+            id="currency"
             name="currency"
             defaultValue="USD"
-            className="mt-1 block w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900"
+            className={SELECT_CLASS}
           >
             {COMMON_CURRENCIES.map((c) => (
               <option key={c} value={c}>
@@ -87,13 +85,14 @@ export default async function NewAccountPage() {
               </option>
             ))}
           </select>
-        </label>
-        <label className="block">
-          <span className="text-sm font-medium">Group</span>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="accountGroupId">Group</Label>
           <select
+            id="accountGroupId"
             name="accountGroupId"
             required
-            className="mt-1 block w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900"
+            className={SELECT_CLASS}
           >
             {groups.map((g) => (
               <option key={g.id} value={g.id}>
@@ -101,23 +100,18 @@ export default async function NewAccountPage() {
               </option>
             ))}
           </select>
-        </label>
-        <p className="text-xs text-zinc-500">
+        </div>
+        <p className="text-muted-foreground text-xs">
           Need another group?{" "}
           <Link
             href="/account-groups/new"
-            className="underline hover:text-zinc-900 dark:hover:text-zinc-100"
+            className="hover:text-foreground underline"
           >
             Create one
           </Link>
           .
         </p>
-        <button
-          type="submit"
-          className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-        >
-          Create account
-        </button>
+        <Button type="submit">Create account</Button>
       </form>
     </main>
   );

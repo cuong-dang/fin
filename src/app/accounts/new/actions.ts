@@ -18,7 +18,7 @@ const schema = z.object({
 
 export async function createAccount(formData: FormData) {
   const session = await getCurrentSession();
-  if (!session?.groupId) throw new Error("No active group");
+  if (!session) throw new Error("Unauthenticated");
 
   const parsed = schema.parse({
     name: formData.get("name"),

@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { createTransaction } from "./actions";
 
 export type AccountOption = {
@@ -24,8 +27,8 @@ export type TagOption = {
 
 type TxType = "income" | "expense" | "transfer";
 
-const inputClass =
-  "block w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900";
+const SELECT_CLASS =
+  "border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 block h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs focus-visible:ring-[3px] focus-visible:outline-none";
 
 // Local-time YYYY-MM-DD for the date input's default.
 function todayISODate(): string {
@@ -80,55 +83,29 @@ export function NewTransactionForm({
     return (
       <main className="mx-auto max-w-lg p-8">
         <h1 className="text-2xl font-semibold">New transaction</h1>
-        <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="text-muted-foreground mt-4 text-sm">
           You need to create an account first.
         </p>
-        <Link
-          href="/accounts/new"
-          className="mt-4 inline-block rounded-md bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-        >
-          Create account
-        </Link>
+        <Button asChild className="mt-6">
+          <Link href="/accounts/new">Create account</Link>
+        </Button>
       </main>
     );
   }
 
   return (
     <main className="mx-auto max-w-lg p-8">
-      <Link
-        href="/"
-        className="text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-      >
-        ← Back
-      </Link>
+      <Button asChild variant="link" size="sm" className="-ml-2.5 px-0">
+        <Link href="/">← Back</Link>
+      </Button>
       <h1 className="mt-4 text-2xl font-semibold">New transaction</h1>
 
       <form action={handleSubmit} className="mt-6 space-y-4">
-        {/* Type */}
-        <div
-          role="tablist"
-          className="flex rounded-md border border-zinc-300 dark:border-zinc-700"
-        >
-          {(["expense", "income", "transfer"] as const).map((t) => (
-            <button
-              key={t}
-              role="tab"
-              type="button"
-              aria-selected={type === t}
-              onClick={() => handleTypeChange(t)}
-              className={`flex-1 px-3 py-2 text-sm capitalize first:rounded-l-md last:rounded-r-md ${
-                type === t
-                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                  : "hover:bg-zinc-100 dark:hover:bg-zinc-800"
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
+        <TypeTabs value={type} onChange={handleTypeChange} />
 
-        <Field label="Amount">
-          <input
+        <Field label="Amount" htmlFor="amount">
+          <Input
+            id="amount"
             type="number"
             name="amount"
             step="any"
@@ -136,26 +113,29 @@ export function NewTransactionForm({
             required
             inputMode="decimal"
             placeholder="0.00"
-            className={inputClass}
           />
         </Field>
 
-        <Field label="Date">
-          <input
+        <Field label="Date" htmlFor="date">
+          <Input
+            id="date"
             type="date"
             value={dateStr}
             onChange={(e) => setDateStr(e.target.value)}
             required
-            className={inputClass}
           />
         </Field>
 
-        <Field label={type === "transfer" ? "From account" : "Account"}>
+        <Field
+          label={type === "transfer" ? "From account" : "Account"}
+          htmlFor="accountId"
+        >
           <select
+            id="accountId"
             name="accountId"
             required
             defaultValue=""
-            className={inputClass}
+            className={SELECT_CLASS}
           >
             <option value="" disabled>
               Select…
@@ -169,12 +149,13 @@ export function NewTransactionForm({
         </Field>
 
         {type === "transfer" && (
-          <Field label="To account">
+          <Field label="To account" htmlFor="destinationAccountId">
             <select
+              id="destinationAccountId"
               name="destinationAccountId"
               required
               defaultValue=""
-              className={inputClass}
+              className={SELECT_CLASS}
             >
               <option value="" disabled>
                 Select…
@@ -189,13 +170,14 @@ export function NewTransactionForm({
         )}
 
         {type !== "transfer" && (
-          <Field label="Category">
+          <Field label="Category" htmlFor="categoryId">
             <select
+              id="categoryId"
               name="categoryId"
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
               required
-              className={inputClass}
+              className={SELECT_CLASS}
             >
               <option value="" disabled>
                 Select…
@@ -210,8 +192,13 @@ export function NewTransactionForm({
         )}
 
         {type !== "transfer" && subcategories.length > 0 && (
-          <Field label="Subcategory (optional)">
-            <select name="subcategoryId" defaultValue="" className={inputClass}>
+          <Field label="Subcategory (optional)" htmlFor="subcategoryId">
+            <select
+              id="subcategoryId"
+              name="subcategoryId"
+              defaultValue=""
+              className={SELECT_CLASS}
+            >
               <option value="">—</option>
               {subcategories.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -222,8 +209,13 @@ export function NewTransactionForm({
           </Field>
         )}
 
-        <Field label="Tag (optional)">
-          <select name="tagId" defaultValue="" className={inputClass}>
+        <Field label="Tag (optional)" htmlFor="tagId">
+          <select
+            id="tagId"
+            name="tagId"
+            defaultValue=""
+            className={SELECT_CLASS}
+          >
             <option value="">—</option>
             {tags.map((t) => (
               <option key={t.id} value={t.id}>
@@ -233,45 +225,69 @@ export function NewTransactionForm({
           </select>
         </Field>
 
-        <Field label="Description (optional)">
-          <input
+        <Field label="Description (optional)" htmlFor="description">
+          <Input
+            id="description"
             type="text"
             name="description"
             maxLength={500}
-            className={inputClass}
           />
         </Field>
 
         <div className="flex items-center gap-2 pt-4">
-          <button
-            type="submit"
-            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-          >
-            Create transaction
-          </button>
-          <Link
-            href="/"
-            className="rounded-md px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
-          >
-            Cancel
-          </Link>
+          <Button type="submit">Create transaction</Button>
+          <Button asChild variant="ghost">
+            <Link href="/">Cancel</Link>
+          </Button>
         </div>
       </form>
     </main>
   );
 }
 
+function TypeTabs({
+  value,
+  onChange,
+}: {
+  value: TxType;
+  onChange: (t: TxType) => void;
+}) {
+  const options: TxType[] = ["expense", "income", "transfer"];
+  return (
+    <div role="tablist" className="border-input flex rounded-md border">
+      {options.map((t) => (
+        <button
+          key={t}
+          role="tab"
+          type="button"
+          aria-selected={value === t}
+          onClick={() => onChange(t)}
+          className={`flex-1 px-3 py-2 text-sm capitalize first:rounded-l-md last:rounded-r-md ${
+            value === t
+              ? "bg-primary text-primary-foreground"
+              : "hover:bg-accent hover:text-accent-foreground"
+          }`}
+        >
+          {t}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function Field({
   label,
+  htmlFor,
   children,
 }: {
   label: string;
+  htmlFor: string;
   children: React.ReactNode;
 }) {
   return (
-    <label className="block">
-      <span className="text-sm font-medium">{label}</span>
-      <div className="mt-1">{children}</div>
-    </label>
+    <div className="space-y-1.5">
+      <Label htmlFor={htmlFor}>{label}</Label>
+      {children}
+    </div>
   );
 }

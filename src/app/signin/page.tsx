@@ -1,4 +1,5 @@
 import { signIn } from "@/auth";
+import { Button } from "@/components/ui/button";
 
 export default function SignInPage() {
   return (
@@ -10,12 +11,7 @@ export default function SignInPage() {
           await signIn("google", { redirectTo: "/" });
         }}
       >
-        <button
-          type="submit"
-          className="rounded-md bg-zinc-900 px-4 py-2 text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-        >
-          Continue with Google
-        </button>
+        <Button type="submit">Continue with Google</Button>
       </form>
     </main>
   );

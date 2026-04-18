@@ -1,6 +1,7 @@
 import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { accounts, categories, subcategories, tags } from "@/db/schema";
+import { groupBy } from "@/lib/collections";
 import { getCurrentSession } from "@/lib/session";
 import {
   type AccountOption,
@@ -11,7 +12,7 @@ import {
 
 export default async function NewTransactionPage() {
   const session = await getCurrentSession();
-  if (!session?.groupId) return null;
+  if (!session) return null;
 
   const [accountsRows, categoryRows, tagsRows] = await Promise.all([
     db
@@ -54,15 +55,7 @@ export default async function NewTransactionPage() {
           .orderBy(subcategories.name)
       : [];
 
-  const subcatsByCategory = new Map<
-    string,
-    Array<{ id: string; name: string }>
-  >();
-  for (const s of subcatsRows) {
-    const list = subcatsByCategory.get(s.categoryId) ?? [];
-    list.push({ id: s.id, name: s.name });
-    subcatsByCategory.set(s.categoryId, list);
-  }
+  const subcatsByCategory = groupBy(subcatsRows, (s) => s.categoryId);
 
   const categoryOptions: CategoryOption[] = categoryRows.map((c) => ({
     id: c.id,

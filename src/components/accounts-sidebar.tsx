@@ -1,17 +1,19 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { eq, sql } from "drizzle-orm";
+import { Button } from "@/components/ui/button";
 import { db } from "@/db";
 import { accountGroups, accounts, transactionLegs } from "@/db/schema";
+import { groupBy } from "@/lib/collections";
 import { formatMoney } from "@/lib/money";
 import type { CurrentSession } from "@/lib/session";
 import { SignOutForm } from "./sign-out-form";
 
 type AccountRow = {
   id: string;
+  accountGroupId: string;
   name: string;
   currency: string;
-  accountGroupId: string;
   balance: string;
 };
 
@@ -40,9 +42,9 @@ async function fetchSidebarData(workspaceGroupId: string) {
     db
       .select({
         id: accounts.id,
+        accountGroupId: accounts.accountGroupId,
         name: accounts.name,
         currency: accounts.currency,
-        accountGroupId: accounts.accountGroupId,
         balance: sql<string>`COALESCE(SUM(${transactionLegs.amount}), 0)`.as(
           "balance",
         ),
@@ -54,12 +56,7 @@ async function fetchSidebarData(workspaceGroupId: string) {
       .orderBy(accounts.name),
   ]);
 
-  const byGroup = new Map<string, AccountRow[]>();
-  for (const a of accountsRows) {
-    const list = byGroup.get(a.accountGroupId) ?? [];
-    list.push(a);
-    byGroup.set(a.accountGroupId, list);
-  }
+  const byGroup = groupBy(accountsRows, (a) => a.accountGroupId);
 
   return { groups, byGroup };
 }
@@ -71,7 +68,6 @@ export async function AccountsSidebar({
   session: CurrentSession;
   selectedAccountId: string | undefined;
 }) {
-  if (!session.groupId) return null;
   const { groups, byGroup } = await fetchSidebarData(session.groupId);
 
   return (
@@ -113,16 +109,14 @@ function BrandHeader() {
 function AccountsHeader() {
   return (
     <div className="flex items-center justify-between px-4 pb-2">
-      <h2 className="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase">
+      <h2 className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
         Accounts
       </h2>
-      <Link
-        href="/accounts/new"
-        aria-label="New account"
-        className="rounded-md p-1 text-zinc-500 hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-      >
-        <Plus className="h-3.5 w-3.5" />
-      </Link>
+      <Button asChild variant="ghost" size="icon-xs" aria-label="New account">
+        <Link href="/accounts/new">
+          <Plus />
+        </Link>
+      </Button>
     </div>
   );
 }
@@ -166,33 +160,55 @@ function AccountGroupSection({
   items: AccountRow[];
   selectedAccountId: string | undefined;
 }) {
-  const subtotal = groupSubtotal(items);
   return (
     <section className="mt-4">
-      <div className="flex items-baseline justify-between px-2 pb-1">
-        <h3 className="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase">
-          {name}
-        </h3>
-        {subtotal && (
-          <span className="text-[11px] tabular-nums text-zinc-500">
-            {formatMoney(subtotal.amount, subtotal.currency)}
-          </span>
-        )}
-      </div>
-      {items.length === 0 ? (
-        <p className="px-2 py-1 text-sm text-zinc-400 italic">empty</p>
-      ) : (
-        <ul className="space-y-0.5">
-          {items.map((a) => (
-            <AccountItem
-              key={a.id}
-              account={a}
-              active={a.id === selectedAccountId}
-            />
-          ))}
-        </ul>
-      )}
+      <AccountGroupHeader name={name} subtotal={groupSubtotal(items)} />
+      <AccountList items={items} selectedAccountId={selectedAccountId} />
     </section>
+  );
+}
+
+function AccountGroupHeader({
+  name,
+  subtotal,
+}: {
+  name: string;
+  subtotal: { amount: bigint; currency: string } | null;
+}) {
+  return (
+    <div className="flex items-baseline justify-between px-2 pb-1">
+      <h3 className="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase">
+        {name}
+      </h3>
+      {subtotal && (
+        <span className="text-[11px] tabular-nums text-zinc-500">
+          {formatMoney(subtotal.amount, subtotal.currency)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function AccountList({
+  items,
+  selectedAccountId,
+}: {
+  items: AccountRow[];
+  selectedAccountId: string | undefined;
+}) {
+  if (items.length === 0) {
+    return <p className="px-2 py-1 text-sm text-zinc-400 italic">empty</p>;
+  }
+  return (
+    <ul className="space-y-0.5">
+      {items.map((a) => (
+        <AccountItem
+          key={a.id}
+          account={a}
+          active={a.id === selectedAccountId}
+        />
+      ))}
+    </ul>
   );
 }
 
