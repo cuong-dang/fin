@@ -102,11 +102,11 @@ export const accounts = pgTable(
     groupId: uuid("group_id")
       .notNull()
       .references(() => groups.id, { onDelete: "cascade" }),
-    // Nullable: accounts can be ungrouped. Deleting an AccountGroup nulls the FK.
-    accountGroupId: uuid("account_group_id").references(
-      () => accountGroups.id,
-      { onDelete: "set null" },
-    ),
+    // An account must belong to an AccountGroup. Deleting a group with
+    // accounts is blocked — user must move or delete the accounts first.
+    accountGroupId: uuid("account_group_id")
+      .notNull()
+      .references(() => accountGroups.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
     currency: char("currency", { length: 3 }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })

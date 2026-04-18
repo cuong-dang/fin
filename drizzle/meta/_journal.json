@@ -15,6 +15,13 @@
       "when": 1776464374847,
       "tag": "0001_abnormal_the_fallen",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776473908275,
+      "tag": "0002_nasty_vance_astro",
+      "breakpoints": true
     }
   ]
 }
