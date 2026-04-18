@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { eq } from "drizzle-orm";
+import { BackLink } from "@/components/back-link";
+import { FormPage } from "@/components/layout";
 import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
 import { db } from "@/db";
 import { accountGroups } from "@/db/schema";
 import { getCurrentSession } from "@/lib/session";
@@ -22,9 +25,6 @@ const COMMON_CURRENCIES = [
   "INR",
 ];
 
-const SELECT_CLASS =
-  "border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 block h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs focus-visible:ring-[3px] focus-visible:outline-none";
-
 export default async function NewAccountPage() {
   const session = await getCurrentSession();
   if (!session) return null;
@@ -37,10 +37,8 @@ export default async function NewAccountPage() {
 
   if (groups.length === 0) {
     return (
-      <main className="mx-auto max-w-md p-8">
-        <Button asChild variant="link" size="sm" className="-ml-2.5 px-0">
-          <Link href="/">← Back</Link>
-        </Button>
+      <FormPage>
+        <BackLink href="/" />
         <h1 className="mt-4 text-2xl font-semibold">New account</h1>
         <p className="text-muted-foreground mt-4 text-sm">
           You need to create an account group first — accounts are always
@@ -49,19 +47,16 @@ export default async function NewAccountPage() {
         <Button asChild className="mt-6">
           <Link href="/account-groups/new">Create account group</Link>
         </Button>
-      </main>
+      </FormPage>
     );
   }
 
   return (
-    <main className="mx-auto max-w-md p-8">
-      <Button asChild variant="link" size="sm" className="-ml-2.5 px-0">
-        <Link href="/">← Back</Link>
-      </Button>
+    <FormPage>
+      <BackLink href="/" />
       <h1 className="mt-4 text-2xl font-semibold">New account</h1>
       <form action={createAccount} className="mt-6 space-y-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="name">Name</Label>
+        <Field label="Name" htmlFor="name">
           <Input
             id="name"
             name="name"
@@ -70,37 +65,25 @@ export default async function NewAccountPage() {
             maxLength={100}
             placeholder="Chase Checking"
           />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="currency">Currency</Label>
-          <select
-            id="currency"
-            name="currency"
-            defaultValue="USD"
-            className={SELECT_CLASS}
-          >
+        </Field>
+        <Field label="Currency" htmlFor="currency">
+          <NativeSelect id="currency" name="currency" defaultValue="USD">
             {COMMON_CURRENCIES.map((c) => (
               <option key={c} value={c}>
                 {c}
               </option>
             ))}
-          </select>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="accountGroupId">Group</Label>
-          <select
-            id="accountGroupId"
-            name="accountGroupId"
-            required
-            className={SELECT_CLASS}
-          >
+          </NativeSelect>
+        </Field>
+        <Field label="Group" htmlFor="accountGroupId">
+          <NativeSelect id="accountGroupId" name="accountGroupId" required>
             {groups.map((g) => (
               <option key={g.id} value={g.id}>
                 {g.name}
               </option>
             ))}
-          </select>
-        </div>
+          </NativeSelect>
+        </Field>
         <p className="text-muted-foreground text-xs">
           Need another group?{" "}
           <Link
@@ -113,6 +96,6 @@ export default async function NewAccountPage() {
         </p>
         <Button type="submit">Create account</Button>
       </form>
-    </main>
+    </FormPage>
   );
 }

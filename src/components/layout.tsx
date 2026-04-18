@@ -33,3 +33,18 @@ export function PageHeader({ children }: { children: ReactNode }) {
     </header>
   );
 }
+
+/**
+ * Centered single-column shell for form / detail pages. Size controls the
+ * column width — "md" for short forms, "lg" for longer ones.
+ */
+export function FormPage({
+  size = "md",
+  children,
+}: {
+  size?: "md" | "lg";
+  children: ReactNode;
+}) {
+  const width = size === "lg" ? "max-w-lg" : "max-w-md";
+  return <main className={`mx-auto ${width} p-8`}>{children}</main>;
+}

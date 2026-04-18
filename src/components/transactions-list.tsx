@@ -209,10 +209,10 @@ function maybeFormatTime(date: Date): string | null {
 }
 
 function amountColorClass(tx: EnrichedTx, amount: bigint): string {
-  if (tx.type === "transfer") return "text-zinc-700 dark:text-zinc-300";
+  if (tx.type === "transfer") return "text-foreground";
   if (amount > 0n) return "text-emerald-600 dark:text-emerald-400";
   if (amount < 0n) return "text-rose-600 dark:text-rose-400";
-  return "text-zinc-700 dark:text-zinc-300";
+  return "text-foreground";
 }
 
 // ─── Components ───────────────────────────────────────────────────────────
@@ -262,7 +262,7 @@ function EmptyState({ accountName }: { accountName: string | undefined }) {
   return (
     <div className="flex h-full items-center justify-center p-12 text-center">
       <div className="max-w-sm">
-        <p className="text-sm text-zinc-500">
+        <p className="text-muted-foreground text-sm">
           {accountName
             ? `No transactions for ${accountName} yet.`
             : "No transactions yet."}
@@ -293,7 +293,7 @@ function DaySection({
 }) {
   return (
     <section>
-      <h2 className="sticky top-0 z-10 bg-zinc-50/90 px-6 py-2 text-[11px] font-semibold tracking-wider text-zinc-500 uppercase backdrop-blur dark:bg-zinc-900/90">
+      <h2 className="bg-background/90 text-muted-foreground sticky top-0 z-10 px-6 py-2 text-[11px] font-semibold tracking-wider uppercase backdrop-blur">
         {formatDayHeader(date)}
       </h2>
       <ul>
@@ -329,13 +329,11 @@ function TransactionRow({
   if (timeStr) metaParts.push(timeStr);
 
   return (
-    <li className="border-b border-zinc-100 px-6 py-3 last:border-0 hover:bg-zinc-50/60 dark:border-zinc-800/60 dark:hover:bg-zinc-800/30">
+    <li className="border-border hover:bg-muted/40 border-b px-6 py-3 last:border-0">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
-            {primary}
-          </div>
-          <div className="mt-0.5 truncate text-xs text-zinc-500">
+          <div className="truncate text-sm font-medium">{primary}</div>
+          <div className="text-muted-foreground mt-0.5 truncate text-xs">
             {metaParts.join(" · ")}
           </div>
         </div>

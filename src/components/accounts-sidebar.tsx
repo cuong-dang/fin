@@ -71,7 +71,7 @@ export async function AccountsSidebar({
   const { groups, byGroup } = await fetchSidebarData(session.groupId);
 
   return (
-    <aside className="flex w-72 flex-col border-r border-zinc-200 bg-zinc-50/40 dark:border-zinc-800 dark:bg-zinc-900/40">
+    <aside className="bg-sidebar text-sidebar-foreground border-sidebar-border flex w-72 flex-col border-r">
       <BrandHeader />
       <AccountsHeader />
       <div className="flex-1 overflow-y-auto px-2 pb-4">
@@ -127,8 +127,8 @@ function AllAccountsLink({ active }: { active: boolean }) {
       href="/"
       className={`block rounded-md px-2 py-1.5 text-sm ${
         active
-          ? "bg-zinc-200/70 font-medium text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
-          : "text-zinc-700 hover:bg-zinc-200/50 dark:text-zinc-300 dark:hover:bg-zinc-800/60"
+          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+          : "hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
       }`}
     >
       All accounts
@@ -138,11 +138,11 @@ function AllAccountsLink({ active }: { active: boolean }) {
 
 function EmptyState() {
   return (
-    <p className="px-2 py-4 text-sm text-zinc-500">
+    <p className="text-muted-foreground px-2 py-4 text-sm">
       No accounts yet.{" "}
       <Link
         href="/accounts/new"
-        className="underline hover:text-zinc-900 dark:hover:text-zinc-100"
+        className="hover:text-sidebar-foreground underline"
       >
         Create one
       </Link>
@@ -177,11 +177,11 @@ function AccountGroupHeader({
 }) {
   return (
     <div className="flex items-baseline justify-between px-2 pb-1">
-      <h3 className="text-[11px] font-semibold tracking-wider text-zinc-500 uppercase">
+      <h3 className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
         {name}
       </h3>
       {subtotal && (
-        <span className="text-[11px] tabular-nums text-zinc-500">
+        <span className="text-muted-foreground text-[11px] tabular-nums">
           {formatMoney(subtotal.amount, subtotal.currency)}
         </span>
       )}
@@ -197,7 +197,9 @@ function AccountList({
   selectedAccountId: string | undefined;
 }) {
   if (items.length === 0) {
-    return <p className="px-2 py-1 text-sm text-zinc-400 italic">empty</p>;
+    return (
+      <p className="text-muted-foreground px-2 py-1 text-sm italic">empty</p>
+    );
   }
   return (
     <ul className="space-y-0.5">
@@ -225,12 +227,12 @@ function AccountItem({
         href={`/?account=${account.id}`}
         className={`flex items-center justify-between rounded-md px-2 py-1.5 text-sm ${
           active
-            ? "bg-zinc-200/70 font-medium text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
-            : "text-zinc-700 hover:bg-zinc-200/50 dark:text-zinc-300 dark:hover:bg-zinc-800/60"
+            ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+            : "hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
         }`}
       >
         <span className="truncate">{account.name}</span>
-        <span className="tabular-nums text-zinc-500 dark:text-zinc-400">
+        <span className="text-muted-foreground tabular-nums">
           {formatMoney(BigInt(account.balance), account.currency)}
         </span>
       </Link>
@@ -240,12 +242,10 @@ function AccountItem({
 
 function SidebarFooter({ session }: { session: CurrentSession }) {
   return (
-    <div className="flex items-center justify-between gap-2 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
+    <div className="border-sidebar-border flex items-center justify-between gap-2 border-t px-4 py-3">
       <div className="min-w-0 text-xs">
-        <div className="truncate font-medium text-zinc-700 dark:text-zinc-300">
-          {session.name}
-        </div>
-        <div className="truncate text-zinc-500">{session.email}</div>
+        <div className="truncate font-medium">{session.name}</div>
+        <div className="text-muted-foreground truncate">{session.email}</div>
       </div>
       <SignOutForm />
     </div>

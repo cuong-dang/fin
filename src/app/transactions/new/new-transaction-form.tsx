@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { BackLink } from "@/components/back-link";
+import { FormPage } from "@/components/layout";
 import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
 import { createTransaction } from "./actions";
 
 export type AccountOption = {
@@ -26,9 +29,6 @@ export type TagOption = {
 };
 
 type TxType = "income" | "expense" | "transfer";
-
-const SELECT_CLASS =
-  "border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 block h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs focus-visible:ring-[3px] focus-visible:outline-none";
 
 // Local-time YYYY-MM-DD for the date input's default.
 function todayISODate(): string {
@@ -81,7 +81,7 @@ export function NewTransactionForm({
 
   if (accounts.length === 0) {
     return (
-      <main className="mx-auto max-w-lg p-8">
+      <FormPage size="lg">
         <h1 className="text-2xl font-semibold">New transaction</h1>
         <p className="text-muted-foreground mt-4 text-sm">
           You need to create an account first.
@@ -89,15 +89,13 @@ export function NewTransactionForm({
         <Button asChild className="mt-6">
           <Link href="/accounts/new">Create account</Link>
         </Button>
-      </main>
+      </FormPage>
     );
   }
 
   return (
-    <main className="mx-auto max-w-lg p-8">
-      <Button asChild variant="link" size="sm" className="-ml-2.5 px-0">
-        <Link href="/">← Back</Link>
-      </Button>
+    <FormPage size="lg">
+      <BackLink href="/" />
       <h1 className="mt-4 text-2xl font-semibold">New transaction</h1>
 
       <form action={handleSubmit} className="mt-6 space-y-4">
@@ -130,12 +128,11 @@ export function NewTransactionForm({
           label={type === "transfer" ? "From account" : "Account"}
           htmlFor="accountId"
         >
-          <select
+          <NativeSelect
             id="accountId"
             name="accountId"
             required
             defaultValue=""
-            className={SELECT_CLASS}
           >
             <option value="" disabled>
               Select…
@@ -145,17 +142,16 @@ export function NewTransactionForm({
                 {a.name} ({a.currency})
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </Field>
 
         {type === "transfer" && (
           <Field label="To account" htmlFor="destinationAccountId">
-            <select
+            <NativeSelect
               id="destinationAccountId"
               name="destinationAccountId"
               required
               defaultValue=""
-              className={SELECT_CLASS}
             >
               <option value="" disabled>
                 Select…
@@ -165,19 +161,18 @@ export function NewTransactionForm({
                   {a.name} ({a.currency})
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </Field>
         )}
 
         {type !== "transfer" && (
           <Field label="Category" htmlFor="categoryId">
-            <select
+            <NativeSelect
               id="categoryId"
               name="categoryId"
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
               required
-              className={SELECT_CLASS}
             >
               <option value="" disabled>
                 Select…
@@ -187,17 +182,16 @@ export function NewTransactionForm({
                   {c.name}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </Field>
         )}
 
         {type !== "transfer" && subcategories.length > 0 && (
           <Field label="Subcategory (optional)" htmlFor="subcategoryId">
-            <select
+            <NativeSelect
               id="subcategoryId"
               name="subcategoryId"
               defaultValue=""
-              className={SELECT_CLASS}
             >
               <option value="">—</option>
               {subcategories.map((s) => (
@@ -205,24 +199,19 @@ export function NewTransactionForm({
                   {s.name}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </Field>
         )}
 
         <Field label="Tag (optional)" htmlFor="tagId">
-          <select
-            id="tagId"
-            name="tagId"
-            defaultValue=""
-            className={SELECT_CLASS}
-          >
+          <NativeSelect id="tagId" name="tagId" defaultValue="">
             <option value="">—</option>
             {tags.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </Field>
 
         <Field label="Description (optional)" htmlFor="description">
@@ -241,7 +230,7 @@ export function NewTransactionForm({
           </Button>
         </div>
       </form>
-    </main>
+    </FormPage>
   );
 }
 
@@ -254,40 +243,20 @@ function TypeTabs({
 }) {
   const options: TxType[] = ["expense", "income", "transfer"];
   return (
-    <div role="tablist" className="border-input flex rounded-md border">
+    <div role="tablist" className="flex gap-1">
       {options.map((t) => (
-        <button
+        <Button
           key={t}
           role="tab"
           type="button"
           aria-selected={value === t}
+          variant={value === t ? "default" : "outline"}
           onClick={() => onChange(t)}
-          className={`flex-1 px-3 py-2 text-sm capitalize first:rounded-l-md last:rounded-r-md ${
-            value === t
-              ? "bg-primary text-primary-foreground"
-              : "hover:bg-accent hover:text-accent-foreground"
-          }`}
+          className="flex-1 capitalize"
         >
           {t}
-        </button>
+        </Button>
       ))}
-    </div>
-  );
-}
-
-function Field({
-  label,
-  htmlFor,
-  children,
-}: {
-  label: string;
-  htmlFor: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor={htmlFor}>{label}</Label>
-      {children}
     </div>
   );
 }
