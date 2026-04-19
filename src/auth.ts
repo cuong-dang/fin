@@ -10,15 +10,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     ...authConfig.callbacks,
     async signIn({ user }) {
-      // Restrict sign-in to emails already present in our users table.
-      // New members must be added via seed or (later) an owner-only invite flow.
+      // Auto-provision the user row on first login. Idempotent via the unique
+      // email constraint.
       if (!user.email) return false;
-      const [existing] = await db
-        .select({ id: users.id })
-        .from(users)
-        .where(eq(users.email, user.email))
-        .limit(1);
-      return !!existing;
+      await db
+        .insert(users)
+        .values({ email: user.email, name: user.name ?? user.email })
+        .onConflictDoNothing({ target: users.email });
+      return true;
     },
     async jwt({ token, user }) {
       // On first sign-in `user` is populated with Google profile info.
