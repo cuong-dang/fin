@@ -5,15 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1776463787364,
-      "tag": "0000_married_mathemanic",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1776464374847,
-      "tag": "0001_abnormal_the_fallen",
+      "when": 1776562005524,
+      "tag": "0000_fixed_jackpot",
       "breakpoints": true
     }
   ]

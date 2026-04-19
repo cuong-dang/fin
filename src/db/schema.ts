@@ -102,11 +102,11 @@ export const accounts = pgTable(
     groupId: uuid("group_id")
       .notNull()
       .references(() => groups.id, { onDelete: "cascade" }),
-    // Nullable: accounts can be ungrouped. Deleting an AccountGroup nulls the FK.
-    accountGroupId: uuid("account_group_id").references(
-      () => accountGroups.id,
-      { onDelete: "set null" },
-    ),
+    // An account must belong to an AccountGroup. Deleting a group with
+    // accounts is blocked — user must move or delete the accounts first.
+    accountGroupId: uuid("account_group_id")
+      .notNull()
+      .references(() => accountGroups.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
     currency: char("currency", { length: 3 }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -214,7 +214,11 @@ export const transactions = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
-    timestamp: timestamp("timestamp", { withTimezone: true }).notNull(),
+    // Calendar date with no time or timezone — a transaction on date A stays
+    // on date A regardless of the viewer's timezone. We accept that travelling
+    // eastward/westward between entries can produce out-of-order dates
+    // relative to createdAt; ties break on createdAt.
+    date: date("date", { mode: "string" }).notNull(),
     type: transactionTypeEnum("type").notNull(),
     description: text("description"),
     installmentPlanId: uuid("installment_plan_id").references(
@@ -230,9 +234,7 @@ export const transactions = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [
-    index("transactions_group_timestamp_idx").on(t.groupId, t.timestamp.desc()),
-  ],
+  (t) => [index("transactions_group_date_idx").on(t.groupId, t.date.desc())],
 );
 
 export const transactionLegs = pgTable(

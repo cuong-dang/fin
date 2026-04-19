@@ -1,3 +1,4 @@
+CREATE TYPE "public"."category_kind" AS ENUM('income', 'expense');--> statement-breakpoint
 CREATE TYPE "public"."installment_frequency" AS ENUM('monthly', 'biweekly', 'weekly');--> statement-breakpoint
 CREATE TYPE "public"."member_role" AS ENUM('owner', 'member');--> statement-breakpoint
 CREATE TYPE "public"."transaction_type" AS ENUM('income', 'expense', 'transfer', 'adjustment');--> statement-breakpoint
@@ -13,7 +14,7 @@ CREATE TABLE "account_groups" (
 CREATE TABLE "accounts" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"group_id" uuid NOT NULL,
-	"account_group_id" uuid,
+	"account_group_id" uuid NOT NULL,
 	"name" text NOT NULL,
 	"currency" char(3) NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -24,10 +25,11 @@ CREATE TABLE "accounts" (
 CREATE TABLE "categories" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"group_id" uuid NOT NULL,
+	"kind" "category_kind" NOT NULL,
 	"name" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "categories_group_name_unique" UNIQUE("group_id","name")
+	CONSTRAINT "categories_group_kind_name_unique" UNIQUE("group_id","kind","name")
 );
 --> statement-breakpoint
 CREATE TABLE "group_members" (
@@ -99,7 +101,7 @@ CREATE TABLE "transactions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"group_id" uuid NOT NULL,
 	"user_id" uuid NOT NULL,
-	"timestamp" timestamp with time zone NOT NULL,
+	"date" date NOT NULL,
 	"type" "transaction_type" NOT NULL,
 	"description" text,
 	"installment_plan_id" uuid,
@@ -119,7 +121,7 @@ CREATE TABLE "users" (
 --> statement-breakpoint
 ALTER TABLE "account_groups" ADD CONSTRAINT "account_groups_group_id_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."groups"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_group_id_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."groups"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "accounts" ADD CONSTRAINT "accounts_account_group_id_account_groups_id_fk" FOREIGN KEY ("account_group_id") REFERENCES "public"."account_groups"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "accounts" ADD CONSTRAINT "accounts_account_group_id_account_groups_id_fk" FOREIGN KEY ("account_group_id") REFERENCES "public"."account_groups"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "categories" ADD CONSTRAINT "categories_group_id_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."groups"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "group_members" ADD CONSTRAINT "group_members_group_id_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."groups"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "group_members" ADD CONSTRAINT "group_members_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -140,4 +142,4 @@ CREATE INDEX "transaction_legs_account_idx" ON "transaction_legs" USING btree ("
 CREATE INDEX "transaction_lines_tx_idx" ON "transaction_lines" USING btree ("transaction_id");--> statement-breakpoint
 CREATE INDEX "transaction_lines_category_idx" ON "transaction_lines" USING btree ("category_id");--> statement-breakpoint
 CREATE INDEX "transaction_lines_tag_idx" ON "transaction_lines" USING btree ("tag_id");--> statement-breakpoint
-CREATE INDEX "transactions_group_timestamp_idx" ON "transactions" USING btree ("group_id","timestamp" DESC NULLS LAST);
+CREATE INDEX "transactions_group_date_idx" ON "transactions" USING btree ("group_id","date" DESC NULLS LAST);
