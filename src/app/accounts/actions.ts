@@ -17,7 +17,8 @@ import { getCurrentSession } from "@/lib/session";
 
 const updateSchema = z.object({
   name: z.string().trim().min(1).max(100),
-  accountGroupId: z.uuid(),
+  accountGroupId: z.uuid().optional(),
+  newGroupName: z.string().trim().min(1).max(100).optional(),
   balance: z.string().trim().optional(),
 });
 
@@ -33,19 +34,29 @@ export async function updateAccount(accountId: string, formData: FormData) {
 
   const parsed = updateSchema.parse({
     name: formData.get("name"),
-    accountGroupId: formData.get("accountGroupId"),
+    accountGroupId: emptyToUndef(formData.get("accountGroupId")),
+    newGroupName: emptyToUndef(formData.get("newGroupName")),
     balance: emptyToUndef(formData.get("balance")),
   });
+
+  // newGroupName wins over accountGroupId — see createAccount for the same
+  // rationale.
+  if (!parsed.accountGroupId && !parsed.newGroupName) {
+    throw new Error("Select an existing group or name a new one");
+  }
 
   const account = await findOwned(accounts, accountId, session.groupId);
   if (!account) throw new Error("Account not found");
 
-  const targetGroup = await findOwned(
-    accountGroups,
-    parsed.accountGroupId,
-    session.groupId,
-  );
-  if (!targetGroup) throw new Error("Destination group not found");
+  // Validate existing group pick up front; new group is created inside the tx.
+  if (!parsed.newGroupName && parsed.accountGroupId) {
+    const targetGroup = await findOwned(
+      accountGroups,
+      parsed.accountGroupId,
+      session.groupId,
+    );
+    if (!targetGroup) throw new Error("Destination group not found");
+  }
 
   // Compute the balance delta up front so a parse error aborts before we
   // touch the DB.
@@ -62,11 +73,20 @@ export async function updateAccount(accountId: string, formData: FormData) {
   }
 
   await db.transaction(async (tx) => {
+    let accountGroupId = parsed.accountGroupId;
+    if (parsed.newGroupName) {
+      const [row] = await tx
+        .insert(accountGroups)
+        .values({ groupId: session.groupId, name: parsed.newGroupName })
+        .returning({ id: accountGroups.id });
+      accountGroupId = row.id;
+    }
+
     await tx
       .update(accounts)
       .set({
         name: parsed.name,
-        accountGroupId: parsed.accountGroupId,
+        accountGroupId: accountGroupId!,
         updatedAt: new Date(),
       })
       .where(eq(accounts.id, accountId));
@@ -114,6 +134,8 @@ export async function deleteAccount(accountId: string) {
 
   await db.delete(accounts).where(eq(accounts.id, accountId));
 
+  // TODO: replace manual path invalidation with revalidateTag("accounts") or
+  // similar once we grow more pages that reference this data.
   revalidatePath("/");
   revalidatePath("/accounts");
 }

@@ -5,13 +5,14 @@ import { FormPage } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { NativeSelect } from "@/components/ui/native-select";
+import { MoneyInput } from "@/components/ui/money-input";
 import { db } from "@/db";
 import { accountGroups, accounts, transactionLegs } from "@/db/schema";
 import { findOwned } from "@/lib/authz";
 import { formatMoney, formatMoneyPlain } from "@/lib/money";
 import { getCurrentSession } from "@/lib/session";
 import { updateAccount } from "../../actions";
+import { GroupSelector } from "../../group-selector";
 
 export default async function EditAccountPage({
   params,
@@ -60,27 +61,11 @@ export default async function EditAccountPage({
         <Field label="Currency" htmlFor="currency">
           <Input id="currency" defaultValue={account.currency} disabled />
         </Field>
-        <Field label="Group" htmlFor="accountGroupId">
-          <NativeSelect
-            id="accountGroupId"
-            name="accountGroupId"
-            defaultValue={account.accountGroupId}
-            required
-          >
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </NativeSelect>
-        </Field>
+        <GroupSelector groups={groups} defaultValue={account.accountGroupId} />
         <Field label="Balance" htmlFor="balance">
-          <Input
+          <MoneyInput
             id="balance"
-            type="number"
             name="balance"
-            step="any"
-            inputMode="decimal"
             defaultValue={formatMoneyPlain(currentBalance, account.currency)}
           />
           <p className="text-muted-foreground text-xs">

@@ -7,7 +7,7 @@ import { accountGroups, accounts, transactionLegs } from "@/db/schema";
 import { groupBy } from "@/lib/collections";
 import { formatMoney } from "@/lib/money";
 import type { CurrentSession } from "@/lib/session";
-import { SignOutForm } from "./sign-out-form";
+import { SignOutForm } from "@/components/sign-out-form";
 
 type AccountRow = {
   id: string;

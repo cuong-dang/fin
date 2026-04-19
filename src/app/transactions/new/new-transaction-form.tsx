@@ -7,6 +7,7 @@ import { FormPage } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/money-input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { createTransaction } from "./actions";
 
@@ -102,14 +103,11 @@ export function NewTransactionForm({
         <TypeTabs value={type} onChange={handleTypeChange} />
 
         <Field label="Amount" htmlFor="amount">
-          <Input
+          <MoneyInput
             id="amount"
-            type="number"
             name="amount"
-            step="any"
             min="0"
             required
-            inputMode="decimal"
             placeholder="0.00"
           />
         </Field>

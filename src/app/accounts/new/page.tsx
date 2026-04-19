@@ -4,12 +4,13 @@ import { FormPage } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/money-input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { db } from "@/db";
 import { accountGroups } from "@/db/schema";
 import { getCurrentSession } from "@/lib/session";
 import { createAccount } from "./actions";
-import { GroupSelector } from "./group-selector";
+import { GroupSelector } from "../group-selector";
 
 // A small, curated set. Users can type any ISO 4217 code if they need more.
 const COMMON_CURRENCIES = [
@@ -72,12 +73,9 @@ export default async function NewAccountPage() {
           </Field>
         )}
         <Field label="Starting balance (optional)" htmlFor="startingBalance">
-          <Input
+          <MoneyInput
             id="startingBalance"
-            type="number"
             name="startingBalance"
-            step="any"
-            inputMode="decimal"
             placeholder="0.00"
           />
         </Field>

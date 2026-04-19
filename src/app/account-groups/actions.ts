@@ -50,6 +50,8 @@ export async function deleteAccountGroup(id: string) {
 
   await db.delete(accountGroups).where(eq(accountGroups.id, id));
 
+  // TODO: replace manual path invalidation with revalidateTag("accounts") or
+  // similar once we grow more pages that reference this data.
   revalidatePath("/");
   revalidatePath("/accounts");
 }

@@ -56,6 +56,8 @@ export async function deleteTransaction(id: string) {
   // single delete here also clears them.
   await db.delete(transactions).where(eq(transactions.id, id));
 
+  // TODO: replace manual path invalidation with revalidateTag("transactions")
+  // or similar once we grow more pages that reference this data.
   revalidatePath("/");
   redirect("/");
 }

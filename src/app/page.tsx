@@ -1,9 +1,9 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { AppShell, MainColumn, MainContent } from "@/components/layout";
-import { AccountsSidebar } from "@/components/accounts-sidebar";
-import { TransactionsList } from "@/components/transactions-list";
-import { TransactionsPageHeader } from "@/components/transactions-page-header";
+import { AccountsSidebar } from "./accounts-sidebar";
+import { TransactionsList } from "./transactions-list";
+import { TransactionsPageHeader } from "./transactions-page-header";
 import { db } from "@/db";
 import { accounts } from "@/db/schema";
 import { getCurrentSession } from "@/lib/session";

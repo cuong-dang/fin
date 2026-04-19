@@ -14,10 +14,12 @@ const CREATE_NEW = "__new__";
  */
 export function GroupSelector({
   groups,
+  defaultValue = "",
 }: {
   groups: Array<{ id: string; name: string }>;
+  defaultValue?: string;
 }) {
-  const [value, setValue] = useState<string>("");
+  const [value, setValue] = useState<string>(defaultValue);
   const creatingNew = value === CREATE_NEW;
 
   return (
