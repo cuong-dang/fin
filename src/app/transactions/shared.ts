@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { db } from "@/db";
-import { accounts, transactionLegs, transactionLines } from "@/db/schema";
+import {
+  accounts,
+  categories,
+  subcategories,
+  transactionLegs,
+  transactionLines,
+} from "@/db/schema";
 import { findOwned } from "@/lib/authz";
 import { parseMoney } from "@/lib/money";
 
@@ -16,18 +22,26 @@ const baseSchema = z.object({
   tagId: z.uuid().optional(),
 });
 
+// For income/expense, category + subcategory can be picked (existing id) OR
+// created inline (typed name). Exactly one of categoryId/newCategoryName must
+// be present; subcategory is fully optional.
+const categoryFields = {
+  categoryId: z.uuid().optional(),
+  newCategoryName: z.string().trim().min(1).max(100).optional(),
+  subcategoryId: z.uuid().optional(),
+  newSubcategoryName: z.string().trim().min(1).max(100).optional(),
+};
+
 const incomeSchema = baseSchema.extend({
   type: z.literal("income"),
   accountId: z.uuid(),
-  categoryId: z.uuid(),
-  subcategoryId: z.uuid().optional(),
+  ...categoryFields,
 });
 
 const expenseSchema = baseSchema.extend({
   type: z.literal("expense"),
   accountId: z.uuid(),
-  categoryId: z.uuid(),
-  subcategoryId: z.uuid().optional(),
+  ...categoryFields,
 });
 
 const transferSchema = baseSchema.extend({
@@ -65,7 +79,9 @@ export function parseTransactionFormData(
     accountId: pick(formData, "accountId"),
     destinationAccountId: pick(formData, "destinationAccountId"),
     categoryId: pick(formData, "categoryId"),
+    newCategoryName: pick(formData, "newCategoryName"),
     subcategoryId: pick(formData, "subcategoryId"),
+    newSubcategoryName: pick(formData, "newSubcategoryName"),
     tagId: pick(formData, "tagId"),
     description: pick(formData, "description"),
   });
@@ -78,8 +94,9 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 /**
  * Insert legs + lines for a transaction. Caller is responsible for having
  * already created (or wiped + re-created) the `transactions` row with the
- * given id. For transfers, validates the destination account + currency
- * match. Throws on invariant violations.
+ * given id. For income/expense, resolves (or creates) the category and
+ * optional subcategory inline. For transfers, validates the destination
+ * account + currency match.
  */
 export async function insertLegsAndLines(
   tx: Tx,
@@ -92,6 +109,36 @@ export async function insertLegsAndLines(
   if (amountMinor <= 0n) throw new Error("Amount must be positive");
 
   if (parsed.type === "income" || parsed.type === "expense") {
+    // Resolve or create the category. newCategoryName wins over categoryId —
+    // same rationale as account groups: if you typed a name, that's what you
+    // meant.
+    let categoryId = parsed.categoryId;
+    if (parsed.newCategoryName) {
+      const [row] = await tx
+        .insert(categories)
+        .values({
+          groupId: workspaceGroupId,
+          kind: parsed.type,
+          name: parsed.newCategoryName,
+        })
+        .returning({ id: categories.id });
+      categoryId = row.id;
+    }
+    if (!categoryId) {
+      throw new Error("Category is required (pick one or name a new one)");
+    }
+
+    // Resolve or create the subcategory. Subcategory is optional overall;
+    // only process if either field is present.
+    let subcategoryId = parsed.subcategoryId ?? null;
+    if (parsed.newSubcategoryName) {
+      const [row] = await tx
+        .insert(subcategories)
+        .values({ categoryId, name: parsed.newSubcategoryName })
+        .returning({ id: subcategories.id });
+      subcategoryId = row.id;
+    }
+
     const sign = parsed.type === "income" ? 1n : -1n;
     await tx.insert(transactionLegs).values({
       transactionId,
@@ -100,8 +147,8 @@ export async function insertLegsAndLines(
     });
     await tx.insert(transactionLines).values({
       transactionId,
-      categoryId: parsed.categoryId,
-      subcategoryId: parsed.subcategoryId ?? null,
+      categoryId,
+      subcategoryId,
       tagId: parsed.tagId ?? null,
       amount: amountMinor,
       currency: sourceAccount.currency,

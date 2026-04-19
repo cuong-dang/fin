@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { localDateKey } from "@/lib/dates";
+import { CategorySelector } from "./category-selector";
 
 export type AccountOption = {
   id: string;
@@ -74,6 +75,7 @@ export function TransactionForm({
 
   const [type, setType] = useState<TxType>(defaults.type);
   const [categoryId, setCategoryId] = useState(defaults.categoryId);
+  const [subcategoryId, setSubcategoryId] = useState(defaults.subcategoryId);
   const [accountId, setAccountId] = useState(defaults.accountId);
   const [destinationAccountId, setDestinationAccountId] = useState(
     defaults.destinationAccountId,
@@ -82,8 +84,6 @@ export function TransactionForm({
 
   const relevantCategories =
     type === "transfer" ? [] : categories.filter((c) => c.kind === type);
-  const selectedCategory = categories.find((c) => c.id === categoryId);
-  const subcategories = selectedCategory?.subcategories ?? [];
   // Transfers can't have source == destination. Each side hides the other's
   // selection. When the other side is empty the filter is a no-op.
   const sourceAccounts = accounts.filter((a) => a.id !== destinationAccountId);
@@ -91,7 +91,9 @@ export function TransactionForm({
 
   function handleTypeChange(newType: TxType) {
     setType(newType);
-    setCategoryId(""); // previous category may belong to wrong kind
+    // Previous category/subcategory may belong to the wrong kind.
+    setCategoryId("");
+    setSubcategoryId("");
   }
 
   function handleAccountChange(newId: string) {
@@ -197,41 +199,13 @@ export function TransactionForm({
         )}
 
         {type !== "transfer" && (
-          <Field label="Category" htmlFor="categoryId">
-            <NativeSelect
-              id="categoryId"
-              name="categoryId"
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              required
-            >
-              <option value="" disabled>
-                Select…
-              </option>
-              {relevantCategories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </NativeSelect>
-          </Field>
-        )}
-
-        {type !== "transfer" && subcategories.length > 0 && (
-          <Field label="Subcategory (optional)" htmlFor="subcategoryId">
-            <NativeSelect
-              id="subcategoryId"
-              name="subcategoryId"
-              defaultValue={defaults.subcategoryId}
-            >
-              <option value="">—</option>
-              {subcategories.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </NativeSelect>
-          </Field>
+          <CategorySelector
+            categories={relevantCategories}
+            categoryId={categoryId}
+            onCategoryChange={setCategoryId}
+            subcategoryId={subcategoryId}
+            onSubcategoryChange={setSubcategoryId}
+          />
         )}
 
         <Field label="Tag (optional)" htmlFor="tagId">

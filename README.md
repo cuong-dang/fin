@@ -1,14 +1,14 @@
 # fin
 
 A personal finance / money-tracking app. Built to replace the mobile app I
-reach for daily, with the advanced use cases I've always wanted.
+use daily, with the advanced features I've always wanted.
 
 ## Why
 
-For years I've used on a mobile money-tracker to manage my finances. It's
+For years I've used a mobile money-tracker to manage my finances. It's
 fine for the 80% case, but enough of my workflow lives in awkward
-workarounds, e.g., having to break down transactions containing multiple
-spending categories, tracking loan amortization, installment plans by hand,
+workarounds; e.g., having to break down transactions containing multiple
+spending categories, tracking loan amortization, installment plans by hand;
 that I've wanted something better. With LLM-assisted development making it
 feasible to build this amidst other responsibilities, this project is that
 replacement.
@@ -114,6 +114,6 @@ src/
 │  └─ page.tsx             # home (transactions + sidebar)
 ├─ components/             # shared UI primitives (back-link, layout, ui/*)
 ├─ db/                     # Drizzle schema + client
-└─ lib/                    # pure helpers (money, dates, collections, authz, …)
+└─ lib/                    # pure helpers (money, dates, authz, …)
 drizzle/                   # generated migrations + snapshots
 ```
