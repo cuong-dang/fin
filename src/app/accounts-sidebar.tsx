@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, Settings } from "lucide-react";
+import { Plus, Settings, SlidersHorizontal } from "lucide-react";
 import { eq, sql } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
 import { db } from "@/db";
@@ -259,7 +259,14 @@ function SidebarFooter({ session }: { session: CurrentSession }) {
         <div className="truncate font-medium">{session.name}</div>
         <div className="text-muted-foreground truncate">{session.email}</div>
       </div>
-      <SignOutForm />
+      <div className="flex items-center">
+        <Button asChild variant="ghost" size="icon-xs" aria-label="Settings">
+          <Link href="/settings">
+            <SlidersHorizontal />
+          </Link>
+        </Button>
+        <SignOutForm />
+      </div>
     </div>
   );
 }
