@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { BackLink } from "@/components/back-link";
 import { FormPage } from "@/components/layout";
+import { LocalTodayInput } from "@/components/local-today-input";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -79,6 +80,7 @@ export default async function NewAccountPage() {
             placeholder="0.00"
           />
         </Field>
+        <LocalTodayInput name="adjustmentDate" />
         <Button type="submit">Create account</Button>
       </form>
     </FormPage>

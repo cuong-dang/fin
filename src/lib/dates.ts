@@ -1,3 +1,6 @@
+/** Matches a canonical calendar date string: "YYYY-MM-DD". */
+export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 /**
  * Human-friendly date header for transaction lists. Input is a canonical
  * "YYYY-MM-DD" calendar-date string (matches `transactions.date`).

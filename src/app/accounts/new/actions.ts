@@ -9,7 +9,7 @@ import {
   transactionLegs,
   transactions,
 } from "@/db/schema";
-import { todayUTCDate } from "@/lib/dates";
+import { DATE_RE, todayUTCDate } from "@/lib/dates";
 import { parseMoney } from "@/lib/money";
 import { getCurrentSession } from "@/lib/session";
 
@@ -23,6 +23,7 @@ const schema = z.object({
   accountGroupId: z.uuid().optional(),
   newGroupName: z.string().trim().min(1).max(100).optional(),
   startingBalance: z.string().trim().optional(),
+  adjustmentDate: z.string().regex(DATE_RE, "Expected YYYY-MM-DD").optional(),
 });
 
 function emptyToUndef(v: FormDataEntryValue | null): string | undefined {
@@ -41,6 +42,7 @@ export async function createAccount(formData: FormData) {
     accountGroupId: emptyToUndef(formData.get("accountGroupId")),
     newGroupName: emptyToUndef(formData.get("newGroupName")),
     startingBalance: emptyToUndef(formData.get("startingBalance")),
+    adjustmentDate: emptyToUndef(formData.get("adjustmentDate")),
   });
 
   // A new group name, if typed, wins over a picked existing group — you
@@ -81,7 +83,7 @@ export async function createAccount(formData: FormData) {
         .values({
           groupId: session.groupId,
           userId: session.userId,
-          date: todayUTCDate(),
+          date: parsed.adjustmentDate ?? todayUTCDate(),
           type: "adjustment",
           description: "Starting balance",
         })

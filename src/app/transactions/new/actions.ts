@@ -5,10 +5,7 @@ import { db } from "@/db";
 import { accounts, transactions } from "@/db/schema";
 import { findOwned } from "@/lib/authz";
 import { getCurrentSession } from "@/lib/session";
-import {
-  insertLegsAndLines,
-  parseTransactionFormData,
-} from "../shared";
+import { insertLegsAndLines, parseTransactionFormData } from "../shared";
 
 export async function createTransaction(formData: FormData) {
   const session = await getCurrentSession();
@@ -35,7 +32,13 @@ export async function createTransaction(formData: FormData) {
       })
       .returning({ id: transactions.id });
 
-    await insertLegsAndLines(tx, txRow.id, parsed, sourceAccount, session.groupId);
+    await insertLegsAndLines(
+      tx,
+      txRow.id,
+      parsed,
+      sourceAccount,
+      session.groupId,
+    );
   });
 
   redirect("/");

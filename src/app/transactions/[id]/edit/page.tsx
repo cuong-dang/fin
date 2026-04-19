@@ -14,10 +14,7 @@ import { findOwned } from "@/lib/authz";
 import { formatMoneyPlain } from "@/lib/money";
 import { getCurrentSession } from "@/lib/session";
 import { loadTransactionFormOptions } from "../../form-options";
-import {
-  type InitialTxValues,
-  TransactionForm,
-} from "../../transaction-form";
+import { type InitialTxValues, TransactionForm } from "../../transaction-form";
 import {
   deleteTransaction,
   updateAdjustmentTransaction,
@@ -71,9 +68,7 @@ export default async function EditTransactionPage({
       <FormPage>
         <BackLink href="/" />
         <h1 className="mt-4 text-2xl font-semibold">Edit transaction</h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Balance adjustment
-        </p>
+        <p className="text-muted-foreground mt-1 text-sm">Balance adjustment</p>
         <AdjustmentEditForm
           action={updateAdjustmentTransaction.bind(null, id)}
           initial={{
@@ -169,11 +164,7 @@ function deriveInitialValues(
   };
 }
 
-function DangerZone({
-  boundDelete,
-}: {
-  boundDelete: () => Promise<void>;
-}) {
+function DangerZone({ boundDelete }: { boundDelete: () => Promise<void> }) {
   return (
     <div className="mt-12 border-t pt-6">
       <h2 className="text-sm font-semibold">Danger zone</h2>

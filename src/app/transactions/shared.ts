@@ -55,7 +55,9 @@ export function pick(formData: FormData, key: string): string | undefined {
 }
 
 /** Parse the full FormData for create or update. Identical shape for both. */
-export function parseTransactionFormData(formData: FormData): ParsedTransaction {
+export function parseTransactionFormData(
+  formData: FormData,
+): ParsedTransaction {
   return fullTransactionSchema.parse({
     type: formData.get("type"),
     date: formData.get("date"),

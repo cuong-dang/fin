@@ -235,11 +235,7 @@ export function TransactionForm({
         )}
 
         <Field label="Tag (optional)" htmlFor="tagId">
-          <NativeSelect
-            id="tagId"
-            name="tagId"
-            defaultValue={defaults.tagId}
-          >
+          <NativeSelect id="tagId" name="tagId" defaultValue={defaults.tagId}>
             <option value="">—</option>
             {tags.map((t) => (
               <option key={t.id} value={t.id}>

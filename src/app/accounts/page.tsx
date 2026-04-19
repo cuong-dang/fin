@@ -46,7 +46,7 @@ export default async function AccountsManagePage() {
   return (
     <FormPage size="lg">
       <BackLink href="/" />
-      <div className="mt-4 flex items-baseline justify-between">
+      <div className="mt-4 flex items-baseline justify-between gap-4">
         <h1 className="text-2xl font-semibold">Manage accounts</h1>
         <Button asChild size="sm">
           <Link href="/accounts/new">New account</Link>

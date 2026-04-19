@@ -2,6 +2,7 @@ import { eq, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { BackLink } from "@/components/back-link";
 import { FormPage } from "@/components/layout";
+import { LocalTodayInput } from "@/components/local-today-input";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -73,6 +74,7 @@ export default async function EditAccountPage({
             this records an adjustment transaction for the delta.
           </p>
         </Field>
+        <LocalTodayInput name="adjustmentDate" />
         <Button type="submit">Save</Button>
       </form>
     </FormPage>

@@ -12,7 +12,7 @@ import {
   transactions,
 } from "@/db/schema";
 import { findOwned } from "@/lib/authz";
-import { todayUTCDate } from "@/lib/dates";
+import { DATE_RE, todayUTCDate } from "@/lib/dates";
 import { parseMoney } from "@/lib/money";
 import { getCurrentSession } from "@/lib/session";
 
@@ -21,6 +21,7 @@ const updateSchema = z.object({
   accountGroupId: z.uuid().optional(),
   newGroupName: z.string().trim().min(1).max(100).optional(),
   balance: z.string().trim().optional(),
+  adjustmentDate: z.string().regex(DATE_RE, "Expected YYYY-MM-DD").optional(),
 });
 
 function emptyToUndef(v: FormDataEntryValue | null): string | undefined {
@@ -38,6 +39,7 @@ export async function updateAccount(accountId: string, formData: FormData) {
     accountGroupId: emptyToUndef(formData.get("accountGroupId")),
     newGroupName: emptyToUndef(formData.get("newGroupName")),
     balance: emptyToUndef(formData.get("balance")),
+    adjustmentDate: emptyToUndef(formData.get("adjustmentDate")),
   });
 
   // newGroupName wins over accountGroupId — see createAccount for the same
@@ -98,7 +100,7 @@ export async function updateAccount(accountId: string, formData: FormData) {
         .values({
           groupId: session.groupId,
           userId: session.userId,
-          date: todayUTCDate(),
+          date: parsed.adjustmentDate ?? todayUTCDate(),
           type: "adjustment",
           description: null,
         })
