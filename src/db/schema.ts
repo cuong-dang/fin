@@ -218,7 +218,11 @@ export const transactions = pgTable(
     // on date A regardless of the viewer's timezone. We accept that travelling
     // eastward/westward between entries can produce out-of-order dates
     // relative to createdAt; ties break on createdAt.
-    date: date("date", { mode: "string" }).notNull(),
+    //
+    // NULL = pending (e.g., scheduled credit-card payment not yet cleared).
+    // Pending transactions show at the top of the list independent of
+    // completed-transaction pagination; "mark processed" sets the date.
+    date: date("date", { mode: "string" }),
     type: transactionTypeEnum("type").notNull(),
     description: text("description"),
     installmentPlanId: uuid("installment_plan_id").references(

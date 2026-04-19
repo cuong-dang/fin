@@ -34,7 +34,8 @@ export type TxType = "income" | "expense" | "transfer";
 
 export type InitialTxValues = {
   type: TxType;
-  date: string;
+  date: string; // "" when pending
+  pending: boolean;
   amount: string; // plain decimal string
   description: string;
   accountId: string;
@@ -64,6 +65,7 @@ export function TransactionForm({
   const defaults: InitialTxValues = initialValues ?? {
     type: "expense",
     date: localDateKey(new Date()),
+    pending: false,
     amount: "",
     description: "",
     accountId: "",
@@ -80,7 +82,10 @@ export function TransactionForm({
   const [destinationAccountId, setDestinationAccountId] = useState(
     defaults.destinationAccountId,
   );
-  const [dateStr, setDateStr] = useState(defaults.date);
+  const [dateStr, setDateStr] = useState(
+    defaults.date || localDateKey(new Date()),
+  );
+  const [pending, setPending] = useState(defaults.pending);
 
   const relevantCategories =
     type === "transfer" ? [] : categories.filter((c) => c.kind === type);
@@ -144,16 +149,32 @@ export function TransactionForm({
           />
         </Field>
 
-        <Field label="Date" htmlFor="date">
-          <Input
-            id="date"
-            name="date"
-            type="date"
-            value={dateStr}
-            onChange={(e) => setDateStr(e.target.value)}
-            required
+        <div className="flex items-center gap-2">
+          <input
+            id="pending"
+            type="checkbox"
+            name="pending"
+            checked={pending}
+            onChange={(e) => setPending(e.target.checked)}
+            className="border-input h-4 w-4 rounded"
           />
-        </Field>
+          <label htmlFor="pending" className="text-sm">
+            Mark as pending (settles later)
+          </label>
+        </div>
+
+        {!pending && (
+          <Field label="Date" htmlFor="date">
+            <Input
+              id="date"
+              name="date"
+              type="date"
+              value={dateStr}
+              onChange={(e) => setDateStr(e.target.value)}
+              required
+            />
+          </Field>
+        )}
 
         <Field
           label={type === "transfer" ? "From account" : "Account"}

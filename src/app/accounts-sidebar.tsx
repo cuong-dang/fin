@@ -3,7 +3,12 @@ import { Plus, Settings, SlidersHorizontal } from "lucide-react";
 import { eq, sql } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
 import { db } from "@/db";
-import { accountGroups, accounts, transactionLegs } from "@/db/schema";
+import {
+  accountGroups,
+  accounts,
+  transactionLegs,
+  transactions,
+} from "@/db/schema";
 import { groupBy } from "@/lib/collections";
 import { formatMoney } from "@/lib/money";
 import type { CurrentSession } from "@/lib/session";
@@ -14,13 +19,18 @@ type AccountRow = {
   accountGroupId: string;
   name: string;
   currency: string;
-  balance: string;
+  // Sum of legs whose transaction is settled (date IS NOT NULL). What the
+  // account actually reflects right now.
+  presentBalance: string;
+  // Sum of all legs including pending. What the account will reflect once
+  // pending transactions settle.
+  availableBalance: string;
 };
 
 /**
  * If every account in the list shares one currency, return their summed
- * balance for display. Returns null for mixed-currency groups — we don't
- * attempt FX conversion.
+ * present balance for display. Returns null for mixed-currency groups — we
+ * don't attempt FX conversion.
  */
 function groupSubtotal(
   items: AccountRow[],
@@ -28,7 +38,7 @@ function groupSubtotal(
   if (items.length === 0) return null;
   const currency = items[0].currency;
   if (items.some((i) => i.currency !== currency)) return null;
-  const total = items.reduce((sum, i) => sum + BigInt(i.balance), 0n);
+  const total = items.reduce((sum, i) => sum + BigInt(i.presentBalance), 0n);
   return { amount: total, currency };
 }
 
@@ -45,12 +55,21 @@ async function fetchSidebarData(workspaceGroupId: string) {
         accountGroupId: accounts.accountGroupId,
         name: accounts.name,
         currency: accounts.currency,
-        balance: sql<string>`COALESCE(SUM(${transactionLegs.amount}), 0)`.as(
-          "balance",
-        ),
+        presentBalance:
+          sql<string>`COALESCE(SUM(${transactionLegs.amount}) FILTER (WHERE ${transactions.date} IS NOT NULL), 0)`.as(
+            "present_balance",
+          ),
+        availableBalance:
+          sql<string>`COALESCE(SUM(${transactionLegs.amount}), 0)`.as(
+            "available_balance",
+          ),
       })
       .from(accounts)
       .leftJoin(transactionLegs, eq(transactionLegs.accountId, accounts.id))
+      .leftJoin(
+        transactions,
+        eq(transactions.id, transactionLegs.transactionId),
+      )
       .where(eq(accounts.groupId, workspaceGroupId))
       .groupBy(accounts.id)
       .orderBy(accounts.name),
@@ -233,19 +252,29 @@ function AccountItem({
   account: AccountRow;
   active: boolean;
 }) {
+  const present = BigInt(account.presentBalance);
+  const available = BigInt(account.availableBalance);
+  const hasPending = present !== available;
   return (
     <li>
       <Link
         href={`/?account=${account.id}`}
-        className={`flex items-center justify-between rounded-md px-2 py-1.5 text-sm ${
+        className={`flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm ${
           active
             ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
             : "hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
         }`}
       >
         <span className="truncate">{account.name}</span>
-        <span className="text-muted-foreground tabular-nums">
-          {formatMoney(BigInt(account.balance), account.currency)}
+        <span className="flex flex-col items-end tabular-nums leading-tight">
+          <span className="text-muted-foreground">
+            {formatMoney(present, account.currency)}
+          </span>
+          {hasPending && (
+            <span className="text-muted-foreground/60 text-[10px]">
+              avail {formatMoney(available, account.currency)}
+            </span>
+          )}
         </span>
       </Link>
     </li>

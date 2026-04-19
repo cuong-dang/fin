@@ -16,7 +16,9 @@ import { parseMoney } from "@/lib/money";
 export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const baseSchema = z.object({
-  date: z.string().regex(DATE_RE, "Expected YYYY-MM-DD"),
+  // Optional because pending transactions have no date yet. When not
+  // pending the action enforces presence; see parseTransactionFormData.
+  date: z.string().regex(DATE_RE, "Expected YYYY-MM-DD").optional(),
   amount: z.string().trim().min(1),
   description: z.string().trim().max(500).optional(),
   tagId: z.uuid().optional(),
@@ -56,7 +58,9 @@ export const fullTransactionSchema = z.discriminatedUnion("type", [
   transferSchema,
 ]);
 
-export type ParsedTransaction = z.infer<typeof fullTransactionSchema>;
+export type ParsedTransaction = z.infer<typeof fullTransactionSchema> & {
+  pending: boolean;
+};
 
 // ─── Form helpers ─────────────────────────────────────────────────────────
 
@@ -68,13 +72,21 @@ export function pick(formData: FormData, key: string): string | undefined {
   return trimmed === "" ? undefined : trimmed;
 }
 
-/** Parse the full FormData for create or update. Identical shape for both. */
+/**
+ * Parse the full FormData for create or update. Identical shape for both.
+ * Derives `pending` from the form's "pending" field (checkbox or hidden
+ * input with value "true"/"false"/"on"). When not pending, date is
+ * required; when pending, any submitted date is discarded.
+ */
 export function parseTransactionFormData(
   formData: FormData,
 ): ParsedTransaction {
-  return fullTransactionSchema.parse({
+  const pendingRaw = formData.get("pending");
+  const pending = pendingRaw === "on" || pendingRaw === "true";
+
+  const base = fullTransactionSchema.parse({
     type: formData.get("type"),
-    date: formData.get("date"),
+    date: pick(formData, "date"),
     amount: formData.get("amount"),
     accountId: pick(formData, "accountId"),
     destinationAccountId: pick(formData, "destinationAccountId"),
@@ -85,6 +97,14 @@ export function parseTransactionFormData(
     tagId: pick(formData, "tagId"),
     description: pick(formData, "description"),
   });
+
+  if (pending) {
+    return { ...base, date: undefined, pending: true };
+  }
+  if (!base.date) {
+    throw new Error("Date is required for non-pending transactions");
+  }
+  return { ...base, pending: false };
 }
 
 // ─── Write logic ──────────────────────────────────────────────────────────

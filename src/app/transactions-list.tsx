@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { LocalTodayInput } from "@/components/local-today-input";
 import { Button } from "@/components/ui/button";
 import { db } from "@/db";
 import {
@@ -15,6 +16,7 @@ import { groupBy } from "@/lib/collections";
 import { formatDayHeader } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
 import type { CurrentSession } from "@/lib/session";
+import { markTransactionProcessed } from "./transactions/actions";
 
 type Leg = {
   accountId: string;
@@ -33,7 +35,7 @@ type Line = {
 
 type EnrichedTx = {
   id: string;
-  date: string; // "YYYY-MM-DD"
+  date: string | null; // null = pending
   createdAt: Date;
   type: "income" | "expense" | "transfer" | "adjustment";
   description: string | null;
@@ -48,7 +50,7 @@ const PAGE_LIMIT = 100;
 async function fetchTransactions(
   workspaceGroupId: string,
   accountId: string | undefined,
-): Promise<EnrichedTx[]> {
+): Promise<{ pending: EnrichedTx[]; completed: EnrichedTx[] }> {
   const filteredTxIds = accountId
     ? db
         .select({ id: transactionLegs.transactionId })
@@ -56,22 +58,31 @@ async function fetchTransactions(
         .where(eq(transactionLegs.accountId, accountId))
     : undefined;
 
-  const txRows = await db
-    .select()
-    .from(transactions)
-    .where(
-      and(
-        eq(transactions.groupId, workspaceGroupId),
-        filteredTxIds ? inArray(transactions.id, filteredTxIds) : undefined,
-      ),
-    )
-    // Primary sort by date (the user-facing calendar day). Break ties by
-    // createdAt so multiple entries on the same day keep insertion order.
-    .orderBy(desc(transactions.date), desc(transactions.createdAt))
-    .limit(PAGE_LIMIT);
+  const baseWhere = and(
+    eq(transactions.groupId, workspaceGroupId),
+    filteredTxIds ? inArray(transactions.id, filteredTxIds) : undefined,
+  );
 
-  if (txRows.length === 0) return [];
-  const txIds = txRows.map((t) => t.id);
+  const [pendingRows, completedRows] = await Promise.all([
+    // Pending: all, oldest-created first (so the one scheduled earliest sits
+    // at the top of the pending stack).
+    db
+      .select()
+      .from(transactions)
+      .where(and(baseWhere, isNull(transactions.date)))
+      .orderBy(asc(transactions.createdAt)),
+    // Completed: paginated, newest date first.
+    db
+      .select()
+      .from(transactions)
+      .where(and(baseWhere, isNotNull(transactions.date)))
+      .orderBy(desc(transactions.date), desc(transactions.createdAt))
+      .limit(PAGE_LIMIT),
+  ]);
+
+  const allRows = [...pendingRows, ...completedRows];
+  if (allRows.length === 0) return { pending: [], completed: [] };
+  const txIds = allRows.map((t) => t.id);
 
   const legRows = await db
     .select({
@@ -106,7 +117,7 @@ async function fetchTransactions(
   const legsByTx = groupBy(legRows, (l) => l.transactionId);
   const linesByTx = groupBy(lineRows, (l) => l.transactionId);
 
-  return txRows.map((t) => {
+  const enrich = (t: (typeof allRows)[number]): EnrichedTx => {
     const [head, ...rest] = legsByTx.get(t.id) ?? [];
     if (!head) {
       throw new Error(`Invariant: transaction ${t.id} has no legs`);
@@ -120,7 +131,12 @@ async function fetchTransactions(
       legs: [head, ...rest],
       lines: linesByTx.get(t.id) ?? [],
     };
-  });
+  };
+
+  return {
+    pending: pendingRows.map(enrich),
+    completed: completedRows.map(enrich),
+  };
 }
 
 // ─── Display derivation ───────────────────────────────────────────────────
@@ -214,17 +230,24 @@ export async function TransactionsList({
   accountId: string | undefined;
   accountName: string | undefined;
 }) {
-  const txs = await fetchTransactions(session.groupId, accountId);
+  const { pending, completed } = await fetchTransactions(
+    session.groupId,
+    accountId,
+  );
 
-  if (txs.length === 0) {
+  if (pending.length === 0 && completed.length === 0) {
     return <EmptyState accountName={accountName} />;
   }
 
-  // Transactions are already ordered by date desc; groupBy preserves order.
-  const byDay = groupBy(txs, (t) => t.date);
+  // Completed transactions are already ordered by date desc; groupBy
+  // preserves order.
+  const byDay = groupBy(completed, (t) => t.date ?? "");
 
   return (
     <div>
+      {pending.length > 0 && (
+        <PendingSection txs={pending} filterAccountId={accountId} />
+      )}
       {Array.from(byDay.entries()).map(([date, dayTxs]) => (
         <DaySection
           key={date}
@@ -261,6 +284,27 @@ function EmptyState({ accountName }: { accountName: string | undefined }) {
   );
 }
 
+function PendingSection({
+  txs,
+  filterAccountId,
+}: {
+  txs: EnrichedTx[];
+  filterAccountId: string | undefined;
+}) {
+  return (
+    <section>
+      <h2 className="bg-background/90 text-muted-foreground sticky top-0 z-10 px-6 py-2 text-[11px] font-semibold tracking-wider uppercase backdrop-blur">
+        Pending
+      </h2>
+      <ul>
+        {txs.map((t) => (
+          <PendingRow key={t.id} tx={t} filterAccountId={filterAccountId} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function DaySection({
   date,
   txs,
@@ -284,18 +328,18 @@ function DaySection({
   );
 }
 
-function TransactionRow({
-  tx,
-  filterAccountId,
-}: {
-  tx: EnrichedTx;
-  filterAccountId: string | undefined;
-}) {
+function rowContent(
+  tx: EnrichedTx,
+  filterAccountId: string | undefined,
+): {
+  primary: string;
+  metaParts: string[];
+  amount: bigint;
+  currency: string;
+} {
   const { amount, currency, accountLabel } = displayShape(tx, filterAccountId);
   const primary = primaryLabel(tx);
 
-  // Meta line pieces. If the description IS the primary label, we don't
-  // repeat the category there — but we still include the account label.
   const descriptionIsPrimary = tx.description !== null && tx.description !== "";
   const metaParts: string[] = [];
   if (descriptionIsPrimary && tx.lines[0]) {
@@ -303,6 +347,20 @@ function TransactionRow({
   }
   metaParts.push(accountLabel);
 
+  return { primary, metaParts, amount, currency };
+}
+
+function TransactionRow({
+  tx,
+  filterAccountId,
+}: {
+  tx: EnrichedTx;
+  filterAccountId: string | undefined;
+}) {
+  const { primary, metaParts, amount, currency } = rowContent(
+    tx,
+    filterAccountId,
+  );
   return (
     <li className="border-border border-b last:border-0">
       <Link
@@ -324,6 +382,50 @@ function TransactionRow({
           {formatMoney(amount, currency)}
         </div>
       </Link>
+    </li>
+  );
+}
+
+function PendingRow({
+  tx,
+  filterAccountId,
+}: {
+  tx: EnrichedTx;
+  filterAccountId: string | undefined;
+}) {
+  const { primary, metaParts, amount, currency } = rowContent(
+    tx,
+    filterAccountId,
+  );
+  const boundMarkProcessed = markTransactionProcessed.bind(null, tx.id);
+
+  return (
+    <li className="border-border hover:bg-muted/40 flex items-start gap-4 border-b px-6 py-3 last:border-0">
+      <Link
+        href={`/transactions/${tx.id}/edit`}
+        className="flex min-w-0 flex-1 items-start justify-between gap-4"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-medium">{primary}</div>
+          <div className="text-muted-foreground mt-0.5 truncate text-xs">
+            {metaParts.join(" · ")}
+          </div>
+        </div>
+        <div
+          className={`text-sm font-medium tabular-nums ${amountColorClass(
+            tx,
+            amount,
+          )}`}
+        >
+          {formatMoney(amount, currency)}
+        </div>
+      </Link>
+      <form action={boundMarkProcessed}>
+        <LocalTodayInput name="date" />
+        <Button type="submit" size="sm" variant="outline">
+          Mark processed
+        </Button>
+      </form>
     </li>
   );
 }

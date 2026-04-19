@@ -64,6 +64,9 @@ export default async function EditTransactionPage({
   if (tx.type === "adjustment") {
     const leg = legRows[0];
     if (!leg) throw new Error(`Invariant: adjustment ${id} has no leg`);
+    if (tx.date === null) {
+      throw new Error(`Invariant: adjustment ${id} has no date`);
+    }
     return (
       <FormPage>
         <BackLink href="/" />
@@ -113,7 +116,7 @@ export default async function EditTransactionPage({
 
 function deriveInitialValues(
   type: "income" | "expense" | "transfer",
-  date: string,
+  date: string | null,
   description: string,
   legs: Array<{ accountId: string; amount: bigint; currency: string }>,
   lines: Array<{
@@ -126,7 +129,8 @@ function deriveInitialValues(
 ): InitialTxValues {
   const base: InitialTxValues = {
     type,
-    date,
+    date: date ?? "",
+    pending: date === null,
     amount: "",
     description,
     accountId: "",

@@ -55,7 +55,7 @@ export async function updateTransaction(id: string, formData: FormData) {
     await tx
       .update(transactions)
       .set({
-        date: parsed.date,
+        date: parsed.date ?? null,
         type: parsed.type,
         description: parsed.description ?? null,
         updatedAt: new Date(),

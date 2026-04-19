@@ -101,7 +101,7 @@ CREATE TABLE "transactions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"group_id" uuid NOT NULL,
 	"user_id" uuid NOT NULL,
-	"date" date NOT NULL,
+	"date" date,
 	"type" "transaction_type" NOT NULL,
 	"description" text,
 	"installment_plan_id" uuid,

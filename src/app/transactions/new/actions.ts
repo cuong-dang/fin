@@ -26,7 +26,7 @@ export async function createTransaction(formData: FormData) {
       .values({
         groupId: session.groupId,
         userId: session.userId,
-        date: parsed.date,
+        date: parsed.date ?? null,
         type: parsed.type,
         description: parsed.description ?? null,
       })
