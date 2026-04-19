@@ -9,6 +9,7 @@ import {
   transactionLegs,
   transactions,
 } from "@/db/schema";
+import { todayUTCDate } from "@/lib/dates";
 import { parseMoney } from "@/lib/money";
 import { getCurrentSession } from "@/lib/session";
 
@@ -80,7 +81,7 @@ export async function createAccount(formData: FormData) {
         .values({
           groupId: session.groupId,
           userId: session.userId,
-          timestamp: new Date(),
+          date: todayUTCDate(),
           type: "adjustment",
           description: "Starting balance",
         })

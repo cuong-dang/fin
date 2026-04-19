@@ -9,7 +9,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
 import { NativeSelect } from "@/components/ui/native-select";
-import { createTransaction } from "./actions";
+import { localDateKey } from "@/lib/dates";
 
 export type AccountOption = {
   id: string;
@@ -29,61 +29,90 @@ export type TagOption = {
   name: string;
 };
 
-type TxType = "income" | "expense" | "transfer";
+export type TxType = "income" | "expense" | "transfer";
 
-// Local-time YYYY-MM-DD for the date input's default.
-function todayISODate(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
+export type InitialTxValues = {
+  type: TxType;
+  date: string;
+  amount: string; // plain decimal string
+  description: string;
+  accountId: string;
+  destinationAccountId: string;
+  categoryId: string;
+  subcategoryId: string;
+  tagId: string;
+};
 
-// Match date input's YYYY-MM-DD back to a timestamp: now-time if it's today,
-// else local midnight. Client-side so it respects the browser's timezone.
-function computeTimestamp(dateStr: string): Date {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const now = new Date();
-  const isToday =
-    y === now.getFullYear() && m === now.getMonth() + 1 && d === now.getDate();
-  if (isToday) return now;
-  return new Date(y, m - 1, d, 0, 0, 0, 0);
-}
-
-export function NewTransactionForm({
+export function TransactionForm({
   accounts,
   categories,
   tags,
+  action,
+  title,
+  submitLabel,
+  initialValues,
 }: {
   accounts: AccountOption[];
   categories: CategoryOption[];
   tags: TagOption[];
+  action: (formData: FormData) => Promise<void>;
+  title: string;
+  submitLabel: string;
+  initialValues?: InitialTxValues;
 }) {
-  const [type, setType] = useState<TxType>("expense");
-  const [categoryId, setCategoryId] = useState("");
-  const [dateStr, setDateStr] = useState(todayISODate());
+  const defaults: InitialTxValues = initialValues ?? {
+    type: "expense",
+    date: localDateKey(new Date()),
+    amount: "",
+    description: "",
+    accountId: "",
+    destinationAccountId: "",
+    categoryId: "",
+    subcategoryId: "",
+    tagId: "",
+  };
+
+  const [type, setType] = useState<TxType>(defaults.type);
+  const [categoryId, setCategoryId] = useState(defaults.categoryId);
+  const [accountId, setAccountId] = useState(defaults.accountId);
+  const [destinationAccountId, setDestinationAccountId] = useState(
+    defaults.destinationAccountId,
+  );
+  const [dateStr, setDateStr] = useState(defaults.date);
 
   const relevantCategories =
     type === "transfer" ? [] : categories.filter((c) => c.kind === type);
   const selectedCategory = categories.find((c) => c.id === categoryId);
   const subcategories = selectedCategory?.subcategories ?? [];
+  // Transfers can't have source == destination. Each side hides the other's
+  // selection. When the other side is empty the filter is a no-op.
+  const sourceAccounts = accounts.filter((a) => a.id !== destinationAccountId);
+  const destinationAccounts = accounts.filter((a) => a.id !== accountId);
 
   function handleTypeChange(newType: TxType) {
     setType(newType);
     setCategoryId(""); // previous category may belong to wrong kind
   }
 
+  function handleAccountChange(newId: string) {
+    setAccountId(newId);
+    if (destinationAccountId === newId) setDestinationAccountId("");
+  }
+
+  function handleDestinationChange(newId: string) {
+    setDestinationAccountId(newId);
+    if (accountId === newId) setAccountId("");
+  }
+
   async function handleSubmit(formData: FormData) {
     formData.set("type", type);
-    formData.set("timestamp", computeTimestamp(dateStr).toISOString());
-    await createTransaction(formData);
+    await action(formData);
   }
 
   if (accounts.length === 0) {
     return (
       <FormPage size="lg">
-        <h1 className="text-2xl font-semibold">New transaction</h1>
+        <h1 className="text-2xl font-semibold">{title}</h1>
         <p className="text-muted-foreground mt-4 text-sm">
           You need to create an account first.
         </p>
@@ -97,7 +126,7 @@ export function NewTransactionForm({
   return (
     <FormPage size="lg">
       <BackLink href="/" />
-      <h1 className="mt-4 text-2xl font-semibold">New transaction</h1>
+      <h1 className="mt-4 text-2xl font-semibold">{title}</h1>
 
       <form action={handleSubmit} className="mt-6 space-y-4">
         <TypeTabs value={type} onChange={handleTypeChange} />
@@ -109,12 +138,14 @@ export function NewTransactionForm({
             min="0"
             required
             placeholder="0.00"
+            defaultValue={defaults.amount}
           />
         </Field>
 
         <Field label="Date" htmlFor="date">
           <Input
             id="date"
+            name="date"
             type="date"
             value={dateStr}
             onChange={(e) => setDateStr(e.target.value)}
@@ -130,12 +161,13 @@ export function NewTransactionForm({
             id="accountId"
             name="accountId"
             required
-            defaultValue=""
+            value={accountId}
+            onChange={(e) => handleAccountChange(e.target.value)}
           >
             <option value="" disabled>
               Select…
             </option>
-            {accounts.map((a) => (
+            {sourceAccounts.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name} ({a.currency})
               </option>
@@ -149,12 +181,13 @@ export function NewTransactionForm({
               id="destinationAccountId"
               name="destinationAccountId"
               required
-              defaultValue=""
+              value={destinationAccountId}
+              onChange={(e) => handleDestinationChange(e.target.value)}
             >
               <option value="" disabled>
                 Select…
               </option>
-              {accounts.map((a) => (
+              {destinationAccounts.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name} ({a.currency})
                 </option>
@@ -189,7 +222,7 @@ export function NewTransactionForm({
             <NativeSelect
               id="subcategoryId"
               name="subcategoryId"
-              defaultValue=""
+              defaultValue={defaults.subcategoryId}
             >
               <option value="">—</option>
               {subcategories.map((s) => (
@@ -202,7 +235,11 @@ export function NewTransactionForm({
         )}
 
         <Field label="Tag (optional)" htmlFor="tagId">
-          <NativeSelect id="tagId" name="tagId" defaultValue="">
+          <NativeSelect
+            id="tagId"
+            name="tagId"
+            defaultValue={defaults.tagId}
+          >
             <option value="">—</option>
             {tags.map((t) => (
               <option key={t.id} value={t.id}>
@@ -218,11 +255,12 @@ export function NewTransactionForm({
             type="text"
             name="description"
             maxLength={500}
+            defaultValue={defaults.description}
           />
         </Field>
 
         <div className="flex items-center gap-2 pt-4">
-          <Button type="submit">Create transaction</Button>
+          <Button type="submit">{submitLabel}</Button>
           <Button asChild variant="ghost">
             <Link href="/">Cancel</Link>
           </Button>

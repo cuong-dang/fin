@@ -1,78 +1,20 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { z } from "zod";
 import { db } from "@/db";
-import {
-  accounts,
-  transactionLegs,
-  transactionLines,
-  transactions,
-} from "@/db/schema";
+import { accounts, transactions } from "@/db/schema";
 import { findOwned } from "@/lib/authz";
-import { parseMoney } from "@/lib/money";
 import { getCurrentSession } from "@/lib/session";
-
-// ─── Schemas ──────────────────────────────────────────────────────────────
-
-const baseSchema = z.object({
-  timestamp: z.coerce.date(),
-  amount: z.string().trim().min(1),
-  description: z.string().trim().max(500).optional(),
-  tagId: z.uuid().optional(),
-});
-
-const incomeSchema = baseSchema.extend({
-  type: z.literal("income"),
-  accountId: z.uuid(),
-  categoryId: z.uuid(),
-  subcategoryId: z.uuid().optional(),
-});
-
-const expenseSchema = baseSchema.extend({
-  type: z.literal("expense"),
-  accountId: z.uuid(),
-  categoryId: z.uuid(),
-  subcategoryId: z.uuid().optional(),
-});
-
-const transferSchema = baseSchema.extend({
-  type: z.literal("transfer"),
-  accountId: z.uuid(),
-  destinationAccountId: z.uuid(),
-});
-
-const schema = z.discriminatedUnion("type", [
-  incomeSchema,
-  expenseSchema,
-  transferSchema,
-]);
-
-// ─── Action ───────────────────────────────────────────────────────────────
+import {
+  insertLegsAndLines,
+  parseTransactionFormData,
+} from "../shared";
 
 export async function createTransaction(formData: FormData) {
   const session = await getCurrentSession();
   if (!session) throw new Error("Unauthenticated");
 
-  // Coerce empty form strings to undefined so optional UUIDs validate.
-  const pick = (key: string): string | undefined => {
-    const v = formData.get(key);
-    if (typeof v !== "string") return undefined;
-    const trimmed = v.trim();
-    return trimmed === "" ? undefined : trimmed;
-  };
-
-  const parsed = schema.parse({
-    type: formData.get("type"),
-    timestamp: formData.get("timestamp"),
-    amount: formData.get("amount"),
-    accountId: pick("accountId"),
-    destinationAccountId: pick("destinationAccountId"),
-    categoryId: pick("categoryId"),
-    subcategoryId: pick("subcategoryId"),
-    tagId: pick("tagId"),
-    description: pick("description"),
-  });
+  const parsed = parseTransactionFormData(formData);
 
   const sourceAccount = await findOwned(
     accounts,
@@ -81,68 +23,19 @@ export async function createTransaction(formData: FormData) {
   );
   if (!sourceAccount) throw new Error("Account not found");
 
-  const amountMinor = parseMoney(parsed.amount, sourceAccount.currency);
-  if (amountMinor <= 0n) throw new Error("Amount must be positive");
-
   await db.transaction(async (tx) => {
     const [txRow] = await tx
       .insert(transactions)
       .values({
         groupId: session.groupId,
         userId: session.userId,
-        timestamp: parsed.timestamp,
+        date: parsed.date,
         type: parsed.type,
         description: parsed.description ?? null,
       })
-      .returning();
+      .returning({ id: transactions.id });
 
-    if (parsed.type === "income" || parsed.type === "expense") {
-      const sign = parsed.type === "income" ? 1n : -1n;
-      await tx.insert(transactionLegs).values({
-        transactionId: txRow.id,
-        accountId: parsed.accountId,
-        amount: sign * amountMinor,
-      });
-      await tx.insert(transactionLines).values({
-        transactionId: txRow.id,
-        categoryId: parsed.categoryId,
-        subcategoryId: parsed.subcategoryId ?? null,
-        tagId: parsed.tagId ?? null,
-        amount: amountMinor,
-        currency: sourceAccount.currency,
-      });
-      return;
-    }
-
-    // transfer
-    if (parsed.accountId === parsed.destinationAccountId) {
-      throw new Error("Source and destination accounts must differ");
-    }
-    const destAccount = await findOwned(
-      accounts,
-      parsed.destinationAccountId,
-      session.groupId,
-    );
-    if (!destAccount) throw new Error("Destination account not found");
-    if (destAccount.currency !== sourceAccount.currency) {
-      throw new Error(
-        "FX transfers not yet supported — accounts must share a currency",
-      );
-    }
-
-    await tx.insert(transactionLegs).values([
-      {
-        transactionId: txRow.id,
-        accountId: parsed.accountId,
-        amount: -amountMinor,
-      },
-      {
-        transactionId: txRow.id,
-        accountId: parsed.destinationAccountId,
-        amount: amountMinor,
-      },
-    ]);
-    // Plain transfer: no lines.
+    await insertLegsAndLines(tx, txRow.id, parsed, sourceAccount, session.groupId);
   });
 
   redirect("/");

@@ -12,6 +12,7 @@ import {
   transactions,
 } from "@/db/schema";
 import { findOwned } from "@/lib/authz";
+import { todayUTCDate } from "@/lib/dates";
 import { parseMoney } from "@/lib/money";
 import { getCurrentSession } from "@/lib/session";
 
@@ -97,7 +98,7 @@ export async function updateAccount(accountId: string, formData: FormData) {
         .values({
           groupId: session.groupId,
           userId: session.userId,
-          timestamp: new Date(),
+          date: todayUTCDate(),
           type: "adjustment",
           description: null,
         })

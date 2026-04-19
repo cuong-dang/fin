@@ -12,7 +12,7 @@ import {
   transactions,
 } from "@/db/schema";
 import { groupBy } from "@/lib/collections";
-import { dayKey, formatDayHeader } from "@/lib/dates";
+import { formatDayHeader } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
 import type { CurrentSession } from "@/lib/session";
 
@@ -33,7 +33,8 @@ type Line = {
 
 type EnrichedTx = {
   id: string;
-  timestamp: Date;
+  date: string; // "YYYY-MM-DD"
+  createdAt: Date;
   type: "income" | "expense" | "transfer" | "adjustment";
   description: string | null;
   legs: [Leg, ...Leg[]];
@@ -64,7 +65,9 @@ async function fetchTransactions(
         filteredTxIds ? inArray(transactions.id, filteredTxIds) : undefined,
       ),
     )
-    .orderBy(desc(transactions.timestamp))
+    // Primary sort by date (the user-facing calendar day). Break ties by
+    // createdAt so multiple entries on the same day keep insertion order.
+    .orderBy(desc(transactions.date), desc(transactions.createdAt))
     .limit(PAGE_LIMIT);
 
   if (txRows.length === 0) return [];
@@ -110,7 +113,8 @@ async function fetchTransactions(
     }
     return {
       id: t.id,
-      timestamp: t.timestamp,
+      date: t.date,
+      createdAt: t.createdAt,
       type: t.type,
       description: t.description,
       legs: [head, ...rest],
@@ -192,22 +196,6 @@ function categoryLabel(line: Line): string {
     : line.categoryName;
 }
 
-/** Back-dated entries default to exactly midnight; hide that instead of
- * showing "12:00 AM" everywhere. Today-entered transactions keep real time. */
-function maybeFormatTime(date: Date): string | null {
-  if (
-    date.getHours() === 0 &&
-    date.getMinutes() === 0 &&
-    date.getSeconds() === 0
-  ) {
-    return null;
-  }
-  return date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
 function amountColorClass(tx: EnrichedTx, amount: bigint): string {
   if (tx.type === "transfer") return "text-foreground";
   if (amount > 0n) return "text-emerald-600 dark:text-emerald-400";
@@ -232,25 +220,16 @@ export async function TransactionsList({
     return <EmptyState accountName={accountName} />;
   }
 
-  const days = new Map<string, { date: Date; txs: EnrichedTx[] }>();
-  for (const t of txs) {
-    const key = dayKey(t.timestamp);
-    const bucket = days.get(key);
-    if (bucket) {
-      bucket.txs.push(t);
-    } else {
-      days.set(key, { date: t.timestamp, txs: [t] });
-    }
-  }
-  const ordered = Array.from(days.values());
+  // Transactions are already ordered by date desc; groupBy preserves order.
+  const byDay = groupBy(txs, (t) => t.date);
 
   return (
     <div>
-      {ordered.map((d) => (
+      {Array.from(byDay.entries()).map(([date, dayTxs]) => (
         <DaySection
-          key={dayKey(d.date)}
-          date={d.date}
-          txs={d.txs}
+          key={date}
+          date={date}
+          txs={dayTxs}
           filterAccountId={accountId}
         />
       ))}
@@ -287,7 +266,7 @@ function DaySection({
   txs,
   filterAccountId,
 }: {
-  date: Date;
+  date: string;
   txs: EnrichedTx[];
   filterAccountId: string | undefined;
 }) {
@@ -314,19 +293,15 @@ function TransactionRow({
 }) {
   const { amount, currency, accountLabel } = displayShape(tx, filterAccountId);
   const primary = primaryLabel(tx);
-  const timeStr = maybeFormatTime(tx.timestamp);
 
   // Meta line pieces. If the description IS the primary label, we don't
-  // repeat the category there — but we still include account + time.
-  // If there's no description (primary is the category), skip category to
-  // avoid duplication; just show account + time.
+  // repeat the category there — but we still include the account label.
   const descriptionIsPrimary = tx.description !== null && tx.description !== "";
   const metaParts: string[] = [];
   if (descriptionIsPrimary && tx.lines[0]) {
     metaParts.push(categoryLabel(tx.lines[0]));
   }
   metaParts.push(accountLabel);
-  if (timeStr) metaParts.push(timeStr);
 
   return (
     <li className="border-border border-b last:border-0">

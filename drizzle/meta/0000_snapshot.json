@@ -1,5 +1,5 @@
 {
-  "id": "aed07b90-21c9-4728-a74e-3ec2c452c5ef",
+  "id": "dc8b3790-5831-4289-b08e-b703d3c26b67",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -94,7 +94,7 @@
           "name": "account_group_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "name": {
           "name": "name",
@@ -148,7 +148,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
+          "onDelete": "restrict",
           "onUpdate": "no action"
         }
       },
@@ -181,6 +181,13 @@
         "group_id": {
           "name": "group_id",
           "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "category_kind",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
         },
@@ -223,11 +230,12 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "categories_group_name_unique": {
-          "name": "categories_group_name_unique",
+        "categories_group_kind_name_unique": {
+          "name": "categories_group_kind_name_unique",
           "nullsNotDistinct": false,
           "columns": [
             "group_id",
+            "kind",
             "name"
           ]
         }
@@ -866,9 +874,9 @@
           "primaryKey": false,
           "notNull": true
         },
-        "timestamp": {
-          "name": "timestamp",
-          "type": "timestamp with time zone",
+        "date": {
+          "name": "date",
+          "type": "date",
           "primaryKey": false,
           "notNull": true
         },
@@ -913,8 +921,8 @@
         }
       },
       "indexes": {
-        "transactions_group_timestamp_idx": {
-          "name": "transactions_group_timestamp_idx",
+        "transactions_group_date_idx": {
+          "name": "transactions_group_date_idx",
           "columns": [
             {
               "expression": "group_id",
@@ -923,7 +931,7 @@
               "nulls": "last"
             },
             {
-              "expression": "timestamp",
+              "expression": "date",
               "isExpression": false,
               "asc": false,
               "nulls": "last"
@@ -1038,6 +1046,14 @@
     }
   },
   "enums": {
+    "public.category_kind": {
+      "name": "category_kind",
+      "schema": "public",
+      "values": [
+        "income",
+        "expense"
+      ]
+    },
     "public.installment_frequency": {
       "name": "installment_frequency",
       "schema": "public",
