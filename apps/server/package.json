@@ -1,0 +1,27 @@
+{
+  "name": "@fin/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file=../../.env.local src/index.ts",
+    "start": "node --env-file=../../.env.local dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.0",
+    "@fastify/jwt": "^9.0.0",
+    "@fastify/oauth2": "^8.0.0",
+    "@fin/schemas": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "fastify": "^5.0.0",
+    "postgres": "^3.4.9",
+    "fastify-plugin": "^5.0.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "tsx": "^4.21.0",
+    "typescript": "^5"
+  }
+}
