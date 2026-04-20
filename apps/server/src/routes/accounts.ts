@@ -5,6 +5,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { db } from "../db";
 import { findOwned } from "../lib/authz";
 import { parseMoney } from "../lib/money";
+import { nextSortKey } from "../lib/transactions-order";
 
 export const accountRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
@@ -119,12 +120,18 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
         });
 
       if (startingMinor !== 0n) {
+        const sortKey = await nextSortKey(
+          tx,
+          req.auth.groupId,
+          body.adjustmentDate!,
+        );
         const [txRow] = await tx
           .insert(schema.transactions)
           .values({
             groupId: req.auth.groupId,
             userId: req.auth.userId,
             date: body.adjustmentDate!,
+            sortKey,
             type: "adjustment",
             description: "Starting balance",
           })
@@ -214,12 +221,18 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
         .where(eq(schema.accounts.id, id));
 
       if (delta !== 0n) {
+        const sortKey = await nextSortKey(
+          tx,
+          req.auth.groupId,
+          body.adjustmentDate!,
+        );
         const [txRow] = await tx
           .insert(schema.transactions)
           .values({
             groupId: req.auth.groupId,
             userId: req.auth.userId,
             date: body.adjustmentDate!,
+            sortKey,
             type: "adjustment",
             description: null,
           })

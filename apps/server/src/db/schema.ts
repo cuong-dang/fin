@@ -1,6 +1,8 @@
+import { sql } from "drizzle-orm";
 import {
   bigint,
   char,
+  check,
   date,
   index,
   integer,
@@ -11,6 +13,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -231,6 +234,10 @@ export const transactions = pgTable(
     ),
     // Stored as decimal for precision; high scale so minor-unit math is lossless.
     fxRate: numeric("fx_rate", { precision: 24, scale: 12 }),
+    // Same-day ordering, user-controlled via drag-and-drop. For processed
+    // transactions, values are {1..N} per (group_id, date). NULL when
+    // pending (date IS NULL). Largest key = newest within the day.
+    sortKey: integer("sort_key"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -238,7 +245,16 @@ export const transactions = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [index("transactions_group_date_idx").on(t.groupId, t.date.desc())],
+  (t) => [
+    index("transactions_group_date_idx").on(t.groupId, t.date.desc()),
+    uniqueIndex("transactions_group_date_sortkey_unique")
+      .on(t.groupId, t.date, t.sortKey)
+      .where(sql`${t.date} IS NOT NULL`),
+    check(
+      "transactions_sort_key_matches_date",
+      sql`(${t.date} IS NULL) = (${t.sortKey} IS NULL)`,
+    ),
+  ],
 );
 
 export const transactionLegs = pgTable(

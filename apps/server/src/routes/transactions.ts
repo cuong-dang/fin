@@ -4,16 +4,33 @@ import {
   adjustmentUpdateBody,
   idParam,
   processTransactionBody,
+  reorderTransactionsBody,
   transactionBody,
   type TransactionsListResponse,
 } from "@fin/schemas";
-import { and, asc, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  sql,
+} from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { db } from "../db";
 import { findOwned } from "../lib/authz";
 import { groupBy } from "../lib/collections";
 import { parseMoney } from "../lib/money";
+import {
+  anchorsPreserveOrder,
+  compactSortKeys,
+  mergeReorderIds,
+  nextSortKey,
+  reassignSortKeys,
+} from "../lib/transactions-order";
 import { insertLegsAndLines } from "../lib/transactions-write";
 
 const PAGE_LIMIT = 100;
@@ -54,7 +71,7 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
         .where(and(baseWhere, isNotNull(schema.transactions.date)))
         .orderBy(
           desc(schema.transactions.date),
-          desc(schema.transactions.createdAt),
+          desc(schema.transactions.sortKey),
         )
         .limit(PAGE_LIMIT),
     ]);
@@ -109,30 +126,66 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
     const legsByTx = groupBy(legRows, (l) => l.transactionId);
     const linesByTx = groupBy(lineRows, (l) => l.transactionId);
 
+    // Running balance: only when filtered to a single account, and only on
+    // completed rows. Walk newest→oldest subtracting each row's leg; the
+    // newest row's balanceAfter == the account's present balance.
+    const balanceAfterByTx = new Map<string, bigint>();
+    if (accountId) {
+      const [{ present }] = await db
+        .select({
+          present: sql<string>`COALESCE(SUM(${schema.transactionLegs.amount}), 0)`,
+        })
+        .from(schema.transactionLegs)
+        .innerJoin(
+          schema.transactions,
+          eq(schema.transactions.id, schema.transactionLegs.transactionId),
+        )
+        .where(
+          and(
+            eq(schema.transactionLegs.accountId, accountId),
+            isNotNull(schema.transactions.date),
+          ),
+        );
+      let running = BigInt(present);
+      for (const t of completedRows) {
+        balanceAfterByTx.set(t.id, running);
+        const leg = (legsByTx.get(t.id) ?? []).find(
+          (l) => l.accountId === accountId,
+        );
+        if (leg) running -= leg.amount;
+      }
+    }
+
     // JSON can't carry bigint, so amounts are stringified.
-    const enrich = (t: (typeof allRows)[number]): EnrichedTransaction => ({
-      id: t.id,
-      date: t.date,
-      createdAt: t.createdAt.toISOString(),
-      type: t.type,
-      description: t.description,
-      legs: (legsByTx.get(t.id) ?? []).map((l) => ({
-        accountId: l.accountId,
-        accountName: l.accountName,
-        accountCurrency: l.accountCurrency,
-        amount: l.amount.toString(),
-      })),
-      lines: (linesByTx.get(t.id) ?? []).map((l) => ({
-        amount: l.amount.toString(),
-        currency: l.currency,
-        categoryId: l.categoryId,
-        categoryName: l.categoryName,
-        subcategoryId: l.subcategoryId,
-        subcategoryName: l.subcategoryName,
-        tagId: l.tagId,
-        tagName: l.tagName,
-      })),
-    });
+    const enrich = (t: (typeof allRows)[number]): EnrichedTransaction => {
+      const balanceAfter = balanceAfterByTx.get(t.id);
+      return {
+        id: t.id,
+        date: t.date,
+        createdAt: t.createdAt.toISOString(),
+        type: t.type,
+        description: t.description,
+        legs: (legsByTx.get(t.id) ?? []).map((l) => ({
+          accountId: l.accountId,
+          accountName: l.accountName,
+          accountCurrency: l.accountCurrency,
+          amount: l.amount.toString(),
+        })),
+        lines: (linesByTx.get(t.id) ?? []).map((l) => ({
+          amount: l.amount.toString(),
+          currency: l.currency,
+          categoryId: l.categoryId,
+          categoryName: l.categoryName,
+          subcategoryId: l.subcategoryId,
+          subcategoryName: l.subcategoryName,
+          tagId: l.tagId,
+          tagName: l.tagName,
+        })),
+        ...(balanceAfter !== undefined
+          ? { balanceAfter: balanceAfter.toString() }
+          : {}),
+      };
+    };
 
     return {
       pending: pendingRows.map(enrich),
@@ -153,13 +206,20 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
     if (!sourceAccount)
       return reply.code(404).send({ error: "Account not found" });
 
+    const newDate = body.pending ? null : (body.date ?? null);
+
     const result = await db.transaction(async (tx) => {
+      const sortKey = newDate
+        ? await nextSortKey(tx, req.auth.groupId, newDate)
+        : null;
+
       const [txRow] = await tx
         .insert(schema.transactions)
         .values({
           groupId: req.auth.groupId,
           userId: req.auth.userId,
-          date: body.pending ? null : (body.date ?? null),
+          date: newDate,
+          sortKey,
           type: body.type,
           description: body.description ?? null,
         })
@@ -200,16 +260,35 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
     if (!sourceAccount)
       return reply.code(404).send({ error: "Account not found" });
 
+    const oldDate = existing.date;
+    const newDate = body.pending ? null : (body.date ?? null);
+    const dateChanged = oldDate !== newDate;
+
     await db.transaction(async (tx) => {
+      // When the bucket changes, move this row to the end of the new bucket
+      // (or to NULL if it becomes pending). We set sortKey directly in the
+      // UPDATE to avoid a read-then-write race.
+      const sortKey = dateChanged
+        ? newDate
+          ? await nextSortKey(tx, req.auth.groupId, newDate)
+          : null
+        : undefined;
+
       await tx
         .update(schema.transactions)
         .set({
-          date: body.pending ? null : (body.date ?? null),
+          date: newDate,
           type: body.type,
           description: body.description ?? null,
           updatedAt: new Date(),
+          ...(sortKey !== undefined ? { sortKey } : {}),
         })
         .where(eq(schema.transactions.id, id));
+
+      // Old bucket now has a gap; compact it back to 1..N.
+      if (dateChanged && oldDate) {
+        await compactSortKeys(tx, req.auth.groupId, oldDate);
+      }
 
       await tx
         .delete(schema.transactionLegs)
@@ -251,16 +330,28 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
     if (!leg) throw new Error(`Invariant: adjustment ${id} has no leg`);
 
     const amountMinor = parseMoney(body.amount, leg.currency);
+    const oldDate = existing.date!; // adjustments always have a date
+    const dateChanged = oldDate !== body.date;
 
     await db.transaction(async (tx) => {
+      const sortKey = dateChanged
+        ? await nextSortKey(tx, req.auth.groupId, body.date)
+        : undefined;
+
       await tx
         .update(schema.transactions)
         .set({
           date: body.date,
           description: body.description ?? null,
           updatedAt: new Date(),
+          ...(sortKey !== undefined ? { sortKey } : {}),
         })
         .where(eq(schema.transactions.id, id));
+
+      if (dateChanged) {
+        await compactSortKeys(tx, req.auth.groupId, oldDate);
+      }
+
       await tx
         .update(schema.transactionLegs)
         .set({ amount: amountMinor })
@@ -282,10 +373,94 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(409).send({ error: "Already processed" });
     }
 
-    await db
-      .update(schema.transactions)
-      .set({ date: body.date, updatedAt: new Date() })
-      .where(eq(schema.transactions.id, id));
+    await db.transaction(async (tx) => {
+      const sortKey = await nextSortKey(tx, req.auth.groupId, body.date);
+      await tx
+        .update(schema.transactions)
+        .set({ date: body.date, sortKey, updatedAt: new Date() })
+        .where(eq(schema.transactions.id, id));
+    });
+    return reply.code(204).send();
+  });
+
+  // ─── Reorder (same-day or cross-day, single mover) ─────────────────────
+
+  // Contract: exactly one transaction moves per request — `body.movingId`.
+  // It ends up on body.date at the position dictated by its slot in
+  // `body.ids`. Other ids in body.ids must be on body.date and appear in
+  // their existing relative order (the client enforces this).
+  app.post("/reorder", async (req, reply) => {
+    const body = reorderTransactionsBody.parse(req.body);
+
+    if (new Set(body.ids).size !== body.ids.length) {
+      return reply.code(400).send({ error: "Duplicate ids" });
+    }
+    if (!body.ids.includes(body.movingId)) {
+      return reply.code(400).send({ error: "movingId must be present in ids" });
+    }
+
+    const [moving] = await db
+      .select({
+        id: schema.transactions.id,
+        date: schema.transactions.date,
+      })
+      .from(schema.transactions)
+      .where(
+        and(
+          eq(schema.transactions.groupId, req.auth.groupId),
+          eq(schema.transactions.id, body.movingId),
+        ),
+      )
+      .limit(1);
+    if (!moving) return reply.code(404).send({ error: "Not found" });
+    if (moving.date === null) {
+      return reply
+        .code(400)
+        .send({ error: "Cannot reorder pending transactions" });
+    }
+    const sourceDate = moving.date;
+
+    // Snapshot body.date's current order for both validation and the merge.
+    const existingRows = await db
+      .select({ id: schema.transactions.id })
+      .from(schema.transactions)
+      .where(
+        and(
+          eq(schema.transactions.groupId, req.auth.groupId),
+          eq(schema.transactions.date, body.date),
+        ),
+      )
+      .orderBy(desc(schema.transactions.sortKey));
+    const existingIds = existingRows.map((r) => r.id);
+
+    // Precondition: the non-moving ids in body.ids must already be on
+    // body.date and appear in their existing (sort_key DESC) order.
+    // Violations indicate the client tried to move more than one row —
+    // contract is "single transaction per reorder request."
+    if (!anchorsPreserveOrder(existingIds, body.ids, body.movingId)) {
+      return reply.code(400).send({
+        error:
+          "ids must preserve existing order; only one transaction may move per request",
+      });
+    }
+
+    const merged = mergeReorderIds(existingIds, body.ids, body.movingId);
+
+    await db.transaction(async (tx) => {
+      // Cross-date: park movingId on body.date with a temp max+1 sort_key
+      // so reassignSortKeys finds it in the bucket, then compact its old
+      // date to close the gap.
+      if (sourceDate !== body.date) {
+        const next = await nextSortKey(tx, req.auth.groupId, body.date);
+        await tx
+          .update(schema.transactions)
+          .set({ date: body.date, sortKey: next, updatedAt: new Date() })
+          .where(eq(schema.transactions.id, body.movingId));
+        await compactSortKeys(tx, req.auth.groupId, sourceDate);
+      }
+
+      await reassignSortKeys(tx, req.auth.groupId, body.date, merged);
+    });
     return reply.code(204).send();
   });
 
@@ -295,8 +470,16 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
     const { id } = idParam.parse(req.params);
     const existing = await findOwned(schema.transactions, id, req.auth.groupId);
     if (!existing) return reply.code(404).send({ error: "Not found" });
-    // legs + lines cascade.
-    await db.delete(schema.transactions).where(eq(schema.transactions.id, id));
+
+    await db.transaction(async (tx) => {
+      // legs + lines cascade.
+      await tx
+        .delete(schema.transactions)
+        .where(eq(schema.transactions.id, id));
+      if (existing.date) {
+        await compactSortKeys(tx, req.auth.groupId, existing.date);
+      }
+    });
     return reply.code(204).send();
   });
 };
