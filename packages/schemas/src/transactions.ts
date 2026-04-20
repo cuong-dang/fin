@@ -59,6 +59,21 @@ export const processTransactionBody = z.object({
 });
 export type ProcessTransactionBody = z.infer<typeof processTransactionBody>;
 
+// ─── Reorder (same-day or cross-day) ──────────────────────────────────────
+
+export const reorderTransactionsBody = z.object({
+  // Target date: movingId ends up on this date.
+  date: dateString,
+  // The single transaction being dragged. Must appear in `ids`.
+  movingId: z.uuid(),
+  // Desired newest-first order for a subset of body.date's transactions,
+  // including movingId. Non-movingId entries must be transactions already
+  // on body.date and appear in their existing relative order — the server
+  // assumes "at most one transaction moves per request."
+  ids: z.array(z.uuid()).min(1),
+});
+export type ReorderTransactionsBody = z.infer<typeof reorderTransactionsBody>;
+
 // ─── Response shapes ──────────────────────────────────────────────────────
 
 export type TxLeg = {
@@ -87,6 +102,10 @@ export type EnrichedTransaction = {
   description: string | null;
   legs: TxLeg[];
   lines: TxLine[];
+  // Present only when the list is filtered by accountId and this is a
+  // completed row: account balance immediately after this transaction
+  // posts. Stringified bigint in the account's minor units.
+  balanceAfter?: string;
 };
 
 export type TransactionsListResponse = {

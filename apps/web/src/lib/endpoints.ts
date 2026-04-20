@@ -9,6 +9,7 @@ import type {
   CreateSubcategoryBody,
   Me,
   ProcessTransactionBody,
+  ReorderTransactionsBody,
   Tag,
   TransactionBody,
   TransactionsListResponse,
@@ -79,6 +80,9 @@ export const updateAdjustmentTransaction = (
 
 export const processTransaction = (id: string, body: ProcessTransactionBody) =>
   api<void>(`/api/transactions/${id}/process`, { method: "POST", json: body });
+
+export const reorderTransactions = (body: ReorderTransactionsBody) =>
+  api<void>("/api/transactions/reorder", { method: "POST", json: body });
 
 export const deleteTransaction = (id: string) =>
   api<void>(`/api/transactions/${id}`, { method: "DELETE" });

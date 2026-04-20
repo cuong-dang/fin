@@ -118,9 +118,27 @@ On first sign-in the server auto-provisions your user row and a default
 - `pnpm dev:server` / `pnpm dev:web` — one at a time
 - `pnpm build` — build both apps
 - `pnpm typecheck` — tsc across the monorepo
+- `pnpm test` — run all test suites under `apps/**`
 - `pnpm format` / `pnpm format:check` — Prettier
 - `pnpm db:up` / `pnpm db:down` — Postgres container
 - `pnpm db:generate` / `pnpm db:migrate` / `pnpm db:studio` — Drizzle
+
+## Testing philosophy
+
+Tests live next to the code as `*.test.ts` and run via Node's built-in
+`node:test` (no jest / vitest to configure). `pnpm test` walks every
+app that declares a `test` script.
+
+We don't chase coverage. TypeScript + Zod at the route boundary already
+catch the classes of bug that unit-testing CRUD would — "did the route
+call the right columns, did it 400 on bad input." Route handlers are
+thin glue; tests there would mostly re-assert the framework.
+
+What we _do_ test is **logic that's interesting or easy to get wrong**:
+same-day merge-and-reorder semantics, sort-key invariants, anything
+where the implementation has more than one reasonable behavior and the
+choice matters. The goal is to pin down the subtle parts so we can
+refactor them without anxiety — not to exercise every line.
 
 ## API shape
 

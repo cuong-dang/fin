@@ -8,6 +8,7 @@
     "dev:web": "pnpm --filter @fin/web dev",
     "build": "pnpm -r --filter \"./apps/**\" build",
     "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r --if-present --filter \"./apps/**\" test",
     "lint": "eslint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
