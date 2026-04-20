@@ -58,62 +58,95 @@ A few things that might matter if you're reading the source:
   helper, no row is read or written without verifying it belongs to the
   caller's group.
 
+## Architecture
+
+pnpm monorepo: one REST API, one web SPA, one shared schema package.
+Mobile (Expo / React Native) plugs in later by consuming `@fin/schemas`
+and hitting the same API.
+
+```
+apps/
+├─ server/     Fastify REST API (:3001) — @fin/server
+│              (Drizzle schema lives at src/db/schema.ts)
+└─ web/        Vite + React SPA (:5173)  — @fin/web
+packages/
+└─ schemas/    Shared Zod schemas + TS  — @fin/schemas
+drizzle/       Generated migrations
+```
+
 ## Tech stack
 
-- **Next.js 16** (App Router, Server Actions, Turbopack)
-- **React 19** with Server Components
+- **Fastify 5** server with **@fastify/jwt** + **@fastify/oauth2** (Google)
+- **Vite 6** + **React 19** + **React Router 7** web SPA
+- **TanStack Query 5** for client-side server state
 - **TypeScript** end to end
 - **Drizzle ORM** + **Postgres 17**
-- **Zod v4** for schema validation at every server-action boundary
+- **Zod v4** for schema validation at every API boundary, shared
+  between server and clients via `@fin/schemas`
 - **Tailwind v4** + **shadcn/ui** primitives (Button, Input, Label, etc.)
-  with local wrappers (`NativeSelect`, `MoneyInput`, `Field`) where the
-  shadcn default didn't fit
-- **NextAuth v5** with Google OAuth (JWT sessions, edge-safe proxy)
+  with local wrappers (`NativeSelect`, `MoneyInput`, `Field`)
+- Bearer-token auth (JWT in `Authorization: Bearer`) so mobile clients
+  plug in identically — no cookies
 
 ## Getting started
 
 ```bash
 pnpm install
-pnpm db:up                 # start Postgres in Docker
-pnpm db:migrate            # apply migrations
-pnpm dev                   # http://localhost:3000
+pnpm db:up                  # start Postgres in Docker
+pnpm db:migrate             # apply migrations
+pnpm dev                    # starts server (:3001) + web (:5173)
 ```
 
-You'll need a `.env.local` with:
+Visit `http://localhost:5173` and sign in with Google.
+
+You'll need a `.env.local` at the repo root with:
 
 ```
 DATABASE_URL=postgres://fin:fin@localhost:5432/fin
-AUTH_SECRET=...            # openssl rand -base64 32
+AUTH_SECRET=...             # openssl rand -base64 32
 AUTH_GOOGLE_ID=...
 AUTH_GOOGLE_SECRET=...
+WEB_ORIGIN=http://localhost:5173   # optional, this is the default
 ```
 
-On first sign-in the app auto-provisions your user row and a default
+On first sign-in the server auto-provisions your user row and a default
 "Personal" workspace group.
 
 ## Useful scripts
 
-- `pnpm dev` — Next.js dev server (Turbopack)
-- `pnpm build` / `pnpm start` — production build and serve
-- `pnpm lint` / `pnpm format` — ESLint + Prettier
-- `pnpm db:up` / `pnpm db:down` — Postgres container up/down
-- `pnpm db:generate` / `pnpm db:migrate` — Drizzle migrations
-- `pnpm db:studio` — Drizzle Studio (schema browser)
+- `pnpm dev` — server + web in parallel
+- `pnpm dev:server` / `pnpm dev:web` — one at a time
+- `pnpm build` — build both apps
+- `pnpm typecheck` — tsc across the monorepo
+- `pnpm format` / `pnpm format:check` — Prettier
+- `pnpm db:up` / `pnpm db:down` — Postgres container
+- `pnpm db:generate` / `pnpm db:migrate` / `pnpm db:studio` — Drizzle
 
-## Project layout
+## API shape
+
+Everything under `/api` is protected; send
+`Authorization: Bearer <token>` from clients.
 
 ```
-src/
-├─ app/                    # App Router routes + route-local components
-│  ├─ accounts/            # accounts CRUD + "manage" list
-│  ├─ account-groups/      # account group edit
-│  ├─ settings/            # settings hub; categories CRUD
-│  ├─ transactions/        # create/edit/delete transactions, shared form
-│  ├─ accounts-sidebar.tsx # home-page sidebar
-│  ├─ transactions-list.tsx
-│  └─ page.tsx             # home (transactions + sidebar)
-├─ components/             # shared UI primitives (back-link, layout, ui/*)
-├─ db/                     # Drizzle schema + client
-└─ lib/                    # pure helpers (money, dates, authz, …)
-drizzle/                   # generated migrations + snapshots
+GET    /api/auth/google/start           → 302 to Google
+GET    /api/auth/google/callback        → 302 to web with #token=…
+GET    /api/auth/me
+
+GET|POST     /api/account-groups
+PATCH|DELETE /api/account-groups/:id
+
+GET|POST     /api/accounts
+GET|PATCH|DELETE /api/accounts/:id
+
+GET|POST     /api/transactions          (?accountId= to filter)
+PATCH|DELETE /api/transactions/:id
+PATCH        /api/transactions/:id/adjustment
+POST         /api/transactions/:id/process
+
+GET|POST     /api/categories
+PATCH|DELETE /api/categories/:id
+POST         /api/categories/:id/subcategories
+PATCH|DELETE /api/subcategories/:id
+
+GET          /api/tags
 ```

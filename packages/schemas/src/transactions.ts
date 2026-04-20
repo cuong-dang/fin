@@ -54,7 +54,8 @@ export type AdjustmentUpdateBody = z.infer<typeof adjustmentUpdateBody>;
 // ─── Mark pending → processed ─────────────────────────────────────────────
 
 export const processTransactionBody = z.object({
-  date: dateString.optional(),
+  // Client must supply the user's local date. Server never fabricates one.
+  date: dateString,
 });
 export type ProcessTransactionBody = z.infer<typeof processTransactionBody>;
 
