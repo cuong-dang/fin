@@ -1,7 +1,6 @@
 import type { Account, AccountGroup } from "@fin/schemas";
 import {
   ActionIcon,
-  Anchor,
   Box,
   Button,
   Container,
@@ -38,25 +37,24 @@ export function AccountsManageRoute() {
   const byGroup = groupBy(accounts, (a) => a.accountGroupId);
 
   return (
-    <Container size="md" py="xl">
+    <Container size="sm" p="sm">
       <Stack>
         <BackLink to="/" />
-        <Group justify="space-between" align="baseline">
+        {/* Title + new account */}
+        <Group justify="space-between">
           <Title order={2}>Manage accounts</Title>
           <Button component={Link} to="/accounts/new" size="sm">
             New account
           </Button>
         </Group>
+
+        {/* Account groups */}
         {groups.length === 0 ? (
           <Text c="dimmed" size="sm">
-            No account groups yet.{" "}
-            <Anchor component={Link} to="/accounts/new">
-              Create your first account
-            </Anchor>
-            .
+            No accounts.
           </Text>
         ) : (
-          <Stack gap="xl">
+          <Stack>
             {groups.map((g) => (
               <GroupSection
                 key={g.id}
@@ -86,25 +84,21 @@ function GroupSection({
   });
   return (
     <Box component="section">
-      <Group justify="space-between" pb="xs">
-        <Text size="sm" fw={600} tt="uppercase">
+      {/* Name + edit/delete */}
+      <Group justify="space-between">
+        <Text size="sm" fw={700} tt="uppercase">
           {group.name}
         </Text>
-        <Group gap={4}>
+        <Group gap={0}>
           <ActionIcon
             component={Link}
             to={`/account-groups/${group.id}/edit`}
-            variant="subtle"
-            color="gray"
-            size="sm"
             aria-label={`Edit group ${group.name}`}
           >
             <Pencil size={14} />
           </ActionIcon>
           <ActionIcon
-            variant="subtle"
             color="red"
-            size="sm"
             aria-label={`Delete group ${group.name}`}
             onClick={() => {
               if (
@@ -118,18 +112,18 @@ function GroupSection({
           </ActionIcon>
         </Group>
       </Group>
-      <Divider mb="xs" />
+
+      <Divider />
+
+      {/* Accounts */}
       {accounts.length === 0 ? (
-        <Text c="dimmed" size="sm" fs="italic">
+        <Text c="dimmed" size="sm">
           No accounts.
         </Text>
       ) : (
-        <Stack gap={0}>
-          {accounts.map((a, i) => (
-            <Box key={a.id}>
-              {i > 0 && <Divider />}
-              <AccountRowItem account={a} />
-            </Box>
+        <Stack py="sm">
+          {accounts.map((a) => (
+            <AccountRowItem account={a} />
           ))}
         </Stack>
       )}
@@ -146,29 +140,25 @@ function AccountRowItem({ account }: { account: Account }) {
     },
     onError: (e) => alert((e as Error).message),
   });
+
   return (
-    <Group justify="space-between" py="xs">
+    <Group justify="space-between">
       <Text size="sm">
         <b>{account.name}</b>{" "}
         <Text component="span" c="dimmed">
           {account.currency}
         </Text>
       </Text>
-      <Group gap={4}>
+      <Group gap={0}>
         <ActionIcon
           component={Link}
           to={`/accounts/${account.id}/edit`}
-          variant="subtle"
-          color="gray"
-          size="sm"
           aria-label={`Edit account ${account.name}`}
         >
           <Pencil size={14} />
         </ActionIcon>
         <ActionIcon
-          variant="subtle"
           color="red"
-          size="sm"
           aria-label={`Delete account ${account.name}`}
           onClick={() => {
             if (

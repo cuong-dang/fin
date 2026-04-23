@@ -39,10 +39,10 @@ export function AccountsSidebar() {
         </Anchor>
         <Group gap={0}>
           <ActionIcon component={Link} to="/accounts">
-            <Settings />
+            <Settings size={14} />
           </ActionIcon>
           <ActionIcon component={Link} to="/accounts/new">
-            <Plus />
+            <Plus size={14} />
           </ActionIcon>
         </Group>
       </Group>
@@ -58,7 +58,7 @@ export function AccountsSidebar() {
         />
         {groups.length === 0 ? (
           <Text size="sm" c="dimmed" px="sm" py="sm">
-            No accounts yet.
+            No accounts.
           </Text>
         ) : (
           groups.map((g) => (
@@ -85,7 +85,7 @@ export function AccountsSidebar() {
         </Stack>
         <Group gap={0}>
           <ActionIcon component={Link} to="/settings" aria-label="Settings">
-            <SlidersHorizontal />
+            <SlidersHorizontal size={14} />
           </ActionIcon>
           <SignOutButton />
         </Group>
@@ -117,11 +117,11 @@ function GroupSection({
   return (
     <Stack gap={0} py="sm">
       <Group justify="space-between" px="sm">
-        <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+        <Text size="sm" fw={700} c="dimmed" tt="uppercase">
           {group.name}
         </Text>
         {subtotal && (
-          <Text size="xs" c="dimmed" ff="monospace">
+          <Text size="sm" c="dimmed" ff="monospace">
             {formatMoney(subtotal.amount, subtotal.currency)}
           </Text>
         )}
@@ -162,11 +162,11 @@ function AccountItem({
       label={account.name}
       rightSection={
         <Stack gap={0} align="flex-end">
-          <Text size="xs" c="dimmed" ff="monospace">
+          <Text size="sm" c="dimmed" ff="monospace">
             {formatMoney(present, account.currency)}
           </Text>
           {hasPending && (
-            <Text size="xs" c="dimmed" ff="monospace">
+            <Text size="sm" c="dimmed" ff="monospace">
               avail {formatMoney(available, account.currency)}
             </Text>
           )}

@@ -26,7 +26,7 @@ export function HomeRoute() {
               </ActionIcon>
             )}
           </Group>
-          <Button component={Link} to="/transactions/new" size="xs">
+          <Button component={Link} to="/transactions/new" size="sm">
             New transaction
           </Button>
         </Group>

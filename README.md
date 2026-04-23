@@ -83,10 +83,11 @@ drizzle/       Generated migrations
 - **Drizzle ORM** + **Postgres 17**
 - **Zod v4** for schema validation at every API boundary, shared
   between server and clients via `@fin/schemas`
-- **Tailwind v4** + **shadcn/ui** primitives (Button, Input, Label, etc.)
-  with local wrappers (`NativeSelect`, `MoneyInput`, `Field`)
-- Bearer-token auth (JWT in `Authorization: Bearer`) so mobile clients
-  plug in identically — no cookies
+- **Mantine 7** for UI primitives (styled, accessible, no Tailwind)
+- **dnd-kit** for drag-and-drop (same-day tx reorder, cross-day move)
+- Bearer-token auth (JWT in `Authorization: Bearer`) + `X-Group-Id`
+  header for the active workspace. Mobile clients plug in identically —
+  no cookies
 
 ## Getting started
 
@@ -119,6 +120,8 @@ On first sign-in the server auto-provisions your user row and a default
 - `pnpm build` — build both apps
 - `pnpm typecheck` — tsc across the monorepo
 - `pnpm test` — run all test suites under `apps/**`
+- `pnpm lint` — ESLint across the repo
+- `pnpm knip` — audit for unused files / exports / deps
 - `pnpm format` / `pnpm format:check` — Prettier
 - `pnpm db:up` / `pnpm db:down` — Postgres container
 - `pnpm db:generate` / `pnpm db:migrate` / `pnpm db:studio` — Drizzle
@@ -142,13 +145,19 @@ refactor them without anxiety — not to exercise every line.
 
 ## API shape
 
-Everything under `/api` is protected; send
-`Authorization: Bearer <token>` from clients.
+Workspace-scoped routes require two headers:
+
+```
+Authorization: Bearer <token>
+X-Group-Id:    <active-workspace-id>
+```
+
+`/api/auth/*` is JWT-only; everything else requires both.
 
 ```
 GET    /api/auth/google/start           → 302 to Google
 GET    /api/auth/google/callback        → 302 to web with #token=…
-GET    /api/auth/me
+GET    /api/auth/me                     → { user, groups }
 
 GET|POST     /api/account-groups
 PATCH|DELETE /api/account-groups/:id
@@ -160,6 +169,7 @@ GET|POST     /api/transactions          (?accountId= to filter)
 PATCH|DELETE /api/transactions/:id
 PATCH        /api/transactions/:id/adjustment
 POST         /api/transactions/:id/process
+POST         /api/transactions/reorder  (single-mover same-day or cross-day)
 
 GET|POST     /api/categories
 PATCH|DELETE /api/categories/:id
