@@ -33,35 +33,23 @@ export function AccountsSidebar() {
 
   return (
     <Stack gap={0} h="100%">
-      <Group justify="space-between" px="md" py="sm">
-        <Anchor component={Link} to="/" fw={600} underline="never">
+      <Group justify="space-between" px="sm" py="sm">
+        <Anchor component={Link} to="/" fw={700} underline="never">
           fin
         </Anchor>
         <Group gap={0}>
-          <ActionIcon
-            component={Link}
-            to="/accounts"
-            variant="subtle"
-            color="gray"
-            size="sm"
-            aria-label="Manage accounts"
-          >
-            <Settings size={14} />
+          <ActionIcon component={Link} to="/accounts">
+            <Settings />
           </ActionIcon>
-          <ActionIcon
-            component={Link}
-            to="/accounts/new"
-            variant="subtle"
-            color="gray"
-            size="sm"
-            aria-label="New account"
-          >
-            <Plus size={14} />
+          <ActionIcon component={Link} to="/accounts/new">
+            <Plus />
           </ActionIcon>
         </Group>
       </Group>
+
       <Divider />
-      <ScrollArea flex={1} px="xs" pb="md">
+
+      <ScrollArea flex={1}>
         <NavLink
           component={Link}
           to="/"
@@ -69,12 +57,8 @@ export function AccountsSidebar() {
           active={!selectedAccountId}
         />
         {groups.length === 0 ? (
-          <Text size="sm" c="dimmed" px="xs" py="md">
-            No accounts yet.{" "}
-            <Anchor component={Link} to="/accounts/new">
-              Create one
-            </Anchor>
-            .
+          <Text size="sm" c="dimmed" px="sm" py="sm">
+            No accounts yet.
           </Text>
         ) : (
           groups.map((g) => (
@@ -87,38 +71,21 @@ export function AccountsSidebar() {
           ))
         )}
       </ScrollArea>
+
       <Divider />
-      <Group justify="space-between" gap="xs" px="md" py="sm">
-        <Stack gap={0} style={{ minWidth: 0 }}>
-          {meQ.isLoading ? (
-            <Text size="xs" c="dimmed" fs="italic">
-              Loading…
-            </Text>
-          ) : meQ.error ? (
-            <Text size="xs" c="red">
-              {(meQ.error as Error).message}
-            </Text>
-          ) : (
-            <>
-              <Text size="xs" fw={500} truncate>
-                {meQ.data?.user.name ?? "(unknown)"}
-              </Text>
-              <Text size="xs" c="dimmed" truncate>
-                {meQ.data?.user.email ?? ""}
-              </Text>
-            </>
-          )}
+
+      <Group justify="space-between" px="sm" py="sm">
+        <Stack gap={0}>
+          <Text size="xs" fw={500}>
+            {meQ.data?.user.name}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {meQ.data?.user.email}
+          </Text>
         </Stack>
-        <Group gap={0} wrap="nowrap">
-          <ActionIcon
-            component={Link}
-            to="/settings"
-            variant="subtle"
-            color="gray"
-            size="sm"
-            aria-label="Settings"
-          >
-            <SlidersHorizontal size={14} />
+        <Group gap={0}>
+          <ActionIcon component={Link} to="/settings" aria-label="Settings">
+            <SlidersHorizontal />
           </ActionIcon>
           <SignOutButton />
         </Group>
@@ -148,9 +115,9 @@ function GroupSection({
 }) {
   const subtotal = groupSubtotal(accounts);
   return (
-    <Stack gap={2} mt="md">
-      <Group justify="space-between" px="xs">
-        <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+    <Stack gap={0} py="sm">
+      <Group justify="space-between" px="sm">
+        <Text size="xs" fw={700} c="dimmed" tt="uppercase">
           {group.name}
         </Text>
         {subtotal && (
@@ -160,8 +127,8 @@ function GroupSection({
         )}
       </Group>
       {accounts.length === 0 ? (
-        <Text size="sm" c="dimmed" fs="italic" px="xs">
-          empty
+        <Text size="sm" c="dimmed" px="sm" py="sm">
+          Empty.
         </Text>
       ) : (
         accounts.map((a) => (
@@ -186,6 +153,7 @@ function AccountItem({
   const present = BigInt(account.presentBalance);
   const available = BigInt(account.availableBalance);
   const hasPending = present !== available;
+
   return (
     <NavLink
       component={Link}

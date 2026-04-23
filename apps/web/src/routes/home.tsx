@@ -17,17 +17,11 @@ export function HomeRoute() {
   return (
     <AppShell navbar={{ width: 400, breakpoint: 100 }} header={{ height: 50 }}>
       <AppShell.Header>
-        <Group justify="space-between" h="100%" px="md">
+        <Group justify="space-between" h="100%" px="sm">
           <Group>
             <Title order={4}>{accountName ?? "All transactions"}</Title>
             {accountName && (
-              <ActionIcon
-                component={Link}
-                to="/"
-                size="sm"
-                color="black"
-                variant="subtle"
-              >
+              <ActionIcon component={Link} to="/" aria-label="Clear filter">
                 <X />
               </ActionIcon>
             )}

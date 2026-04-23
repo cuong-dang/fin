@@ -6,8 +6,9 @@ export function SignOutButton() {
   const navigate = useNavigate();
   return (
     <Button
+      size="xs"
+      color="black"
       variant="subtle"
-      size="compact-xs"
       onClick={() => {
         clearAuth();
         navigate("/signin", { replace: true });
