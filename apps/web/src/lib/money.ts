@@ -40,28 +40,3 @@ export function formatMoneyPlain(amount: bigint, currency: string): string {
   const divisor = 10 ** decimals;
   return (Number(amount) / divisor).toFixed(decimals);
 }
-
-// Matches "12", "12.", "12.34", ".5", "-12.34", etc. Anchored so extra
-// characters (currency symbols, commas, stray letters) fail. The UI layer is
-// responsible for feeding only well-formed decimals (see <MoneyInput>).
-const MONEY_RE = /^-?(\d+\.?\d*|\.\d+)$/;
-
-/**
- * Parse a well-formed decimal string into minor units for storage.
- * "12.34" + USD → 1234n; "500" + JPY → 500n. Throws on invalid input.
- */
-export function parseMoney(input: string, currency: string): bigint {
-  if (!MONEY_RE.test(input)) {
-    throw new Error(`Invalid money value: ${JSON.stringify(input)}`);
-  }
-  const formatter = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-  });
-  const decimals = formatter.resolvedOptions().maximumFractionDigits;
-  if (decimals === undefined) {
-    throw new Error(`No decimal count resolved for currency ${currency}`);
-  }
-  const value = parseFloat(input);
-  return BigInt(Math.round(value * 10 ** decimals));
-}

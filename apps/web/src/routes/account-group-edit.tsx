@@ -1,12 +1,18 @@
 import type { AccountGroup } from "@fin/schemas";
+import {
+  Alert,
+  Button,
+  Container,
+  Group,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+} from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { BackLink } from "@/components/back-link";
-import { FormPage } from "@/components/layout";
-import { Button } from "@/components/ui/button";
-import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { listAccountGroups, updateAccountGroup } from "@/lib/endpoints";
 
 export function AccountGroupEditRoute() {
@@ -20,10 +26,12 @@ export function AccountGroupEditRoute() {
   if (groupsQ.isLoading) return null;
   if (!group) {
     return (
-      <FormPage>
-        <BackLink to="/accounts" />
-        <p className="mt-4 text-sm">Group not found.</p>
-      </FormPage>
+      <Container size="xs" py="xl">
+        <Stack>
+          <BackLink to="/accounts" />
+          <Text size="sm">Group not found.</Text>
+        </Stack>
+      </Container>
     );
   }
   return <Form group={group} />;
@@ -43,40 +51,39 @@ function Form({ group }: { group: AccountGroup }) {
   });
 
   return (
-    <FormPage>
-      <BackLink to="/accounts" />
-      <h1 className="mt-4 text-2xl font-semibold">Edit account group</h1>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          mutation.mutate({ name });
-        }}
-        className="mt-6 space-y-4"
-      >
-        <Field label="Name" htmlFor="name">
-          <Input
-            id="name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            autoFocus
-            maxLength={100}
-          />
-        </Field>
-        {mutation.error && (
-          <p className="text-destructive text-sm">
-            {(mutation.error as Error).message}
-          </p>
-        )}
-        <div className="flex items-center gap-2">
-          <Button type="submit" disabled={mutation.isPending}>
-            {mutation.isPending ? "Saving…" : "Save"}
-          </Button>
-          <Button asChild variant="ghost">
-            <Link to="/accounts">Cancel</Link>
-          </Button>
-        </div>
-      </form>
-    </FormPage>
+    <Container size="xs" py="xl">
+      <Stack>
+        <BackLink to="/accounts" />
+        <Title order={2}>Edit account group</Title>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            mutation.mutate({ name });
+          }}
+        >
+          <Stack>
+            <TextInput
+              label="Name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              data-autofocus
+              maxLength={100}
+            />
+            {mutation.error && (
+              <Alert color="red">{(mutation.error as Error).message}</Alert>
+            )}
+            <Group>
+              <Button type="submit" loading={mutation.isPending}>
+                Save
+              </Button>
+              <Button component={Link} to="/accounts" variant="subtle">
+                Cancel
+              </Button>
+            </Group>
+          </Stack>
+        </form>
+      </Stack>
+    </Container>
   );
 }

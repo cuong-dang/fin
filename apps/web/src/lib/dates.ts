@@ -1,6 +1,3 @@
-/** Matches a canonical calendar date string: "YYYY-MM-DD". */
-export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
 /**
  * Human-friendly date header for transaction lists. Input is a canonical
  * "YYYY-MM-DD" calendar-date string (matches `transactions.date`).
@@ -32,14 +29,4 @@ export function localDateKey(date: Date): string {
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
-}
-
-/**
- * Today's date as "YYYY-MM-DD" in UTC. Used as a server-side default for
- * auto-generated transactions (starting balance, balance adjustments) where
- * the user's timezone isn't available. For user-entered transactions, read
- * the date from the form (client computes it in its own timezone).
- */
-export function todayUTCDate(): string {
-  return new Date().toISOString().slice(0, 10);
 }

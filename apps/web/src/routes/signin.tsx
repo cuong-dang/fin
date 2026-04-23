@@ -1,12 +1,15 @@
-import { Button } from "@/components/ui/button";
+import { Button, Stack, Text } from "@mantine/core";
+import { Link } from "react-router";
 
 export function SignInRoute() {
   return (
-    <main className="flex min-h-full flex-col items-center justify-center gap-6 p-8">
-      <h1 className="text-2xl font-semibold">Sign in to fin</h1>
-      <Button asChild>
-        <a href="/api/auth/google/start">Continue with Google</a>
+    <Stack align="center" justify="center" h="100%">
+      <Text>
+        Sign in to fin
+      </Text>
+      <Button component="a" href="/api/auth/google/start">
+        Continue with Google
       </Button>
-    </main>
+    </Stack>
   );
 }

@@ -1,10 +1,11 @@
-import { Navigate, Route, Routes } from "react-router";
+import { Route, Routes } from "react-router";
 import { AccountEditRoute } from "./routes/account-edit";
 import { AccountGroupEditRoute } from "./routes/account-group-edit";
 import { AccountNewRoute } from "./routes/account-new";
 import { AccountsManageRoute } from "./routes/accounts-manage";
 import { AuthCallbackRoute } from "./routes/auth-callback";
 import { HomeRoute } from "./routes/home";
+import { NotFoundRoute } from "./routes/not-found";
 import { RequireAuth } from "./routes/require-auth";
 import { SettingsCategoriesRoute } from "./routes/settings-categories";
 import { SettingsRoute } from "./routes/settings";
@@ -37,7 +38,7 @@ export function App() {
           element={<SettingsCategoriesRoute />}
         />
       </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<NotFoundRoute />} />
     </Routes>
   );
 }

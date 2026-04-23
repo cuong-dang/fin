@@ -4,7 +4,6 @@ import type {
   AdjustmentUpdateBody,
   CategoryWithSubs,
   CreateAccountBody,
-  CreateAccountGroupBody,
   CreateCategoryBody,
   CreateSubcategoryBody,
   Me,
@@ -28,9 +27,6 @@ export const me = () => api<Me>("/api/auth/me");
 
 export const listAccountGroups = () =>
   api<AccountGroup[]>("/api/account-groups");
-
-export const createAccountGroup = (body: CreateAccountGroupBody) =>
-  api<AccountGroup>("/api/account-groups", { method: "POST", json: body });
 
 export const updateAccountGroup = (id: string, body: UpdateAccountGroupBody) =>
   api<AccountGroup>(`/api/account-groups/${id}`, {

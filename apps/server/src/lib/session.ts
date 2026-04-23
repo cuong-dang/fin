@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db, schema } from "../db";
 
-export type BootstrappedUser = {
+type BootstrappedUser = {
   userId: string;
   email: string;
   name: string;

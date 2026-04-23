@@ -5,19 +5,17 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file=../../.env.local src/index.ts",
-    "start": "node --env-file=../../.env.local dist/index.js",
     "test": "tsx --test --env-file=../../.env.local src/**/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@fastify/cors": "^10.0.0",
     "@fastify/jwt": "^9.0.0",
     "@fastify/oauth2": "^8.0.0",
     "@fin/schemas": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "fastify": "^5.0.0",
-    "postgres": "^3.4.9",
     "fastify-plugin": "^5.0.0",
+    "postgres": "^3.4.9",
     "zod": "^4.3.6"
   },
   "devDependencies": {

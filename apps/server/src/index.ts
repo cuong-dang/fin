@@ -1,4 +1,3 @@
-import fastifyCors from "@fastify/cors";
 import Fastify, { type FastifyError } from "fastify";
 import { ZodError } from "zod";
 import { env } from "./env";
@@ -11,11 +10,6 @@ import { tagRoutes } from "./routes/tags";
 import { transactionRoutes } from "./routes/transactions";
 
 const app = Fastify({ logger: true });
-
-await app.register(fastifyCors, {
-  origin: env.WEB_ORIGIN,
-  credentials: true,
-});
 
 await app.register(authPlugin);
 

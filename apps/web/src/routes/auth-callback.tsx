@@ -5,12 +5,15 @@ import { me } from "@/lib/endpoints";
 
 /**
  * Captures #token=... from the URL fragment set by the server's OAuth
- * callback redirect. Then fetches /me to learn which workspaces the user
- * belongs to, stores the default group id, and navigates home.
+ * callback redirect, stores it in localStorage, then fetches /me to learn
+ * which workspaces the user belongs to and stashes a default group id
+ * before navigating home.
  *
- * Idempotent across StrictMode's double-effect: after the first run we've
- * stashed the token and (usually) the group id, so the second run sees an
- * empty fragment but still has both in storage and routes to home.
+ * StrictMode idempotency: the first effect run reads the fragment, stores
+ * the token, and strips the fragment from the URL. The second run sees an
+ * empty fragment but reads the stored token back from localStorage — so
+ * we decide "signed in?" from storage, never from the fragment's presence.
+ * Without that, run 2 would wrongly bounce the user to /signin.
  */
 export function AuthCallbackRoute() {
   const navigate = useNavigate();
@@ -30,7 +33,10 @@ export function AuthCallbackRoute() {
       return;
     }
 
-    // Already bootstrapped (StrictMode second run or a refresh mid-flow).
+    // Short-circuit if already bootstrapped — e.g., user refreshes
+    // /auth/callback after the first visit completed. Avoids a redundant
+    // /me round-trip. (Doesn't apply to StrictMode's double-effect, since
+    // both runs fire before the first's /me resolves.)
     if (getGroupId()) {
       navigate("/", { replace: true });
       return;

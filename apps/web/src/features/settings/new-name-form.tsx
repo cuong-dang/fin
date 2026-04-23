@@ -1,7 +1,6 @@
+import { Button, Group, TextInput } from "@mantine/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 /** Inline "add" form for name-only entities (controlled input that resets). */
 export function NewNameForm({
@@ -31,23 +30,25 @@ export function NewNameForm({
         e.preventDefault();
         m.mutate(trimmed);
       }}
-      className="flex items-center gap-2"
     >
-      <Input
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder={placeholder}
-        maxLength={100}
-        required
-        className="flex-1"
-      />
-      <Button
-        type="submit"
-        size="sm"
-        disabled={m.isPending || trimmed.length === 0}
-      >
-        {submitLabel}
-      </Button>
+      <Group gap="xs" wrap="nowrap">
+        <TextInput
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={placeholder}
+          maxLength={100}
+          required
+          style={{ flex: 1 }}
+        />
+        <Button
+          type="submit"
+          size="sm"
+          loading={m.isPending}
+          disabled={trimmed.length === 0}
+        >
+          {submitLabel}
+        </Button>
+      </Group>
     </form>
   );
 }

@@ -1,13 +1,13 @@
+import { Button } from "@mantine/core";
 import { useNavigate } from "react-router";
-import { Button } from "@/components/ui/button";
 import { clearAuth } from "@/lib/auth";
 
 export function SignOutButton() {
   const navigate = useNavigate();
   return (
     <Button
-      variant="ghost"
-      size="xs"
+      variant="subtle"
+      size="compact-xs"
       onClick={() => {
         clearAuth();
         navigate("/signin", { replace: true });

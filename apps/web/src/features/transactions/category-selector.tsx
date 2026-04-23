@@ -1,13 +1,10 @@
 import type { CategoryWithSubs } from "@fin/schemas";
-import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { NativeSelect } from "@/components/ui/native-select";
+import { NativeSelect, TextInput } from "@mantine/core";
 
 export const CREATE_NEW = "__new__";
 
 /**
  * Category + subcategory picker with inline "Create new…" escape hatches.
- * Controlled: parent owns state so it can reset on transaction-type change.
  */
 export function CategorySelector({
   categories,
@@ -37,78 +34,63 @@ export function CategorySelector({
 
   return (
     <>
-      <Field label="Category" htmlFor="categoryId">
-        <NativeSelect
-          id="categoryId"
-          value={categoryId}
-          onChange={(e) => {
-            onCategoryChange(e.target.value);
-            onSubcategoryChange("");
-          }}
-          required
-        >
-          <option value="" disabled>
-            Select…
-          </option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-          <option value={CREATE_NEW}>+ Create new category</option>
-        </NativeSelect>
-      </Field>
+      <NativeSelect
+        label="Category"
+        value={categoryId}
+        onChange={(e) => {
+          onCategoryChange(e.target.value);
+          onSubcategoryChange("");
+        }}
+        required
+        data={[
+          { value: "", label: "Select…", disabled: true },
+          ...categories.map((c) => ({ value: c.id, label: c.name })),
+          { value: CREATE_NEW, label: "+ Create new category" },
+        ]}
+      />
       {creatingNewCategory && (
-        <Field label="New category name" htmlFor="newCategoryName">
-          <Input
-            id="newCategoryName"
-            value={newCategoryName}
-            onChange={(e) => onNewCategoryNameChange(e.target.value)}
-            required
-            autoFocus
-            maxLength={100}
-            placeholder="e.g. Coffee"
-          />
-        </Field>
+        <TextInput
+          label="New category name"
+          value={newCategoryName}
+          onChange={(e) => onNewCategoryNameChange(e.target.value)}
+          required
+          data-autofocus
+          maxLength={100}
+          placeholder="e.g. Coffee"
+        />
       )}
 
       {creatingNewCategory ? (
-        <Field label="New subcategory (optional)" htmlFor="newSubcategoryName">
-          <Input
-            id="newSubcategoryName"
-            value={newSubcategoryName}
-            onChange={(e) => onNewSubcategoryNameChange(e.target.value)}
-            maxLength={100}
-          />
-        </Field>
+        <TextInput
+          label="New subcategory (optional)"
+          value={newSubcategoryName}
+          onChange={(e) => onNewSubcategoryNameChange(e.target.value)}
+          maxLength={100}
+        />
       ) : categoryId === "" ? null : (
         <>
-          <Field label="Subcategory (optional)" htmlFor="subcategoryId">
-            <NativeSelect
-              id="subcategoryId"
-              value={subcategoryId}
-              onChange={(e) => onSubcategoryChange(e.target.value)}
-            >
-              <option value="">—</option>
-              {subcategoriesForPicker.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-              <option value={CREATE_NEW}>+ Create new subcategory</option>
-            </NativeSelect>
-          </Field>
+          <NativeSelect
+            label="Subcategory (optional)"
+            value={subcategoryId}
+            onChange={(e) => onSubcategoryChange(e.target.value)}
+            data={[
+              { value: "", label: "—" },
+              ...subcategoriesForPicker.map((s) => ({
+                value: s.id,
+                label: s.name,
+              })),
+              { value: CREATE_NEW, label: "+ Create new subcategory" },
+            ]}
+          />
           {creatingNewSubcategory && (
-            <Field label="New subcategory name" htmlFor="newSubcategoryName">
-              <Input
-                id="newSubcategoryName"
-                value={newSubcategoryName}
-                onChange={(e) => onNewSubcategoryNameChange(e.target.value)}
-                required
-                autoFocus
-                maxLength={100}
-              />
-            </Field>
+            <TextInput
+              label="New subcategory name"
+              value={newSubcategoryName}
+              onChange={(e) => onNewSubcategoryNameChange(e.target.value)}
+              required
+              data-autofocus
+              maxLength={100}
+            />
           )}
         </>
       )}

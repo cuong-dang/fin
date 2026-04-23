@@ -1,9 +1,20 @@
+import type { Account, AccountGroup } from "@fin/schemas";
+import {
+  ActionIcon,
+  Anchor,
+  Box,
+  Button,
+  Container,
+  Divider,
+  Group,
+  Stack,
+  Text,
+  Title,
+} from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Trash2 } from "lucide-react";
 import { Link } from "react-router";
 import { BackLink } from "@/components/back-link";
-import { FormPage } from "@/components/layout";
-import { Button } from "@/components/ui/button";
 import { groupBy } from "@/lib/collections";
 import {
   deleteAccount,
@@ -11,7 +22,6 @@ import {
   listAccountGroups,
   listAccounts,
 } from "@/lib/endpoints";
-import type { Account, AccountGroup } from "@fin/schemas";
 
 export function AccountsManageRoute() {
   const groupsQ = useQuery({
@@ -28,34 +38,36 @@ export function AccountsManageRoute() {
   const byGroup = groupBy(accounts, (a) => a.accountGroupId);
 
   return (
-    <FormPage size="lg">
-      <BackLink to="/" />
-      <div className="mt-4 flex items-baseline justify-between gap-4">
-        <h1 className="text-2xl font-semibold">Manage accounts</h1>
-        <Button asChild size="sm">
-          <Link to="/accounts/new">New account</Link>
-        </Button>
-      </div>
-      {groups.length === 0 ? (
-        <p className="text-muted-foreground mt-6 text-sm">
-          No account groups yet.{" "}
-          <Link to="/accounts/new" className="hover:text-foreground underline">
-            Create your first account
-          </Link>
-          .
-        </p>
-      ) : (
-        <div className="mt-6 space-y-8">
-          {groups.map((g) => (
-            <GroupSection
-              key={g.id}
-              group={g}
-              accounts={byGroup.get(g.id) ?? []}
-            />
-          ))}
-        </div>
-      )}
-    </FormPage>
+    <Container size="md" py="xl">
+      <Stack>
+        <BackLink to="/" />
+        <Group justify="space-between" align="baseline">
+          <Title order={2}>Manage accounts</Title>
+          <Button component={Link} to="/accounts/new" size="sm">
+            New account
+          </Button>
+        </Group>
+        {groups.length === 0 ? (
+          <Text c="dimmed" size="sm">
+            No account groups yet.{" "}
+            <Anchor component={Link} to="/accounts/new">
+              Create your first account
+            </Anchor>
+            .
+          </Text>
+        ) : (
+          <Stack gap="xl">
+            {groups.map((g) => (
+              <GroupSection
+                key={g.id}
+                group={g}
+                accounts={byGroup.get(g.id) ?? []}
+              />
+            ))}
+          </Stack>
+        )}
+      </Stack>
+    </Container>
   );
 }
 
@@ -73,25 +85,26 @@ function GroupSection({
     onError: (e) => alert((e as Error).message),
   });
   return (
-    <section>
-      <div className="flex items-center justify-between border-b pb-2">
-        <h2 className="text-sm font-semibold tracking-wider uppercase">
+    <Box component="section">
+      <Group justify="space-between" pb="xs">
+        <Text size="sm" fw={600} tt="uppercase">
           {group.name}
-        </h2>
-        <div className="flex items-center gap-1">
-          <Button
-            asChild
-            variant="ghost"
-            size="icon-xs"
+        </Text>
+        <Group gap={4}>
+          <ActionIcon
+            component={Link}
+            to={`/account-groups/${group.id}/edit`}
+            variant="subtle"
+            color="gray"
+            size="sm"
             aria-label={`Edit group ${group.name}`}
           >
-            <Link to={`/account-groups/${group.id}/edit`}>
-              <Pencil />
-            </Link>
-          </Button>
-          <Button
-            variant="destructive"
-            size="icon-xs"
+            <Pencil size={14} />
+          </ActionIcon>
+          <ActionIcon
+            variant="subtle"
+            color="red"
+            size="sm"
             aria-label={`Delete group ${group.name}`}
             onClick={() => {
               if (
@@ -101,22 +114,26 @@ function GroupSection({
               }
             }}
           >
-            <Trash2 />
-          </Button>
-        </div>
-      </div>
+            <Trash2 size={14} />
+          </ActionIcon>
+        </Group>
+      </Group>
+      <Divider mb="xs" />
       {accounts.length === 0 ? (
-        <p className="text-muted-foreground mt-2 text-sm italic">
+        <Text c="dimmed" size="sm" fs="italic">
           No accounts.
-        </p>
+        </Text>
       ) : (
-        <ul className="mt-2 divide-y">
-          {accounts.map((a) => (
-            <AccountRowItem key={a.id} account={a} />
+        <Stack gap={0}>
+          {accounts.map((a, i) => (
+            <Box key={a.id}>
+              {i > 0 && <Divider />}
+              <AccountRowItem account={a} />
+            </Box>
           ))}
-        </ul>
+        </Stack>
       )}
-    </section>
+    </Box>
   );
 }
 
@@ -130,25 +147,28 @@ function AccountRowItem({ account }: { account: Account }) {
     onError: (e) => alert((e as Error).message),
   });
   return (
-    <li className="flex items-center justify-between py-2">
-      <div className="text-sm">
-        <span className="font-medium">{account.name}</span>
-        <span className="text-muted-foreground ml-2">{account.currency}</span>
-      </div>
-      <div className="flex items-center gap-1">
-        <Button
-          asChild
-          variant="ghost"
-          size="icon-xs"
+    <Group justify="space-between" py="xs">
+      <Text size="sm">
+        <b>{account.name}</b>{" "}
+        <Text component="span" c="dimmed">
+          {account.currency}
+        </Text>
+      </Text>
+      <Group gap={4}>
+        <ActionIcon
+          component={Link}
+          to={`/accounts/${account.id}/edit`}
+          variant="subtle"
+          color="gray"
+          size="sm"
           aria-label={`Edit account ${account.name}`}
         >
-          <Link to={`/accounts/${account.id}/edit`}>
-            <Pencil />
-          </Link>
-        </Button>
-        <Button
-          variant="destructive"
-          size="icon-xs"
+          <Pencil size={14} />
+        </ActionIcon>
+        <ActionIcon
+          variant="subtle"
+          color="red"
+          size="sm"
           aria-label={`Delete account ${account.name}`}
           onClick={() => {
             if (
@@ -160,9 +180,9 @@ function AccountRowItem({ account }: { account: Account }) {
             }
           }}
         >
-          <Trash2 />
-        </Button>
-      </div>
-    </li>
+          <Trash2 size={14} />
+        </ActionIcon>
+      </Group>
+    </Group>
   );
 }

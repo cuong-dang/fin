@@ -3,37 +3,56 @@ import type {
   CategoryWithSubs,
   Tag,
   TransactionBody,
+  TransactionLineBody,
 } from "@fin/schemas";
+import {
+  ActionIcon,
+  Alert,
+  Button,
+  Card,
+  Checkbox,
+  Group,
+  NativeSelect,
+  Stack,
+  Text,
+  TextInput,
+} from "@mantine/core";
+import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
-import { Button } from "@/components/ui/button";
-import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { MoneyInput } from "@/components/ui/money-input";
-import { NativeSelect } from "@/components/ui/native-select";
 import { localDateKey } from "@/lib/dates";
 import { CategorySelector, CREATE_NEW } from "./category-selector";
 
 export type TxType = "income" | "expense" | "transfer";
 
+export type LineFormValues = {
+  amount: string;
+  categoryId: string;
+  newCategoryName: string;
+  subcategoryId: string;
+  newSubcategoryName: string;
+};
+
 export type InitialTxValues = {
   type: TxType;
-  date: string; // "" when pending
+  date: string;
   pending: boolean;
-  amount: string;
   description: string;
   accountId: string;
   destinationAccountId: string;
-  categoryId: string;
-  subcategoryId: string;
+  transferAmount: string;
+  lines: LineFormValues[];
   tagId: string;
 };
 
-/**
- * Shared form for creating and editing income / expense / transfer
- * transactions. Parent supplies an `onSubmit(body)` callback that hands
- * off to a mutation.
- */
+const emptyLine = (): LineFormValues => ({
+  amount: "",
+  categoryId: "",
+  newCategoryName: "",
+  subcategoryId: "",
+  newSubcategoryName: "",
+});
+
 export function TransactionForm({
   accounts,
   categories,
@@ -59,20 +78,17 @@ export function TransactionForm({
     type: "expense",
     date: localDateKey(new Date()),
     pending: false,
-    amount: "",
     description: "",
     accountId: "",
     destinationAccountId: "",
-    categoryId: "",
-    subcategoryId: "",
+    transferAmount: "",
+    lines: [emptyLine()],
     tagId: "",
   };
 
   const [type, setType] = useState<TxType>(defaults.type);
-  const [categoryId, setCategoryId] = useState(defaults.categoryId);
-  const [newCategoryName, setNewCategoryName] = useState("");
-  const [subcategoryId, setSubcategoryId] = useState(defaults.subcategoryId);
-  const [newSubcategoryName, setNewSubcategoryName] = useState("");
+  const [lines, setLines] = useState<LineFormValues[]>(defaults.lines);
+  const [transferAmount, setTransferAmount] = useState(defaults.transferAmount);
   const [accountId, setAccountId] = useState(defaults.accountId);
   const [destinationAccountId, setDestinationAccountId] = useState(
     defaults.destinationAccountId,
@@ -81,10 +97,10 @@ export function TransactionForm({
     defaults.date || localDateKey(new Date()),
   );
   const [isPending, setIsPending] = useState(defaults.pending);
-  const [amount, setAmount] = useState(defaults.amount);
   const [description, setDescription] = useState(defaults.description);
   const [tagId, setTagId] = useState(defaults.tagId);
 
+  const isMultiLine = lines.length > 1;
   const relevantCategories =
     type === "transfer" ? [] : categories.filter((c) => c.kind === type);
   const sourceAccounts = accounts.filter((a) => a.id !== destinationAccountId);
@@ -92,10 +108,7 @@ export function TransactionForm({
 
   function handleTypeChange(newType: TxType) {
     setType(newType);
-    setCategoryId("");
-    setSubcategoryId("");
-    setNewCategoryName("");
-    setNewSubcategoryName("");
+    setLines([emptyLine()]);
   }
 
   function handleAccountChange(newId: string) {
@@ -108,12 +121,43 @@ export function TransactionForm({
     if (accountId === newId) setAccountId("");
   }
 
+  function updateLine(index: number, patch: Partial<LineFormValues>) {
+    setLines((prev) =>
+      prev.map((l, i) => (i === index ? { ...l, ...patch } : l)),
+    );
+  }
+
+  function addLine() {
+    setLines((prev) => [...prev, emptyLine()]);
+  }
+
+  function removeLine(index: number) {
+    setLines((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function lineToBody(l: LineFormValues): TransactionLineBody {
+    const creatingCategory = l.categoryId === CREATE_NEW;
+    return {
+      amount: l.amount,
+      categoryId: creatingCategory ? undefined : l.categoryId || undefined,
+      newCategoryName: creatingCategory ? l.newCategoryName : undefined,
+      subcategoryId:
+        creatingCategory || l.subcategoryId === CREATE_NEW
+          ? undefined
+          : l.subcategoryId || undefined,
+      newSubcategoryName: creatingCategory
+        ? l.newSubcategoryName || undefined
+        : l.subcategoryId === CREATE_NEW
+          ? l.newSubcategoryName
+          : undefined,
+    };
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const commonBase = {
       pending: isPending,
       date: isPending ? undefined : dateStr,
-      amount,
       description: description || undefined,
       tagId: tagId || undefined,
     };
@@ -122,176 +166,293 @@ export function TransactionForm({
       onSubmit({
         type: "transfer",
         ...commonBase,
+        amount: transferAmount,
         accountId,
         destinationAccountId,
       });
       return;
     }
 
-    const creatingCategory = categoryId === CREATE_NEW;
     onSubmit({
       type,
       ...commonBase,
       accountId,
-      categoryId: creatingCategory ? undefined : categoryId || undefined,
-      newCategoryName: creatingCategory ? newCategoryName : undefined,
-      subcategoryId:
-        creatingCategory || subcategoryId === CREATE_NEW
-          ? undefined
-          : subcategoryId || undefined,
-      newSubcategoryName: creatingCategory
-        ? newSubcategoryName || undefined
-        : subcategoryId === CREATE_NEW
-          ? newSubcategoryName
-          : undefined,
+      lines: lines.map(lineToBody),
     });
   }
 
   if (accounts.length === 0) {
     return (
-      <main className="mx-auto max-w-lg p-8">
-        <h1 className="text-2xl font-semibold">{title}</h1>
-        <p className="text-muted-foreground mt-4 text-sm">
+      <Stack>
+        <Text fw={600} size="xl">
+          {title}
+        </Text>
+        <Text c="dimmed" size="sm">
           You need to create an account first.
-        </p>
-        <Button asChild className="mt-6">
-          <Link to="/accounts/new">Create account</Link>
+        </Text>
+        <Button component={Link} to="/accounts/new" w="fit-content">
+          Create account
         </Button>
-      </main>
+      </Stack>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <TypeTabs value={type} onChange={handleTypeChange} />
+    <form onSubmit={handleSubmit}>
+      <Stack>
+        <TypeTabs value={type} onChange={handleTypeChange} />
 
-      <Field label="Amount" htmlFor="amount">
-        <MoneyInput
-          id="amount"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          min="0"
-          required
-          placeholder="0.00"
-        />
-      </Field>
+        {type === "transfer" ? (
+          <MoneyField
+            label="Amount"
+            value={transferAmount}
+            onChange={setTransferAmount}
+          />
+        ) : isMultiLine ? (
+          <MultiLineEditor
+            lines={lines}
+            categories={relevantCategories}
+            onUpdate={updateLine}
+            onAdd={addLine}
+            onRemove={removeLine}
+          />
+        ) : (
+          <SingleLineEditor
+            line={lines[0]}
+            categories={relevantCategories}
+            onUpdate={(patch) => updateLine(0, patch)}
+            onSplit={addLine}
+          />
+        )}
 
-      <div className="flex items-center gap-2">
-        <input
-          id="pending"
-          type="checkbox"
+        <Checkbox
           checked={isPending}
-          onChange={(e) => setIsPending(e.target.checked)}
-          className="border-input h-4 w-4 rounded"
+          onChange={(e) => setIsPending(e.currentTarget.checked)}
+          label="Mark as pending (settles later)"
         />
-        <label htmlFor="pending" className="text-sm">
-          Mark as pending (settles later)
-        </label>
-      </div>
 
-      {!isPending && (
-        <Field label="Date" htmlFor="date">
-          <Input
-            id="date"
+        {!isPending && (
+          <TextInput
             type="date"
+            label="Date"
             value={dateStr}
             onChange={(e) => setDateStr(e.target.value)}
             required
           />
-        </Field>
-      )}
+        )}
 
-      <Field
-        label={type === "transfer" ? "From account" : "Account"}
-        htmlFor="accountId"
-      >
         <NativeSelect
-          id="accountId"
-          required
+          label={type === "transfer" ? "From account" : "Account"}
           value={accountId}
           onChange={(e) => handleAccountChange(e.target.value)}
-        >
-          <option value="" disabled>
-            Select…
-          </option>
-          {sourceAccounts.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name} ({a.currency})
-            </option>
-          ))}
-        </NativeSelect>
-      </Field>
+          required
+          data={[
+            { value: "", label: "Select…", disabled: true },
+            ...sourceAccounts.map((a) => ({
+              value: a.id,
+              label: `${a.name} (${a.currency})`,
+            })),
+          ]}
+        />
 
-      {type === "transfer" && (
-        <Field label="To account" htmlFor="destinationAccountId">
+        {type === "transfer" && (
           <NativeSelect
-            id="destinationAccountId"
-            required
+            label="To account"
             value={destinationAccountId}
             onChange={(e) => handleDestinationChange(e.target.value)}
-          >
-            <option value="" disabled>
-              Select…
-            </option>
-            {destinationAccounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name} ({a.currency})
-              </option>
-            ))}
-          </NativeSelect>
-        </Field>
-      )}
+            required
+            data={[
+              { value: "", label: "Select…", disabled: true },
+              ...destinationAccounts.map((a) => ({
+                value: a.id,
+                label: `${a.name} (${a.currency})`,
+              })),
+            ]}
+          />
+        )}
 
-      {type !== "transfer" && (
-        <CategorySelector
-          categories={relevantCategories}
-          categoryId={categoryId}
-          onCategoryChange={setCategoryId}
-          newCategoryName={newCategoryName}
-          onNewCategoryNameChange={setNewCategoryName}
-          subcategoryId={subcategoryId}
-          onSubcategoryChange={setSubcategoryId}
-          newSubcategoryName={newSubcategoryName}
-          onNewSubcategoryNameChange={setNewSubcategoryName}
-        />
-      )}
-
-      <Field label="Tag (optional)" htmlFor="tagId">
         <NativeSelect
-          id="tagId"
+          label="Tag (optional)"
           value={tagId}
           onChange={(e) => setTagId(e.target.value)}
-        >
-          <option value="">—</option>
-          {tags.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
-        </NativeSelect>
-      </Field>
+          data={[
+            { value: "", label: "—" },
+            ...tags.map((t) => ({ value: t.id, label: t.name })),
+          ]}
+        />
 
-      <Field label="Description (optional)" htmlFor="description">
-        <Input
-          id="description"
-          type="text"
+        <TextInput
+          label="Description (optional)"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           maxLength={500}
         />
-      </Field>
 
-      {error && <p className="text-destructive text-sm">{error}</p>}
+        {error && <Alert color="red">{error}</Alert>}
 
-      <div className="flex items-center gap-2 pt-4">
-        <Button type="submit" disabled={pending}>
-          {pending ? "Saving…" : submitLabel}
-        </Button>
-        <Button asChild variant="ghost">
-          <Link to="/">Cancel</Link>
-        </Button>
-      </div>
+        <Group>
+          <Button type="submit" loading={pending}>
+            {submitLabel}
+          </Button>
+          <Button component={Link} to="/" variant="subtle">
+            Cancel
+          </Button>
+        </Group>
+      </Stack>
     </form>
+  );
+}
+
+function MoneyField({
+  label,
+  value,
+  onChange,
+  required = true,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  required?: boolean;
+}) {
+  return (
+    <TextInput
+      label={label}
+      type="number"
+      step="any"
+      inputMode="decimal"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      required={required}
+      min={0}
+      placeholder="0.00"
+    />
+  );
+}
+
+function SingleLineEditor({
+  line,
+  categories,
+  onUpdate,
+  onSplit,
+}: {
+  line: LineFormValues;
+  categories: CategoryWithSubs[];
+  onUpdate: (patch: Partial<LineFormValues>) => void;
+  onSplit: () => void;
+}) {
+  return (
+    <Stack>
+      <MoneyField
+        label="Amount"
+        value={line.amount}
+        onChange={(v) => onUpdate({ amount: v })}
+      />
+      <CategorySelector
+        categories={categories}
+        categoryId={line.categoryId}
+        onCategoryChange={(v) => onUpdate({ categoryId: v })}
+        newCategoryName={line.newCategoryName}
+        onNewCategoryNameChange={(v) => onUpdate({ newCategoryName: v })}
+        subcategoryId={line.subcategoryId}
+        onSubcategoryChange={(v) => onUpdate({ subcategoryId: v })}
+        newSubcategoryName={line.newSubcategoryName}
+        onNewSubcategoryNameChange={(v) => onUpdate({ newSubcategoryName: v })}
+      />
+      <Button
+        type="button"
+        variant="subtle"
+        size="compact-sm"
+        leftSection={<Plus size={14} />}
+        onClick={onSplit}
+        w="fit-content"
+      >
+        Split across categories
+      </Button>
+    </Stack>
+  );
+}
+
+function MultiLineEditor({
+  lines,
+  categories,
+  onUpdate,
+  onAdd,
+  onRemove,
+}: {
+  lines: LineFormValues[];
+  categories: CategoryWithSubs[];
+  onUpdate: (index: number, patch: Partial<LineFormValues>) => void;
+  onAdd: () => void;
+  onRemove: (index: number) => void;
+}) {
+  const total = lines.reduce((s, l) => {
+    const n = Number(l.amount);
+    return Number.isFinite(n) ? s + n : s;
+  }, 0);
+  return (
+    <Stack>
+      {lines.map((line, i) => (
+        <Card key={i} withBorder padding="sm">
+          <Stack gap="sm">
+            <Group justify="space-between">
+              <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+                Line {i + 1}
+              </Text>
+              <ActionIcon
+                type="button"
+                variant="subtle"
+                color="gray"
+                size="sm"
+                aria-label={`Remove line ${i + 1}`}
+                onClick={() => onRemove(i)}
+              >
+                <Trash2 size={14} />
+              </ActionIcon>
+            </Group>
+            <MoneyField
+              label="Amount"
+              value={line.amount}
+              onChange={(v) => onUpdate(i, { amount: v })}
+            />
+            <CategorySelector
+              categories={categories}
+              categoryId={line.categoryId}
+              onCategoryChange={(v) => onUpdate(i, { categoryId: v })}
+              newCategoryName={line.newCategoryName}
+              onNewCategoryNameChange={(v) =>
+                onUpdate(i, { newCategoryName: v })
+              }
+              subcategoryId={line.subcategoryId}
+              onSubcategoryChange={(v) => onUpdate(i, { subcategoryId: v })}
+              newSubcategoryName={line.newSubcategoryName}
+              onNewSubcategoryNameChange={(v) =>
+                onUpdate(i, { newSubcategoryName: v })
+              }
+            />
+          </Stack>
+        </Card>
+      ))}
+      <Button
+        type="button"
+        variant="default"
+        size="sm"
+        leftSection={<Plus size={14} />}
+        onClick={onAdd}
+        w="fit-content"
+      >
+        Add line
+      </Button>
+      <Card withBorder padding="xs" bg="var(--mantine-color-default)">
+        <Group justify="space-between">
+          <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+            Total
+          </Text>
+          <Text size="sm" fw={500} ff="monospace">
+            {total.toFixed(2)}
+          </Text>
+        </Group>
+      </Card>
+    </Stack>
   );
 }
 
@@ -304,20 +465,19 @@ function TypeTabs({
 }) {
   const options: TxType[] = ["expense", "income", "transfer"];
   return (
-    <div role="tablist" className="flex gap-1">
+    <Button.Group>
       {options.map((t) => (
         <Button
           key={t}
-          role="tab"
           type="button"
-          aria-selected={value === t}
-          variant={value === t ? "default" : "outline"}
+          variant={value === t ? "filled" : "default"}
           onClick={() => onChange(t)}
-          className="flex-1 capitalize"
+          fullWidth
+          tt="capitalize"
         >
           {t}
         </Button>
       ))}
-    </div>
+    </Button.Group>
   );
 }

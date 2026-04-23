@@ -1,13 +1,17 @@
+import {
+  Alert,
+  Button,
+  Container,
+  Group,
+  NativeSelect,
+  Stack,
+  TextInput,
+  Title,
+} from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { BackLink } from "@/components/back-link";
-import { FormPage } from "@/components/layout";
-import { Button } from "@/components/ui/button";
-import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { MoneyInput } from "@/components/ui/money-input";
-import { NativeSelect } from "@/components/ui/native-select";
 import { CREATE_NEW, GroupSelector } from "@/features/accounts/group-selector";
 import { localDateKey } from "@/lib/dates";
 import { createAccount, listAccountGroups } from "@/lib/endpoints";
@@ -69,76 +73,68 @@ export function AccountNewRoute() {
   }
 
   return (
-    <FormPage>
-      <BackLink to="/" />
-      <h1 className="mt-4 text-2xl font-semibold">New account</h1>
-      <form onSubmit={onSubmit} className="mt-6 space-y-4">
-        <Field label="Name" htmlFor="name">
-          <Input
-            id="name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            autoFocus
-            maxLength={100}
-            placeholder="Chase Checking"
-          />
-        </Field>
-        <Field label="Currency" htmlFor="currency">
-          <NativeSelect
-            id="currency"
-            value={currency}
-            onChange={(e) => setCurrency(e.target.value)}
-          >
-            {COMMON_CURRENCIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </NativeSelect>
-        </Field>
-        {hasGroups ? (
-          <GroupSelector
-            groups={groups}
-            value={groupValue}
-            onValueChange={setGroupValue}
-            newGroupName={newGroupName}
-            onNewGroupNameChange={setNewGroupName}
-          />
-        ) : (
-          <Field label="New group name" htmlFor="newGroupName">
-            <Input
-              id="newGroupName"
-              value={newGroupName}
-              onChange={(e) => setNewGroupName(e.target.value)}
+    <Container size="xs" py="xl">
+      <Stack>
+        <BackLink to="/" />
+        <Title order={2}>New account</Title>
+        <form onSubmit={onSubmit}>
+          <Stack>
+            <TextInput
+              label="Name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               required
+              data-autofocus
               maxLength={100}
-              placeholder="Banks"
+              placeholder="Chase Checking"
             />
-          </Field>
-        )}
-        <Field label="Starting balance (optional)" htmlFor="startingBalance">
-          <MoneyInput
-            id="startingBalance"
-            value={startingBalance}
-            onChange={(e) => setStartingBalance(e.target.value)}
-            placeholder="0.00"
-          />
-        </Field>
-        {mutation.error && (
-          <p className="text-destructive text-sm">
-            {(mutation.error as Error).message}
-          </p>
-        )}
-        <div className="flex items-center gap-2">
-          <Button type="submit" disabled={mutation.isPending}>
-            {mutation.isPending ? "Creating…" : "Create account"}
-          </Button>
-          <Button asChild variant="ghost">
-            <Link to="/">Cancel</Link>
-          </Button>
-        </div>
-      </form>
-    </FormPage>
+            <NativeSelect
+              label="Currency"
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+              data={COMMON_CURRENCIES}
+            />
+            {hasGroups ? (
+              <GroupSelector
+                groups={groups}
+                value={groupValue}
+                onValueChange={setGroupValue}
+                newGroupName={newGroupName}
+                onNewGroupNameChange={setNewGroupName}
+              />
+            ) : (
+              <TextInput
+                label="New group name"
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                required
+                maxLength={100}
+                placeholder="Banks"
+              />
+            )}
+            <TextInput
+              label="Starting balance (optional)"
+              type="number"
+              step="any"
+              inputMode="decimal"
+              value={startingBalance}
+              onChange={(e) => setStartingBalance(e.target.value)}
+              placeholder="0.00"
+            />
+            {mutation.error && (
+              <Alert color="red">{(mutation.error as Error).message}</Alert>
+            )}
+            <Group>
+              <Button type="submit" loading={mutation.isPending}>
+                Create account
+              </Button>
+              <Button component={Link} to="/" variant="subtle">
+                Cancel
+              </Button>
+            </Group>
+          </Stack>
+        </form>
+      </Stack>
+    </Container>
   );
 }

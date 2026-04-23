@@ -1,13 +1,20 @@
 import type { EnrichedTransaction } from "@fin/schemas";
+import {
+  Alert,
+  Box,
+  Button,
+  Container,
+  Divider,
+  Group,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+} from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { BackLink } from "@/components/back-link";
-import { FormPage } from "@/components/layout";
-import { Button } from "@/components/ui/button";
-import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { MoneyInput } from "@/components/ui/money-input";
 import {
   type InitialTxValues,
   TransactionForm,
@@ -28,9 +35,6 @@ export function TransactionEditRoute() {
   const navigate = useNavigate();
   const qc = useQueryClient();
 
-  // The list endpoint returns full enrichment; reuse it so we don't add a
-  // GET-by-id route just for this. The list covers pending + latest
-  // completed which is enough for edit.
   const txsQ = useQuery({
     queryKey: ["transactions", { accountId: undefined }],
     queryFn: () => listTransactions(undefined),
@@ -54,10 +58,12 @@ export function TransactionEditRoute() {
   }
   if (!tx) {
     return (
-      <FormPage>
-        <BackLink to="/" />
-        <p className="mt-4 text-sm">Transaction not found.</p>
-      </FormPage>
+      <Container size="xs" py="xl">
+        <Stack>
+          <BackLink to="/" />
+          <Text size="sm">Transaction not found.</Text>
+        </Stack>
+      </Container>
     );
   }
 
@@ -103,38 +109,42 @@ export function TransactionEditRoute() {
     const initial = deriveInitial(props.tx);
 
     return (
-      <FormPage size="lg">
-        <BackLink to="/" />
-        <h1 className="mt-4 mb-1 text-2xl font-semibold">Edit transaction</h1>
-        <p className="text-muted-foreground mb-6 text-sm capitalize">
-          {props.tx.type}
-        </p>
-        <TransactionForm
-          accounts={props.accounts}
-          categories={props.categories}
-          tags={props.tags}
-          title="Edit transaction"
-          submitLabel="Save"
-          initialValues={initial}
-          onSubmit={(body) => {
-            setError(null);
-            mutation.mutate(body);
-          }}
-          pending={mutation.isPending}
-          error={error}
-        />
-        <DangerZone
-          onDelete={() => {
-            if (
-              confirm(
-                "Delete this transaction? Its legs and lines will be removed. This cannot be undone.",
-              )
-            ) {
-              del.mutate();
-            }
-          }}
-        />
-      </FormPage>
+      <Container size="sm" py="xl">
+        <Stack>
+          <BackLink to="/" />
+          <Box>
+            <Title order={2}>Edit transaction</Title>
+            <Text size="sm" c="dimmed" tt="capitalize">
+              {props.tx.type}
+            </Text>
+          </Box>
+          <TransactionForm
+            accounts={props.accounts}
+            categories={props.categories}
+            tags={props.tags}
+            title="Edit transaction"
+            submitLabel="Save"
+            initialValues={initial}
+            onSubmit={(body) => {
+              setError(null);
+              mutation.mutate(body);
+            }}
+            pending={mutation.isPending}
+            error={error}
+          />
+          <DangerZone
+            onDelete={() => {
+              if (
+                confirm(
+                  "Delete this transaction? Its legs and lines will be removed. This cannot be undone.",
+                )
+              ) {
+                del.mutate();
+              }
+            }}
+          />
+        </Stack>
+      </Container>
     );
   }
 
@@ -164,85 +174,91 @@ export function TransactionEditRoute() {
     });
 
     return (
-      <FormPage>
-        <BackLink to="/" />
-        <h1 className="mt-4 text-2xl font-semibold">Edit transaction</h1>
-        <p className="text-muted-foreground mt-1 mb-6 text-sm">
-          Balance adjustment
-        </p>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            setError(null);
-            mutation.mutate();
-          }}
-          className="space-y-4"
-        >
-          <Field label="Amount" htmlFor="amount">
-            <MoneyInput
-              id="amount"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              required
-            />
-          </Field>
-          <Field label="Date" htmlFor="date">
-            <Input
-              id="date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              required
-            />
-          </Field>
-          <Field label="Description" htmlFor="description">
-            <Input
-              id="description"
-              type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              maxLength={500}
-            />
-          </Field>
-          {error && <p className="text-destructive text-sm">{error}</p>}
-          <div className="flex items-center gap-2 pt-4">
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? "Saving…" : "Save"}
-            </Button>
-            <Button asChild variant="ghost">
-              <Link to="/">Cancel</Link>
-            </Button>
-          </div>
-        </form>
-        <DangerZone
-          onDelete={() => {
-            if (confirm("Delete this transaction? This cannot be undone.")) {
-              del.mutate();
-            }
-          }}
-        />
-      </FormPage>
+      <Container size="xs" py="xl">
+        <Stack>
+          <BackLink to="/" />
+          <Box>
+            <Title order={2}>Edit transaction</Title>
+            <Text size="sm" c="dimmed">
+              Balance adjustment
+            </Text>
+          </Box>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setError(null);
+              mutation.mutate();
+            }}
+          >
+            <Stack>
+              <TextInput
+                label="Amount"
+                type="number"
+                step="any"
+                inputMode="decimal"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                required
+              />
+              <TextInput
+                label="Date"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                required
+              />
+              <TextInput
+                label="Description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                maxLength={500}
+              />
+              {error && <Alert color="red">{error}</Alert>}
+              <Group>
+                <Button type="submit" loading={mutation.isPending}>
+                  Save
+                </Button>
+                <Button component={Link} to="/" variant="subtle">
+                  Cancel
+                </Button>
+              </Group>
+            </Stack>
+          </form>
+          <DangerZone
+            onDelete={() => {
+              if (confirm("Delete this transaction? This cannot be undone.")) {
+                del.mutate();
+              }
+            }}
+          />
+        </Stack>
+      </Container>
     );
   }
 }
 
 function DangerZone({ onDelete }: { onDelete: () => void }) {
   return (
-    <div className="mt-12 border-t pt-6">
-      <h2 className="text-sm font-semibold">Danger zone</h2>
-      <p className="text-muted-foreground mt-1 text-sm">
-        Deleting removes this transaction along with its legs and lines.
-      </p>
-      <Button
-        type="button"
-        variant="destructive"
-        size="sm"
-        className="mt-3"
-        onClick={onDelete}
-      >
-        Delete transaction
-      </Button>
-    </div>
+    <Box mt="xl">
+      <Divider mb="md" />
+      <Stack gap="xs">
+        <Text size="sm" fw={600}>
+          Danger zone
+        </Text>
+        <Text size="sm" c="dimmed">
+          Deleting removes this transaction along with its legs and lines.
+        </Text>
+        <Button
+          color="red"
+          variant="light"
+          size="sm"
+          onClick={onDelete}
+          w="fit-content"
+        >
+          Delete transaction
+        </Button>
+      </Stack>
+    </Box>
   );
 }
 
@@ -251,12 +267,11 @@ function deriveInitial(tx: EnrichedTransaction): InitialTxValues {
     type: tx.type === "adjustment" ? "expense" : tx.type,
     date: tx.date ?? "",
     pending: tx.date === null,
-    amount: "",
     description: tx.description ?? "",
     accountId: "",
     destinationAccountId: "",
-    categoryId: "",
-    subcategoryId: "",
+    transferAmount: "",
+    lines: [],
     tagId: "",
   };
   if (tx.type === "transfer") {
@@ -265,22 +280,28 @@ function deriveInitial(tx: EnrichedTransaction): InitialTxValues {
     if (!outLeg || !inLeg) throw new Error("Transfer missing in/out leg");
     return {
       ...base,
-      amount: formatMoneyPlainFromRaw(inLeg.amount, inLeg.accountCurrency),
+      transferAmount: formatMoneyPlainFromRaw(
+        inLeg.amount,
+        inLeg.accountCurrency,
+      ),
       accountId: outLeg.accountId,
       destinationAccountId: inLeg.accountId,
     };
   }
   const leg = tx.legs[0];
-  const line = tx.lines[0];
   if (!leg) throw new Error("Missing leg");
-  if (!line) throw new Error("Missing line");
+  if (tx.lines.length === 0) throw new Error("Missing line");
   return {
     ...base,
-    amount: formatMoneyPlainFromRaw(line.amount, line.currency),
+    lines: tx.lines.map((line) => ({
+      amount: formatMoneyPlainFromRaw(line.amount, line.currency),
+      categoryId: line.categoryId,
+      newCategoryName: "",
+      subcategoryId: line.subcategoryId ?? "",
+      newSubcategoryName: "",
+    })),
     accountId: leg.accountId,
-    categoryId: line.categoryId,
-    subcategoryId: line.subcategoryId ?? "",
-    tagId: line.tagId ?? "",
+    tagId: tx.lines[0].tagId ?? "",
   };
 }
 

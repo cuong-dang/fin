@@ -3,34 +3,40 @@ import { dateString, moneyString } from "./common";
 
 // ─── Create / update (full: income / expense / transfer) ──────────────────
 
-const baseFields = z.object({
+// One split of an income/expense transaction into a single category. A
+// transaction always has at least one line; multi-line means the user split
+// the amount across multiple categories. Leg amount = sum of line amounts.
+export const transactionLineBody = z.object({
+  amount: moneyString,
+  categoryId: z.uuid().optional(),
+  newCategoryName: z.string().trim().min(1).max(100).optional(),
+  subcategoryId: z.uuid().optional(),
+  newSubcategoryName: z.string().trim().min(1).max(100).optional(),
+});
+export type TransactionLineBody = z.infer<typeof transactionLineBody>;
+
+const commonFields = z.object({
   date: dateString.optional(), // absent when pending
   pending: z.boolean().default(false),
-  amount: moneyString,
   description: z.string().trim().min(1).max(500).optional(),
   tagId: z.uuid().optional(),
 });
 
-const incomeFields = baseFields.extend({
+const incomeFields = commonFields.extend({
   type: z.literal("income"),
   accountId: z.uuid(),
-  categoryId: z.uuid().optional(),
-  newCategoryName: z.string().trim().min(1).max(100).optional(),
-  subcategoryId: z.uuid().optional(),
-  newSubcategoryName: z.string().trim().min(1).max(100).optional(),
+  lines: z.array(transactionLineBody).min(1),
 });
 
-const expenseFields = baseFields.extend({
+const expenseFields = commonFields.extend({
   type: z.literal("expense"),
   accountId: z.uuid(),
-  categoryId: z.uuid().optional(),
-  newCategoryName: z.string().trim().min(1).max(100).optional(),
-  subcategoryId: z.uuid().optional(),
-  newSubcategoryName: z.string().trim().min(1).max(100).optional(),
+  lines: z.array(transactionLineBody).min(1),
 });
 
-const transferFields = baseFields.extend({
+const transferFields = commonFields.extend({
   type: z.literal("transfer"),
+  amount: moneyString,
   accountId: z.uuid(),
   destinationAccountId: z.uuid(),
 });

@@ -3,29 +3,30 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "pnpm -r --parallel --filter \"./apps/**\" dev",
-    "dev:server": "pnpm --filter @fin/server dev",
-    "dev:web": "pnpm --filter @fin/web dev",
     "build": "pnpm -r --filter \"./apps/**\" build",
-    "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r --if-present --filter \"./apps/**\" test",
-    "lint": "eslint",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "db:up": "docker compose up -d",
+    "dev:server": "pnpm --filter @fin/server dev",
+    "dev:web": "pnpm --filter @fin/web dev",
+    "dev": "pnpm -r --parallel --filter \"./apps/**\" dev",
+    "format:check": "prettier --check .",
+    "format": "prettier --write .",
+    "knip": "pnpm dlx knip",
+    "lint": "eslint",
+    "test": "pnpm -r --if-present --filter \"./apps/**\" test",
+    "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",
-    "eslint": "^10.2.1",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint": "^10.2.1",
     "prettier": "^3.8.3",
-    "typescript": "^5",
-    "typescript-eslint": "^8.58.2"
+    "typescript-eslint": "^8.58.2",
+    "typescript": "^5"
   }
 }

@@ -1,8 +1,7 @@
+import { ActionIcon, Button, Group, Text, TextInput } from "@mantine/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 /** Inline-editable name cell with delete. Controlled via callbacks. */
 export function EditableName({
@@ -18,7 +17,6 @@ export function EditableName({
   confirmDeleteMessage: string;
   onUpdate: (newName: string) => Promise<void>;
   onDelete: () => Promise<void>;
-  /** Query keys to invalidate after update/delete. */
   invalidate: string[][];
 }) {
   const qc = useQueryClient();
@@ -47,59 +45,61 @@ export function EditableName({
           e.preventDefault();
           update.mutate(draft);
         }}
-        className="flex flex-1 items-center gap-2"
+        style={{ flex: 1 }}
       >
-        <Input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          autoFocus
-          required
-          maxLength={100}
-          className="flex-1"
-        />
-        <Button type="submit" size="sm" disabled={update.isPending}>
-          Save
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          onClick={() => {
-            setDraft(name);
-            setEditing(false);
-          }}
-        >
-          Cancel
-        </Button>
+        <Group gap="xs" wrap="nowrap">
+          <TextInput
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            data-autofocus
+            required
+            maxLength={100}
+            style={{ flex: 1 }}
+          />
+          <Button type="submit" size="xs" loading={update.isPending}>
+            Save
+          </Button>
+          <Button
+            type="button"
+            size="xs"
+            variant="subtle"
+            onClick={() => {
+              setDraft(name);
+              setEditing(false);
+            }}
+          >
+            Cancel
+          </Button>
+        </Group>
       </form>
     );
   }
 
   return (
-    <div className="flex flex-1 items-center justify-between gap-2">
-      <span>{name}</span>
-      <div className="flex items-center gap-1">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
+    <Group justify="space-between" gap="xs" style={{ flex: 1 }}>
+      <Text>{name}</Text>
+      <Group gap={4}>
+        <ActionIcon
+          variant="subtle"
+          color="gray"
+          size="sm"
           onClick={() => setEditing(true)}
           aria-label={`Edit ${label}`}
         >
-          <Pencil />
-        </Button>
-        <Button
-          type="button"
-          variant="destructive"
-          size="icon-xs"
+          <Pencil size={14} />
+        </ActionIcon>
+        <ActionIcon
+          variant="subtle"
+          color="red"
+          size="sm"
           aria-label={`Delete ${label}`}
           onClick={() => {
             if (confirm(confirmDeleteMessage)) del.mutate();
           }}
         >
-          <Trash2 />
-        </Button>
-      </div>
-    </div>
+          <Trash2 size={14} />
+        </ActionIcon>
+      </Group>
+    </Group>
   );
 }

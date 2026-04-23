@@ -9,17 +9,26 @@ import {
 } from "@dnd-kit/core";
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import {
-  SortableContext,
   arrayMove,
+  SortableContext,
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import {
+  Anchor,
+  Box,
+  Button,
+  Divider,
+  Group,
+  Stack,
+  Text,
+  UnstyledButton,
+} from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { GripVertical } from "lucide-react";
+import { ChevronDown, ChevronRight, GripVertical } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
-import { Button } from "@/components/ui/button";
 import { groupBy } from "@/lib/collections";
 import { formatDayHeader, localDateKey } from "@/lib/dates";
 import {
@@ -42,16 +51,11 @@ export function TransactionsList({
     queryFn: () => listTransactions(accountId),
   });
 
-  // Server-side byDay derived from the current query result. Stable across
-  // renders as long as `completed` doesn't change.
   const serverByDay = useMemo(() => {
     const completed = q.data?.completed ?? [];
     return groupBy(completed, (t) => t.date ?? "");
   }, [q.data]);
 
-  // Local override for optimistic reorders/moves. Resets to serverByDay
-  // whenever the server refetches — uses React's "store previous value"
-  // pattern so we sync during render without an effect.
   const [localByDay, setLocalByDay] =
     useState<Map<string, EnrichedTransaction[]>>(serverByDay);
   const [lastServerByDay, setLastServerByDay] = useState(serverByDay);
@@ -73,10 +77,6 @@ export function TransactionsList({
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
   );
 
-  // Cross-day drag: move the dragged item into the hovered day as the user
-  // drags, so that day's SortableContext can animate the other rows making
-  // space. Within-day motion is handled by the SortableContext itself — no
-  // state change here, only at drop.
   function onDragOver(event: DragOverEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -112,25 +112,21 @@ export function TransactionsList({
     const activeId = active.id as string;
     const overId = over.id as string;
 
-    // After onDragOver moved the item, activeId may already be in over's day.
     const activeDate = findDateOfId(localByDay, activeId);
     const overDate = findDateOfId(localByDay, overId);
     if (!activeDate || !overDate) return;
 
     let finalMap = localByDay;
     if (activeDate === overDate && activeId !== overId) {
-      // Final position within the (possibly just-landed-in) day.
       const day = localByDay.get(activeDate) ?? [];
       const oldIndex = day.findIndex((t) => t.id === activeId);
       const newIndex = day.findIndex((t) => t.id === overId);
       if (oldIndex >= 0 && newIndex >= 0 && oldIndex !== newIndex) {
-        const reordered = arrayMove(day, oldIndex, newIndex);
         finalMap = new Map(localByDay);
-        finalMap.set(activeDate, reordered);
+        finalMap.set(activeDate, arrayMove(day, oldIndex, newIndex));
       }
     }
 
-    // Recompute running balance on every affected day.
     const withBalances = new Map(finalMap);
     for (const [date, txs] of finalMap) {
       withBalances.set(date, recomputeBalanceAfter(txs, accountId));
@@ -143,16 +139,16 @@ export function TransactionsList({
 
   if (q.isLoading) {
     return (
-      <div className="p-12 text-center">
-        <p className="text-muted-foreground text-sm">Loading…</p>
-      </div>
+      <Text size="sm" c="dimmed" ta="center" p="xl">
+        Loading…
+      </Text>
     );
   }
   if (q.error) {
     return (
-      <div className="p-12 text-center">
-        <p className="text-destructive text-sm">{(q.error as Error).message}</p>
-      </div>
+      <Text size="sm" c="red" ta="center" p="xl">
+        {(q.error as Error).message}
+      </Text>
     );
   }
   const pending = q.data?.pending ?? [];
@@ -162,9 +158,13 @@ export function TransactionsList({
   }
 
   return (
-    <div>
+    <Box>
       {pending.length > 0 && (
-        <PendingSection txs={pending} filterAccountId={accountId} />
+        <Section title="Pending">
+          {pending.map((t) => (
+            <PendingRow key={t.id} tx={t} filterAccountId={accountId} />
+          ))}
+        </Section>
       )}
       <DndContext
         sensors={sensors}
@@ -173,15 +173,48 @@ export function TransactionsList({
         onDragEnd={onDragEnd}
       >
         {Array.from(localByDay.entries()).map(([date, dayTxs]) => (
-          <DaySection
-            key={date}
-            date={date}
-            txs={dayTxs}
-            filterAccountId={accountId}
-          />
+          <Section key={date} title={formatDayHeader(date)}>
+            <SortableContext
+              items={dayTxs.map((t) => t.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {dayTxs.map((t) => (
+                <SortableRow key={t.id} tx={t} filterAccountId={accountId} />
+              ))}
+            </SortableContext>
+          </Section>
         ))}
       </DndContext>
-    </div>
+    </Box>
+  );
+}
+
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Box>
+      <Text
+        size="xs"
+        c="dimmed"
+        tt="uppercase"
+        fw={600}
+        px="md"
+        py="xs"
+        bg="var(--mantine-color-body)"
+        pos="sticky"
+        top={0}
+        style={{ zIndex: 10 }}
+      >
+        {title}
+      </Text>
+      <Divider />
+      {children}
+    </Box>
   );
 }
 
@@ -195,14 +228,6 @@ function findDateOfId(
   return undefined;
 }
 
-/**
- * After a reorder (or cross-day move) within an account-filtered view,
- * recompute the running balance locally so the UI updates instantly. Newest
- * row keeps its server-provided balanceAfter; each older row derives from the
- * next-newer: balanceAfter[i+1] = balanceAfter[i] - leg_for_this_account[i].
- *
- * No-op when no account filter is active or the rows have no balanceAfter.
- */
 function recomputeBalanceAfter(
   txs: EnrichedTransaction[],
   filterAccountId: string | undefined,
@@ -223,74 +248,23 @@ function recomputeBalanceAfter(
 
 function EmptyState({ accountName }: { accountName: string | undefined }) {
   return (
-    <div className="flex h-full items-center justify-center p-12 text-center">
-      <div className="max-w-sm">
-        <p className="text-muted-foreground text-sm">
-          {accountName
-            ? `No transactions for ${accountName} yet.`
-            : "No transactions yet."}
-        </p>
-        <div className="mt-4 flex items-center justify-center gap-2">
-          <Button asChild size="sm">
-            <Link to="/transactions/new">Create transaction</Link>
+    <Stack align="center" justify="center" py="xl" gap="md">
+      <Text size="sm" c="dimmed">
+        {accountName
+          ? `No transactions for ${accountName} yet.`
+          : "No transactions yet."}
+      </Text>
+      <Group>
+        <Button component={Link} to="/transactions/new" size="sm">
+          Create transaction
+        </Button>
+        {accountName && (
+          <Button component={Link} to="/" variant="subtle" size="sm">
+            View all accounts
           </Button>
-          {accountName && (
-            <Button asChild variant="link" size="sm">
-              <Link to="/">View all accounts</Link>
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PendingSection({
-  txs,
-  filterAccountId,
-}: {
-  txs: EnrichedTransaction[];
-  filterAccountId: string | undefined;
-}) {
-  return (
-    <section>
-      <h2 className="bg-background/90 text-muted-foreground sticky top-0 z-10 px-6 py-2 text-[11px] font-semibold tracking-wider uppercase backdrop-blur">
-        Pending
-      </h2>
-      <ul>
-        {txs.map((t) => (
-          <PendingRow key={t.id} tx={t} filterAccountId={filterAccountId} />
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-function DaySection({
-  date,
-  txs,
-  filterAccountId,
-}: {
-  date: string;
-  txs: EnrichedTransaction[];
-  filterAccountId: string | undefined;
-}) {
-  return (
-    <section>
-      <h2 className="bg-background/90 text-muted-foreground sticky top-0 z-10 px-6 py-2 text-[11px] font-semibold tracking-wider uppercase backdrop-blur">
-        {formatDayHeader(date)}
-      </h2>
-      <SortableContext
-        items={txs.map((t) => t.id)}
-        strategy={verticalListSortingStrategy}
-      >
-        <ul>
-          {txs.map((t) => (
-            <SortableRow key={t.id} tx={t} filterAccountId={filterAccountId} />
-          ))}
-        </ul>
-      </SortableContext>
-    </section>
+        )}
+      </Group>
+    </Stack>
   );
 }
 
@@ -309,61 +283,102 @@ function SortableRow({
     transition,
     isDragging,
   } = useSortable({ id: tx.id });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
+  const [expanded, setExpanded] = useState(false);
+  const isMultiLine = tx.lines.length > 1;
   const { primary, metaParts, amount, currency } = rowContent(
     tx,
     filterAccountId,
   );
   return (
-    <li
+    <Box
       ref={setNodeRef}
-      style={style}
-      className="border-border hover:bg-muted/40 flex items-start gap-2 border-b px-3 py-3 last:border-0"
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+      }}
     >
-      <button
-        type="button"
-        aria-label="Drag to reorder"
-        className="text-muted-foreground hover:text-foreground mt-1 cursor-grab touch-none active:cursor-grabbing"
-        {...attributes}
-        {...listeners}
-      >
-        <GripVertical className="size-4" />
-      </button>
-      <Link
-        to={`/transactions/${tx.id}/edit`}
-        className="flex min-w-0 flex-1 items-start justify-between gap-4"
-      >
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium">{primary}</div>
-          <div className="text-muted-foreground mt-0.5 truncate text-xs">
-            {metaParts.join(" · ")}
-          </div>
-        </div>
-        <div className="flex flex-col items-end gap-0.5">
-          <div
-            className={`text-sm font-medium tabular-nums ${amountColorClass(
-              tx,
-              amount,
-            )}`}
+      <Group gap="xs" align="flex-start" px="sm" py="sm" wrap="nowrap">
+        <UnstyledButton
+          aria-label="Drag to reorder"
+          mt={4}
+          c="dimmed"
+          style={{ cursor: "grab", touchAction: "none" }}
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical size={16} />
+        </UnstyledButton>
+        {isMultiLine ? (
+          <UnstyledButton
+            aria-label={expanded ? "Collapse lines" : "Expand lines"}
+            onClick={() => setExpanded((v) => !v)}
+            mt={4}
+            c="dimmed"
           >
-            {formatMoney(amount, currency)}
-          </div>
-          {tx.balanceAfter !== undefined && (
-            <div className="text-muted-foreground text-xs tabular-nums">
-              {formatMoney(BigInt(tx.balanceAfter), currency)}
-            </div>
-          )}
-        </div>
-      </Link>
-    </li>
+            {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+          </UnstyledButton>
+        ) : (
+          <Box w={16} h={16} mt={4} />
+        )}
+        <Anchor
+          component={Link}
+          to={`/transactions/${tx.id}/edit`}
+          underline="never"
+          c="inherit"
+          flex={1}
+          miw={0}
+        >
+          <Group
+            justify="space-between"
+            gap="md"
+            align="flex-start"
+            wrap="nowrap"
+          >
+            <Box flex={1} miw={0}>
+              <Text size="sm" fw={500} truncate>
+                {primary}
+              </Text>
+              <Text size="xs" c="dimmed" truncate mt={2}>
+                {metaParts.join(" · ")}
+              </Text>
+            </Box>
+            <Stack gap={0} align="flex-end">
+              <Text
+                size="sm"
+                fw={500}
+                ff="monospace"
+                c={amountColor(tx, amount)}
+              >
+                {formatMoney(amount, currency)}
+              </Text>
+              {tx.balanceAfter !== undefined && (
+                <Text size="xs" c="dimmed" ff="monospace">
+                  {formatMoney(BigInt(tx.balanceAfter), currency)}
+                </Text>
+              )}
+            </Stack>
+          </Group>
+        </Anchor>
+      </Group>
+      {isMultiLine && expanded && (
+        <Stack gap={4} ml={36} pr="sm" pl="md" pb="xs">
+          {tx.lines.map((line, i) => (
+            <Group key={i} justify="space-between" gap="md" wrap="nowrap">
+              <Text size="xs" c="dimmed" truncate>
+                {categoryLabel(line)}
+              </Text>
+              <Text size="xs" c="dimmed" ff="monospace">
+                {formatMoney(BigInt(line.amount), line.currency)}
+              </Text>
+            </Group>
+          ))}
+        </Stack>
+      )}
+      <Divider />
+    </Box>
   );
 }
-
-// ─── Display derivation ───────────────────────────────────────────────────
 
 function displayShape(
   tx: EnrichedTransaction,
@@ -379,20 +394,12 @@ function displayShape(
       };
     }
   }
-
   switch (tx.type) {
-    case "expense": {
-      const total = tx.lines.reduce((s, l) => s + BigInt(l.amount), 0n);
-      return {
-        amount: -total,
-        currency: tx.lines[0]?.currency ?? tx.legs[0]?.accountCurrency ?? "USD",
-        accountLabel: tx.legs[0]?.accountName ?? "",
-      };
-    }
+    case "expense":
     case "income": {
       const total = tx.lines.reduce((s, l) => s + BigInt(l.amount), 0n);
       return {
-        amount: total,
+        amount: tx.type === "expense" ? -total : total,
         currency: tx.lines[0]?.currency ?? tx.legs[0]?.accountCurrency ?? "USD",
         accountLabel: tx.legs[0]?.accountName ?? "",
       };
@@ -422,6 +429,7 @@ function displayShape(
 
 function primaryLabel(tx: EnrichedTransaction): string {
   if (tx.description) return tx.description;
+  if (tx.lines.length > 1) return `${tx.lines.length} categories`;
   if (tx.lines[0]) return categoryLabel(tx.lines[0]);
   if (tx.type === "transfer") return "Transfer";
   if (tx.type === "adjustment") return "Balance adjustment";
@@ -434,11 +442,11 @@ function categoryLabel(line: TxLine): string {
     : line.categoryName;
 }
 
-function amountColorClass(tx: EnrichedTransaction, amount: bigint): string {
-  if (tx.type === "transfer") return "text-foreground";
-  if (amount > 0n) return "text-emerald-600 dark:text-emerald-400";
-  if (amount < 0n) return "text-rose-600 dark:text-rose-400";
-  return "text-foreground";
+function amountColor(tx: EnrichedTransaction, amount: bigint): string {
+  if (tx.type === "transfer") return "inherit";
+  if (amount > 0n) return "teal.7";
+  if (amount < 0n) return "red.7";
+  return "inherit";
 }
 
 function rowContent(
@@ -449,7 +457,7 @@ function rowContent(
   const primary = primaryLabel(tx);
   const descriptionIsPrimary = tx.description !== null && tx.description !== "";
   const metaParts: string[] = [];
-  if (descriptionIsPrimary && tx.lines[0]) {
+  if (descriptionIsPrimary && tx.lines.length === 1) {
     metaParts.push(categoryLabel(tx.lines[0]));
   }
   if (accountLabel) metaParts.push(accountLabel);
@@ -476,35 +484,40 @@ function PendingRow({
     },
   });
   return (
-    <li className="border-border hover:bg-muted/40 flex items-start gap-4 border-b px-6 py-3 last:border-0">
-      <Link
-        to={`/transactions/${tx.id}/edit`}
-        className="flex min-w-0 flex-1 items-start justify-between gap-4"
-      >
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium">{primary}</div>
-          <div className="text-muted-foreground mt-0.5 truncate text-xs">
-            {metaParts.join(" · ")}
-          </div>
-        </div>
-        <div
-          className={`text-sm font-medium tabular-nums ${amountColorClass(
-            tx,
-            amount,
-          )}`}
+    <>
+      <Group px="md" py="sm" gap="md" wrap="nowrap">
+        <Anchor
+          component={Link}
+          to={`/transactions/${tx.id}/edit`}
+          underline="never"
+          c="inherit"
+          flex={1}
+          miw={0}
         >
-          {formatMoney(amount, currency)}
-        </div>
-      </Link>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        disabled={mark.isPending}
-        onClick={() => mark.mutate(localDateKey(new Date()))}
-      >
-        {mark.isPending ? "…" : "Mark processed"}
-      </Button>
-    </li>
+          <Group justify="space-between" gap="md" wrap="nowrap">
+            <Box flex={1} miw={0}>
+              <Text size="sm" fw={500} truncate>
+                {primary}
+              </Text>
+              <Text size="xs" c="dimmed" truncate mt={2}>
+                {metaParts.join(" · ")}
+              </Text>
+            </Box>
+            <Text size="sm" fw={500} ff="monospace" c={amountColor(tx, amount)}>
+              {formatMoney(amount, currency)}
+            </Text>
+          </Group>
+        </Anchor>
+        <Button
+          size="compact-sm"
+          variant="default"
+          loading={mark.isPending}
+          onClick={() => mark.mutate(localDateKey(new Date()))}
+        >
+          Mark processed
+        </Button>
+      </Group>
+      <Divider />
+    </>
   );
 }
