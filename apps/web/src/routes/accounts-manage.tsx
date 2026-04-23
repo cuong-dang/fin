@@ -37,7 +37,7 @@ export function AccountsManageRoute() {
   const byGroup = groupBy(accounts, (a) => a.accountGroupId);
 
   return (
-    <Container size="sm" p="sm">
+    <Container size="xs" p="sm">
       <Stack>
         <BackLink to="/" />
         {/* Title + new account */}

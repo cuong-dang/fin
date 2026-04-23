@@ -41,7 +41,7 @@ export function GroupSelector({
           required
           data-autofocus
           maxLength={100}
-          placeholder="e.g. Investments"
+          placeholder="Investments"
         />
       )}
     </>

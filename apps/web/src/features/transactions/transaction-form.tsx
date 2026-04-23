@@ -153,7 +153,7 @@ export function TransactionForm({
     };
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  const handleSubmit: React.ComponentProps<"form">["onSubmit"] = (e) => {
     e.preventDefault();
     const commonBase = {
       pending: isPending,
@@ -179,7 +179,7 @@ export function TransactionForm({
       accountId,
       lines: lines.map(lineToBody),
     });
-  }
+  };
 
   if (accounts.length === 0) {
     return (

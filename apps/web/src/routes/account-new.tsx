@@ -18,15 +18,14 @@ import { createAccount, listAccountGroups } from "@/lib/endpoints";
 
 const COMMON_CURRENCIES = [
   "USD",
+  "AUD",
+  "CAD",
+  "CNY",
   "EUR",
   "GBP",
   "JPY",
-  "CAD",
-  "AUD",
-  "CNY",
-  "VND",
   "KRW",
-  "INR",
+  "VND",
 ];
 
 export function AccountNewRoute() {
@@ -39,7 +38,7 @@ export function AccountNewRoute() {
 
   const [name, setName] = useState("");
   const [currency, setCurrency] = useState("USD");
-  const [groupValue, setGroupValue] = useState("");
+  const [groupId, setGroupId] = useState("");
   const [newGroupName, setNewGroupName] = useState("");
   const [startingBalance, setStartingBalance] = useState("");
 
@@ -55,29 +54,25 @@ export function AccountNewRoute() {
   const groups = groupsQ.data ?? [];
   const hasGroups = groups.length > 0;
 
-  function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const creatingNew = !hasGroups || groupValue === CREATE_NEW;
-    mutation.mutate({
-      name,
-      currency,
-      accountGroupId: !creatingNew ? groupValue : undefined,
-      newGroupName: creatingNew
-        ? hasGroups
-          ? newGroupName
-          : newGroupName || name
-        : undefined,
-      startingBalance: startingBalance || undefined,
-      adjustmentDate: localDateKey(new Date()),
-    });
-  }
-
   return (
-    <Container size="xs" py="xl">
+    <Container size="xs" p="sm">
       <Stack>
         <BackLink to="/" />
         <Title order={2}>New account</Title>
-        <form onSubmit={onSubmit}>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const creatingNewGroup = !hasGroups || groupId === CREATE_NEW;
+            mutation.mutate({
+              name,
+              currency,
+              accountGroupId: creatingNewGroup ? undefined : groupId,
+              newGroupName: creatingNewGroup ? newGroupName : undefined,
+              startingBalance: startingBalance,
+              adjustmentDate: localDateKey(new Date()),
+            });
+          }}
+        >
           <Stack>
             <TextInput
               label="Name"
@@ -97,8 +92,8 @@ export function AccountNewRoute() {
             {hasGroups ? (
               <GroupSelector
                 groups={groups}
-                value={groupValue}
-                onValueChange={setGroupValue}
+                value={groupId}
+                onValueChange={setGroupId}
                 newGroupName={newGroupName}
                 onNewGroupNameChange={setNewGroupName}
               />
@@ -115,7 +110,6 @@ export function AccountNewRoute() {
             <TextInput
               label="Starting balance (optional)"
               type="number"
-              step="any"
               inputMode="decimal"
               value={startingBalance}
               onChange={(e) => setStartingBalance(e.target.value)}
@@ -126,7 +120,7 @@ export function AccountNewRoute() {
             )}
             <Group>
               <Button type="submit" loading={mutation.isPending}>
-                Create account
+                Create
               </Button>
               <Button component={Link} to="/" variant="subtle">
                 Cancel

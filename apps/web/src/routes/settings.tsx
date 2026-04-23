@@ -4,7 +4,7 @@ import { BackLink } from "@/components/back-link";
 
 export function SettingsRoute() {
   return (
-    <Container size="sm" p="sm">
+    <Container size="xs" p="sm">
       <Stack>
         <BackLink to="/" />
         <Title order={2}>Settings</Title>
