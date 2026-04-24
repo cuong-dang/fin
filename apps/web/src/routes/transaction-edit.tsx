@@ -1,4 +1,22 @@
-import type { EnrichedTransaction } from "@fin/schemas";
+import { BackLink } from "@/components/back-link";
+import {
+  type InitialTxValues,
+  TransactionForm,
+} from "@/features/transactions/transaction-form";
+import {
+  deleteTransaction,
+  getTransaction,
+  listAccounts,
+  listCategories,
+  listTags,
+  updateAdjustmentTransaction,
+  updateTransaction,
+} from "@/lib/endpoints";
+import { formatMoneyPlain } from "@/lib/money";
+import type {
+  EnrichedTransaction,
+  TransactionsListResponse,
+} from "@fin/schemas";
 import {
   Alert,
   Box,
@@ -14,30 +32,36 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
-import { BackLink } from "@/components/back-link";
-import {
-  type InitialTxValues,
-  TransactionForm,
-} from "@/features/transactions/transaction-form";
-import {
-  deleteTransaction,
-  listAccounts,
-  listCategories,
-  listTags,
-  listTransactions,
-  updateAdjustmentTransaction,
-  updateTransaction,
-} from "@/lib/endpoints";
-import { formatMoneyPlain } from "@/lib/money";
+import { NotFoundRoute } from "./not-found";
 
 export function TransactionEditRoute() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
 
-  const txsQ = useQuery({
-    queryKey: ["transactions", { accountId: undefined }],
-    queryFn: () => listTransactions(undefined),
+  // Seed the single-tx query from any cached list that happens to contain
+  // this tx, so the page renders instantly when the user clicks through from
+  // the list. Falls back to the single-tx GET when opened via direct URL or
+  // when the tx is past the list's page limit.
+  const txQ = useQuery({
+    queryKey: ["transactions", id],
+    queryFn: () => getTransaction(id!),
+    enabled: !!id,
+    initialData: () => {
+      // The ["transactions"] prefix matches both list entries
+      // (["transactions", { accountId }]) and other single-tx entries
+      // (["transactions", someId]), so we structurally filter to just lists.
+      for (const [, data] of qc.getQueriesData<TransactionsListResponse>({
+        queryKey: ["transactions"],
+      })) {
+        if (!data || !("pending" in data) || !("completed" in data)) continue;
+        const hit = [...data.pending, ...data.completed].find(
+          (t) => t.id === id,
+        );
+        if (hit) return hit;
+      }
+      return undefined;
+    },
   });
   const accountsQ = useQuery({
     queryKey: ["accounts"],
@@ -49,23 +73,11 @@ export function TransactionEditRoute() {
   });
   const tagsQ = useQuery({ queryKey: ["tags"], queryFn: listTags });
 
-  const tx: EnrichedTransaction | undefined = txsQ.data
-    ? [...txsQ.data.pending, ...txsQ.data.completed].find((t) => t.id === id)
-    : undefined;
-
-  if (txsQ.isLoading || accountsQ.isLoading || categoriesQ.isLoading) {
+  if (txQ.isLoading || accountsQ.isLoading || categoriesQ.isLoading) {
     return null;
   }
-  if (!tx) {
-    return (
-      <Container py="xl" size="xs">
-        <Stack>
-          <BackLink to="/" />
-          <Text size="sm">Transaction not found.</Text>
-        </Stack>
-      </Container>
-    );
-  }
+  if (txQ.error || !txQ.data) return <NotFoundRoute />;
+  const tx = txQ.data;
 
   if (tx.type === "adjustment") {
     return <AdjustmentEdit tx={tx} />;
@@ -109,12 +121,12 @@ export function TransactionEditRoute() {
     const initial = deriveInitial(props.tx);
 
     return (
-      <Container py="xl" size="sm">
+      <Container>
         <Stack>
           <BackLink to="/" />
           <Box>
             <Title order={2}>Edit transaction</Title>
-            <Text c="dimmed" size="sm" tt="capitalize">
+            <Text c="dimmed" tt="capitalize">
               {props.tx.type}
             </Text>
           </Box>
@@ -174,14 +186,12 @@ export function TransactionEditRoute() {
     });
 
     return (
-      <Container py="xl" size="xs">
+      <Container>
         <Stack>
           <BackLink to="/" />
           <Box>
             <Title order={2}>Edit transaction</Title>
-            <Text c="dimmed" size="sm">
-              Balance adjustment
-            </Text>
+            <Text c="dimmed">Balance adjustment</Text>
           </Box>
           <form
             onSubmit={(e) => {
@@ -195,7 +205,6 @@ export function TransactionEditRoute() {
                 inputMode="decimal"
                 label="Amount"
                 required
-                step="any"
                 type="number"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
@@ -240,21 +249,15 @@ export function TransactionEditRoute() {
 function DangerZone({ onDelete }: { onDelete: () => void }) {
   return (
     <Box mt="xl">
-      <Divider mb="md" />
-      <Stack gap="xs">
-        <Text fw={600} size="sm">
+      <Divider mb="sm" />
+      <Stack gap="sm">
+        <Text fw={700} size="sm">
           Danger zone
         </Text>
         <Text c="dimmed" size="sm">
           Deleting removes this transaction along with its legs and lines.
         </Text>
-        <Button
-          color="red"
-          size="sm"
-          variant="light"
-          w="fit-content"
-          onClick={onDelete}
-        >
+        <Button color="red" variant="light" w="fit-content" onClick={onDelete}>
           Delete transaction
         </Button>
       </Stack>
@@ -277,7 +280,9 @@ function deriveInitial(tx: EnrichedTransaction): InitialTxValues {
   if (tx.type === "transfer") {
     const outLeg = tx.legs.find((l) => BigInt(l.amount) < 0n);
     const inLeg = tx.legs.find((l) => BigInt(l.amount) > 0n);
-    if (!outLeg || !inLeg) throw new Error("Transfer missing in/out leg");
+    if (!outLeg || !inLeg) {
+      throw new Error(`Invariant: transfer ${tx.id} missing in/out leg`);
+    }
     return {
       ...base,
       transferAmount: formatMoneyPlainFromRaw(
@@ -289,8 +294,10 @@ function deriveInitial(tx: EnrichedTransaction): InitialTxValues {
     };
   }
   const leg = tx.legs[0];
-  if (!leg) throw new Error("Missing leg");
-  if (tx.lines.length === 0) throw new Error("Missing line");
+  if (!leg) throw new Error(`Invariant: ${tx.type} ${tx.id} has no leg`);
+  if (tx.lines.length === 0) {
+    throw new Error(`Invariant: ${tx.type} ${tx.id} has no line`);
+  }
   return {
     ...base,
     lines: tx.lines.map((line) => ({

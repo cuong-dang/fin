@@ -184,7 +184,7 @@ export function TransactionForm({
   if (accounts.length === 0) {
     return (
       <Stack>
-        <Text fw={600} size="xl">
+        <Text fw={700} size="xl">
           {title}
         </Text>
         <Text c="dimmed" size="sm">

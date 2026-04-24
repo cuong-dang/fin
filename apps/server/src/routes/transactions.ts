@@ -22,7 +22,6 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { db } from "../db";
 import { findOwned } from "../lib/authz";
-import { groupBy } from "../lib/collections";
 import { parseMoney } from "../lib/money";
 import {
   anchorsPreserveOrder,
@@ -31,6 +30,7 @@ import {
   nextSortKey,
   reassignSortKeys,
 } from "../lib/transactions-order";
+import { enrichTx, fetchLegsAndLines } from "../lib/transactions-read";
 import { insertLegsAndLines } from "../lib/transactions-write";
 
 const PAGE_LIMIT = 100;
@@ -76,55 +76,10 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
         .limit(PAGE_LIMIT),
     ]);
 
-    const allRows = [...pendingRows, ...completedRows];
-    if (allRows.length === 0) return { pending: [], completed: [] };
-    const txIds = allRows.map((t) => t.id);
+    const txIds = [...pendingRows, ...completedRows].map((t) => t.id);
+    if (txIds.length === 0) return { pending: [], completed: [] };
 
-    const [legRows, lineRows] = await Promise.all([
-      db
-        .select({
-          transactionId: schema.transactionLegs.transactionId,
-          accountId: schema.transactionLegs.accountId,
-          accountName: schema.accounts.name,
-          accountCurrency: schema.accounts.currency,
-          amount: schema.transactionLegs.amount,
-        })
-        .from(schema.transactionLegs)
-        .innerJoin(
-          schema.accounts,
-          eq(schema.accounts.id, schema.transactionLegs.accountId),
-        )
-        .where(inArray(schema.transactionLegs.transactionId, txIds)),
-      db
-        .select({
-          transactionId: schema.transactionLines.transactionId,
-          amount: schema.transactionLines.amount,
-          currency: schema.transactionLines.currency,
-          categoryId: schema.transactionLines.categoryId,
-          categoryName: schema.categories.name,
-          subcategoryId: schema.transactionLines.subcategoryId,
-          subcategoryName: schema.subcategories.name,
-          tagId: schema.transactionLines.tagId,
-          tagName: schema.tags.name,
-        })
-        .from(schema.transactionLines)
-        .innerJoin(
-          schema.categories,
-          eq(schema.categories.id, schema.transactionLines.categoryId),
-        )
-        .leftJoin(
-          schema.subcategories,
-          eq(schema.subcategories.id, schema.transactionLines.subcategoryId),
-        )
-        .leftJoin(
-          schema.tags,
-          eq(schema.tags.id, schema.transactionLines.tagId),
-        )
-        .where(inArray(schema.transactionLines.transactionId, txIds)),
-    ]);
-
-    const legsByTx = groupBy(legRows, (l) => l.transactionId);
-    const linesByTx = groupBy(lineRows, (l) => l.transactionId);
+    const { legsByTx, linesByTx } = await fetchLegsAndLines(txIds);
 
     // Running balance: only when filtered to a single account, and only on
     // completed rows. Walk newest→oldest subtracting each row's leg; the
@@ -163,46 +118,35 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
-    // JSON can't carry bigint, so amounts are stringified.
-    const enrich = (t: (typeof allRows)[number]): EnrichedTransaction => {
-      const balanceAfter = balanceAfterByTx.get(t.id);
-      const legs = legsByTx.get(t.id);
-      if (!legs) {
-        throw new Error(`Invariant: transaction ${t.id} has no legs`);
-      }
-      return {
-        id: t.id,
-        date: t.date,
-        createdAt: t.createdAt.toISOString(),
-        type: t.type,
-        description: t.description,
-        legs: legs.map((l) => ({
-          accountId: l.accountId,
-          accountName: l.accountName,
-          accountCurrency: l.accountCurrency,
-          amount: l.amount.toString(),
-        })),
-        lines: (linesByTx.get(t.id) ?? []).map((l) => ({
-          amount: l.amount.toString(),
-          currency: l.currency,
-          categoryId: l.categoryId,
-          categoryName: l.categoryName,
-          subcategoryId: l.subcategoryId,
-          subcategoryName: l.subcategoryName,
-          tagId: l.tagId,
-          tagName: l.tagName,
-        })),
-        ...(balanceAfter !== undefined
-          ? { balanceAfter: balanceAfter.toString() }
-          : {}),
-      };
-    };
+    const enrich = (t: (typeof pendingRows)[number]) =>
+      enrichTx(
+        t,
+        legsByTx.get(t.id),
+        linesByTx.get(t.id),
+        balanceAfterByTx.get(t.id),
+      );
 
     return {
       pending: pendingRows.map(enrich),
       completed: completedRows.map(enrich),
     };
   });
+
+  // ─── Get one ─────────────────────────────────────────────────────────────
+
+  app.get(
+    "/:id",
+    async (req, reply): Promise<EnrichedTransaction | undefined> => {
+      const { id } = idParam.parse(req.params);
+      const tx = await findOwned(schema.transactions, id, req.auth.groupId);
+      if (!tx) {
+        reply.code(404).send({ error: "Not found" });
+        return;
+      }
+      const { legsByTx, linesByTx } = await fetchLegsAndLines([id]);
+      return enrichTx(tx, legsByTx.get(id), linesByTx.get(id));
+    },
+  );
 
   // ─── Create ─────────────────────────────────────────────────────────────
 

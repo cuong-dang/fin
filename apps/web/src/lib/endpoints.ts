@@ -6,6 +6,7 @@ import type {
   CreateAccountBody,
   CreateCategoryBody,
   CreateSubcategoryBody,
+  EnrichedTransaction,
   Me,
   ProcessTransactionBody,
   ReorderTransactionsBody,
@@ -58,6 +59,9 @@ export const listTransactions = (accountId?: string) => {
   const qs = accountId ? `?accountId=${encodeURIComponent(accountId)}` : "";
   return api<TransactionsListResponse>(`/api/transactions${qs}`);
 };
+
+export const getTransaction = (id: string) =>
+  api<EnrichedTransaction>(`/api/transactions/${id}`);
 
 export const createTransaction = (body: TransactionBody) =>
   api<{ id: string }>("/api/transactions", { method: "POST", json: body });

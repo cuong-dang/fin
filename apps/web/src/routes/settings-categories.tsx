@@ -1,6 +1,3 @@
-import type { CategoryKind, CategoryWithSubs } from "@fin/schemas";
-import { Box, Card, Container, Stack, Text, Title } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
 import { BackLink } from "@/components/back-link";
 import { EditableName } from "@/features/settings/editable-name";
 import { NewNameForm } from "@/features/settings/new-name-form";
@@ -13,6 +10,9 @@ import {
   updateCategory,
   updateSubcategory,
 } from "@/lib/endpoints";
+import type { CategoryKind, CategoryWithSubs } from "@fin/schemas";
+import { Box, Card, Container, Stack, Text, Title } from "@mantine/core";
+import { useQuery } from "@tanstack/react-query";
 
 const CATEGORIES_KEY = ["categories"];
 
@@ -51,7 +51,7 @@ function KindSection({
 }) {
   return (
     <Stack gap="sm" mt="md">
-      <Text fw={600} size="sm" tt="uppercase">
+      <Text fw={700} size="sm" tt="uppercase">
         {title}
       </Text>
       <NewNameForm
