@@ -1,4 +1,11 @@
-import type { EnrichedTransaction, TxLine } from "@fin/schemas";
+import { groupBy } from "@/lib/collections";
+import { formatDayHeader, localDateKey } from "@/lib/dates";
+import {
+  listTransactions,
+  processTransaction,
+  reorderTransactions,
+} from "@/lib/endpoints";
+import { formatMoney } from "@/lib/money";
 import {
   DndContext,
   type DragEndEvent,
@@ -15,10 +22,12 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import type { EnrichedTransaction, TxLine } from "@fin/schemas";
 import {
+  ActionIcon,
+  Alert,
   Anchor,
   Box,
-  Button,
   Divider,
   Group,
   Stack,
@@ -26,25 +35,16 @@ import {
   UnstyledButton,
 } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, GripVertical } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, GripVertical } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
-import { groupBy } from "@/lib/collections";
-import { formatDayHeader, localDateKey } from "@/lib/dates";
-import {
-  listTransactions,
-  processTransaction,
-  reorderTransactions,
-} from "@/lib/endpoints";
-import { formatMoney } from "@/lib/money";
 
 export function TransactionsList({
   accountId,
-  accountName,
 }: {
   accountId: string | undefined;
-  accountName: string | undefined;
 }) {
+  // Data & states
   const qc = useQueryClient();
   const q = useQuery({
     queryKey: ["transactions", { accountId }],
@@ -73,6 +73,7 @@ export function TransactionsList({
     },
   });
 
+  // @dnd
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
   );
@@ -87,21 +88,21 @@ export function TransactionsList({
     if (!sourceDate || !overDate || sourceDate === overDate) return;
 
     setLocalByDay((prev) => {
-      const source = prev.get(sourceDate) ?? [];
-      const target = prev.get(overDate) ?? [];
-      const moving = source.find((t) => t.id === activeId);
-      if (!moving) return prev;
-      const newSource = source.filter((t) => t.id !== activeId);
-      const overIndex = target.findIndex((t) => t.id === overId);
-      const newTarget = [
-        ...target.slice(0, overIndex),
-        { ...moving, date: overDate },
-        ...target.slice(overIndex),
+      const sourceTxs = prev.get(sourceDate) ?? [];
+      const targetTxs = prev.get(overDate) ?? [];
+      const movingTx = sourceTxs.find((t) => t.id === activeId);
+      if (!movingTx) return prev;
+      const newSourceTxs = sourceTxs.filter((t) => t.id !== activeId);
+      const overIndex = targetTxs.findIndex((t) => t.id === overId);
+      const newTargetTxs = [
+        ...targetTxs.slice(0, overIndex),
+        { ...movingTx, date: overDate },
+        ...targetTxs.slice(overIndex),
       ];
       const next = new Map(prev);
-      if (newSource.length === 0) next.delete(sourceDate);
-      else next.set(sourceDate, newSource);
-      next.set(overDate, newTarget);
+      if (newSourceTxs.length === 0) next.delete(sourceDate);
+      else next.set(sourceDate, newSourceTxs);
+      next.set(overDate, newTargetTxs);
       return next;
     });
   }
@@ -111,54 +112,46 @@ export function TransactionsList({
     if (!over) return;
     const activeId = active.id as string;
     const overId = over.id as string;
+    if (activeId === overId) return;
 
     const activeDate = findDateOfId(localByDay, activeId);
     const overDate = findDateOfId(localByDay, overId);
-    if (!activeDate || !overDate) return;
-
-    let finalMap = localByDay;
-    if (activeDate === overDate && activeId !== overId) {
-      const day = localByDay.get(activeDate) ?? [];
-      const oldIndex = day.findIndex((t) => t.id === activeId);
-      const newIndex = day.findIndex((t) => t.id === overId);
-      if (oldIndex >= 0 && newIndex >= 0 && oldIndex !== newIndex) {
-        finalMap = new Map(localByDay);
-        finalMap.set(activeDate, arrayMove(day, oldIndex, newIndex));
-      }
+    if (!activeDate || !overDate) {
+      throw new Error("Invariant: drag ids must live in localByDay");
+    }
+    if (activeDate !== overDate) {
+      throw new Error(
+        "Invariant: onDragOver should have unified activeDate and overDate",
+      );
     }
 
-    const withBalances = new Map(finalMap);
-    for (const [date, txs] of finalMap) {
-      withBalances.set(date, recomputeBalanceAfter(txs, accountId));
-    }
-    setLocalByDay(withBalances);
+    const dayTxs = localByDay.get(activeDate) ?? [];
+    const oldIndex = dayTxs.findIndex((t) => t.id === activeId);
+    const newIndex = dayTxs.findIndex((t) => t.id === overId);
+    if (oldIndex === newIndex) return;
 
-    const targetIds = (withBalances.get(overDate) ?? []).map((t) => t.id);
+    const reordered = new Map(localByDay);
+    reordered.set(activeDate, arrayMove(dayTxs, oldIndex, newIndex));
+
+    const targetIds = (reordered.get(overDate) ?? []).map((t) => t.id);
     mutation.mutate({ date: overDate, movingId: activeId, ids: targetIds });
+    setLocalByDay(reordered);
   }
 
-  if (q.isLoading) {
-    return (
-      <Text size="sm" c="dimmed" ta="center" p="xl">
-        Loading…
-      </Text>
-    );
-  }
-  if (q.error) {
-    return (
-      <Text size="sm" c="red" ta="center" p="xl">
-        {(q.error as Error).message}
-      </Text>
-    );
-  }
+  if (q.isLoading) return null; // TODO: Maybe spinner later.
+  if (q.error) return <Alert color="red">{(q.error as Error).message}</Alert>;
   const pending = q.data?.pending ?? [];
 
   if (pending.length === 0 && localByDay.size === 0) {
-    return <EmptyState accountName={accountName} />;
+    return (
+      <Text size="sm" c="dimmed" p="sm" ta="center">
+        No transactions.
+      </Text>
+    );
   }
 
   return (
-    <Box>
+    <>
       {pending.length > 0 && (
         <Section title="Pending">
           {pending.map((t) => (
@@ -185,7 +178,7 @@ export function TransactionsList({
           </Section>
         ))}
       </DndContext>
-    </Box>
+    </>
   );
 }
 
@@ -197,74 +190,65 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <Box>
-      <Text
-        size="xs"
-        c="dimmed"
-        tt="uppercase"
-        fw={600}
-        px="md"
-        py="xs"
-        bg="var(--mantine-color-body)"
-        pos="sticky"
-        top={0}
-        style={{ zIndex: 10 }}
-      >
+    <>
+      <Text size="xs" c="dimmed" tt="uppercase" fw={700} p="xs">
         {title}
       </Text>
       <Divider />
       {children}
-    </Box>
+    </>
   );
 }
 
-function findDateOfId(
-  byDay: Map<string, EnrichedTransaction[]>,
-  id: string,
-): string | undefined {
-  for (const [date, txs] of byDay) {
-    if (txs.some((t) => t.id === id)) return date;
-  }
-  return undefined;
-}
-
-function recomputeBalanceAfter(
-  txs: EnrichedTransaction[],
-  filterAccountId: string | undefined,
-): EnrichedTransaction[] {
-  if (!filterAccountId || txs.length === 0) return txs;
-  const first = txs[0];
-  if (first.balanceAfter === undefined) return txs;
-  const result: EnrichedTransaction[] = [first];
-  let running = BigInt(first.balanceAfter);
-  for (let i = 1; i < txs.length; i++) {
-    const prev = txs[i - 1];
-    const prevLeg = prev.legs.find((l) => l.accountId === filterAccountId);
-    if (prevLeg) running -= BigInt(prevLeg.amount);
-    result.push({ ...txs[i], balanceAfter: running.toString() });
-  }
-  return result;
-}
-
-function EmptyState({ accountName }: { accountName: string | undefined }) {
+function PendingRow({
+  tx,
+  filterAccountId,
+}: {
+  tx: EnrichedTransaction;
+  filterAccountId: string | undefined;
+}) {
+  const qc = useQueryClient();
+  const { primary, metaParts, amount, currency } = rowContent(
+    tx,
+    filterAccountId,
+  );
+  const mark = useMutation({
+    mutationFn: (date: string) => processTransaction(tx.id, { date }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+    },
+  });
   return (
-    <Stack align="center" justify="center" py="xl" gap="md">
-      <Text size="sm" c="dimmed">
-        {accountName
-          ? `No transactions for ${accountName} yet.`
-          : "No transactions yet."}
-      </Text>
-      <Group>
-        <Button component={Link} to="/transactions/new" size="sm">
-          Create transaction
-        </Button>
-        {accountName && (
-          <Button component={Link} to="/" variant="subtle" size="sm">
-            View all accounts
-          </Button>
-        )}
+    <>
+      <Group p="sm">
+        <ActionIcon onClick={() => mark.mutate(localDateKey(new Date()))}>
+          <Check size={14} />
+        </ActionIcon>
+        <Anchor
+          component={Link}
+          to={`/transactions/${tx.id}/edit`}
+          underline="never"
+          c="inherit"
+          flex={1}
+        >
+          <Group>
+            <Box flex={1}>
+              <Text size="sm" fw={500}>
+                {primary}
+              </Text>
+              <Text size="xs" c="dimmed">
+                {metaParts.join(" · ")}
+              </Text>
+            </Box>
+            <Text size="sm" fw={500} ff="monospace" c={amountColor(tx, amount)}>
+              {formatMoney(amount, currency)}
+            </Text>
+          </Group>
+        </Anchor>
       </Group>
-    </Stack>
+      <Divider />
+    </>
   );
 }
 
@@ -380,6 +364,16 @@ function SortableRow({
   );
 }
 
+function findDateOfId(
+  byDay: Map<string, EnrichedTransaction[]>,
+  id: string,
+): string | undefined {
+  for (const [date, txs] of byDay) {
+    if (txs.some((t) => t.id === id)) return date;
+  }
+  return undefined;
+}
+
 function displayShape(
   tx: EnrichedTransaction,
   filterAccountId: string | undefined,
@@ -462,62 +456,4 @@ function rowContent(
   }
   if (accountLabel) metaParts.push(accountLabel);
   return { primary, metaParts, amount, currency };
-}
-
-function PendingRow({
-  tx,
-  filterAccountId,
-}: {
-  tx: EnrichedTransaction;
-  filterAccountId: string | undefined;
-}) {
-  const qc = useQueryClient();
-  const { primary, metaParts, amount, currency } = rowContent(
-    tx,
-    filterAccountId,
-  );
-  const mark = useMutation({
-    mutationFn: (date: string) => processTransaction(tx.id, { date }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["transactions"] });
-      qc.invalidateQueries({ queryKey: ["accounts"] });
-    },
-  });
-  return (
-    <>
-      <Group px="md" py="sm" gap="md" wrap="nowrap">
-        <Anchor
-          component={Link}
-          to={`/transactions/${tx.id}/edit`}
-          underline="never"
-          c="inherit"
-          flex={1}
-          miw={0}
-        >
-          <Group justify="space-between" gap="md" wrap="nowrap">
-            <Box flex={1} miw={0}>
-              <Text size="sm" fw={500} truncate>
-                {primary}
-              </Text>
-              <Text size="xs" c="dimmed" truncate mt={2}>
-                {metaParts.join(" · ")}
-              </Text>
-            </Box>
-            <Text size="sm" fw={500} ff="monospace" c={amountColor(tx, amount)}>
-              {formatMoney(amount, currency)}
-            </Text>
-          </Group>
-        </Anchor>
-        <Button
-          size="compact-sm"
-          variant="default"
-          loading={mark.isPending}
-          onClick={() => mark.mutate(localDateKey(new Date()))}
-        >
-          Mark processed
-        </Button>
-      </Group>
-      <Divider />
-    </>
-  );
 }
