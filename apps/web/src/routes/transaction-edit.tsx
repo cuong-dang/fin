@@ -58,7 +58,7 @@ export function TransactionEditRoute() {
   }
   if (!tx) {
     return (
-      <Container size="xs" py="xl">
+      <Container py="xl" size="xs">
         <Stack>
           <BackLink to="/" />
           <Text size="sm">Transaction not found.</Text>
@@ -73,10 +73,10 @@ export function TransactionEditRoute() {
 
   return (
     <FullEdit
-      tx={tx}
       accounts={accountsQ.data ?? []}
       categories={categoriesQ.data ?? []}
       tags={tagsQ.data ?? []}
+      tx={tx}
     />
   );
 
@@ -109,28 +109,28 @@ export function TransactionEditRoute() {
     const initial = deriveInitial(props.tx);
 
     return (
-      <Container size="sm" py="xl">
+      <Container py="xl" size="sm">
         <Stack>
           <BackLink to="/" />
           <Box>
             <Title order={2}>Edit transaction</Title>
-            <Text size="sm" c="dimmed" tt="capitalize">
+            <Text c="dimmed" size="sm" tt="capitalize">
               {props.tx.type}
             </Text>
           </Box>
           <TransactionForm
             accounts={props.accounts}
             categories={props.categories}
+            error={error}
+            initialValues={initial}
+            pending={mutation.isPending}
+            submitLabel="Save"
             tags={props.tags}
             title="Edit transaction"
-            submitLabel="Save"
-            initialValues={initial}
             onSubmit={(body) => {
               setError(null);
               mutation.mutate(body);
             }}
-            pending={mutation.isPending}
-            error={error}
           />
           <DangerZone
             onDelete={() => {
@@ -174,12 +174,12 @@ export function TransactionEditRoute() {
     });
 
     return (
-      <Container size="xs" py="xl">
+      <Container py="xl" size="xs">
         <Stack>
           <BackLink to="/" />
           <Box>
             <Title order={2}>Edit transaction</Title>
-            <Text size="sm" c="dimmed">
+            <Text c="dimmed" size="sm">
               Balance adjustment
             </Text>
           </Box>
@@ -192,30 +192,30 @@ export function TransactionEditRoute() {
           >
             <Stack>
               <TextInput
-                label="Amount"
-                type="number"
-                step="any"
                 inputMode="decimal"
+                label="Amount"
+                required
+                step="any"
+                type="number"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                required
               />
               <TextInput
                 label="Date"
+                required
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                required
               />
               <TextInput
                 label="Description"
+                maxLength={500}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                maxLength={500}
               />
               {error && <Alert color="red">{error}</Alert>}
               <Group>
-                <Button type="submit" loading={mutation.isPending}>
+                <Button loading={mutation.isPending} type="submit">
                   Save
                 </Button>
                 <Button component={Link} to="/" variant="subtle">
@@ -242,18 +242,18 @@ function DangerZone({ onDelete }: { onDelete: () => void }) {
     <Box mt="xl">
       <Divider mb="md" />
       <Stack gap="xs">
-        <Text size="sm" fw={600}>
+        <Text fw={600} size="sm">
           Danger zone
         </Text>
-        <Text size="sm" c="dimmed">
+        <Text c="dimmed" size="sm">
           Deleting removes this transaction along with its legs and lines.
         </Text>
         <Button
           color="red"
-          variant="light"
           size="sm"
-          onClick={onDelete}
+          variant="light"
           w="fit-content"
+          onClick={onDelete}
         >
           Delete transaction
         </Button>

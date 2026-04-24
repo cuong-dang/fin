@@ -35,7 +35,7 @@ export function AccountsSidebar() {
     /* Title + settings/new */
     <Stack gap={0} h="100%">
       <Group justify="space-between" px="sm" py="sm">
-        <Anchor component={Link} to="/" fw={700} underline="never">
+        <Anchor component={Link} fw={700} to="/" underline="never">
           fin
         </Anchor>
         <Group gap={0}>
@@ -53,21 +53,21 @@ export function AccountsSidebar() {
       {/* Group + account list */}
       <ScrollArea flex={1}>
         <NavLink
-          component={Link}
-          to="/"
-          label="All accounts"
           active={!selectedAccountId}
+          component={Link}
+          label="All accounts"
+          to="/"
         />
         {groups.length === 0 ? (
-          <Text size="sm" c="dimmed" p="sm">
+          <Text c="dimmed" p="sm" size="sm">
             No accounts.
           </Text>
         ) : (
           groups.map((g) => (
             <GroupSection
               key={g.id}
-              group={g}
               accounts={byGroup.get(g.id) ?? []}
+              group={g}
               selectedAccountId={selectedAccountId}
             />
           ))
@@ -78,15 +78,15 @@ export function AccountsSidebar() {
 
       <Group justify="space-between" px="sm" py="sm">
         <Stack gap={0}>
-          <Text size="xs" fw={500}>
+          <Text fw={500} size="xs">
             {meQ.data?.user.name}
           </Text>
-          <Text size="xs" c="dimmed">
+          <Text c="dimmed" size="xs">
             {meQ.data?.user.email}
           </Text>
         </Stack>
         <Group gap={0}>
-          <ActionIcon component={Link} to="/settings" aria-label="Settings">
+          <ActionIcon aria-label="Settings" component={Link} to="/settings">
             <SlidersHorizontal size={14} />
           </ActionIcon>
           <SignOutButton />
@@ -119,17 +119,17 @@ function GroupSection({
   return (
     <Stack gap={0} py="sm">
       <Group justify="space-between" px="sm">
-        <Text size="sm" fw={700} c="dimmed" tt="uppercase">
+        <Text c="dimmed" fw={700} size="sm" tt="uppercase">
           {group.name}
         </Text>
         {subtotal && (
-          <Text size="sm" c="dimmed" ff="monospace">
+          <Text c="dimmed" ff="monospace" size="sm">
             {formatMoney(subtotal.amount, subtotal.currency)}
           </Text>
         )}
       </Group>
       {accounts.length === 0 ? (
-        <Text size="sm" c="dimmed" p="sm">
+        <Text c="dimmed" p="sm" size="sm">
           No accounts.
         </Text>
       ) : (
@@ -158,22 +158,22 @@ function AccountItem({
 
   return (
     <NavLink
-      component={Link}
-      to={`/?account=${account.id}`}
       active={active}
+      component={Link}
       label={account.name}
       rightSection={
-        <Stack gap={0} align="flex-end">
-          <Text size="sm" c="dimmed" ff="monospace">
+        <Stack align="flex-end" gap={0}>
+          <Text c="dimmed" ff="monospace" size="sm">
             {formatMoney(present, account.currency)}
           </Text>
           {hasPending && (
-            <Text size="sm" c="dimmed" ff="monospace">
+            <Text c="dimmed" ff="monospace" size="sm">
               avail {formatMoney(available, account.currency)}
             </Text>
           )}
         </Stack>
       }
+      to={`/?account=${account.id}`}
     />
   );
 }

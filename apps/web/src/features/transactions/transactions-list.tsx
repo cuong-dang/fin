@@ -148,7 +148,7 @@ export function TransactionsList({
 
   if (pending.length === 0 && localByDay.size === 0) {
     return (
-      <Text size="sm" c="dimmed" p="sm" ta="center">
+      <Text c="dimmed" p="sm" size="sm" ta="center">
         No transactions.
       </Text>
     );
@@ -159,15 +159,15 @@ export function TransactionsList({
       {pending.length > 0 && (
         <Section title="Pending">
           {pending.map((t) => (
-            <PendingRow key={t.id} tx={t} filterAccountId={accountId} />
+            <PendingRow key={t.id} filterAccountId={accountId} tx={t} />
           ))}
         </Section>
       )}
       <DndContext
-        sensors={sensors}
         modifiers={[restrictToVerticalAxis]}
-        onDragOver={onDragOver}
+        sensors={sensors}
         onDragEnd={onDragEnd}
+        onDragOver={onDragOver}
       >
         {Array.from(localByDay.entries()).map(([date, dayTxs]) => (
           <Section key={date} title={formatDayHeader(date)}>
@@ -176,7 +176,7 @@ export function TransactionsList({
               strategy={verticalListSortingStrategy}
             >
               {dayTxs.map((t) => (
-                <SortableRow key={t.id} tx={t} filterAccountId={accountId} />
+                <SortableRow key={t.id} filterAccountId={accountId} tx={t} />
               ))}
             </SortableContext>
           </Section>
@@ -195,7 +195,7 @@ function Section({
 }) {
   return (
     <>
-      <Text size="xs" c="dimmed" tt="uppercase" fw={700} p="xs">
+      <Text c="dimmed" fw={700} p="xs" size="xs" tt="uppercase">
         {title}
       </Text>
       <Divider />
@@ -226,16 +226,16 @@ function PendingRow({
           <Check size={14} />
         </ActionIcon>
         <Anchor
+          c="inherit"
           component={Link}
+          flex={1}
           to={`/transactions/${tx.id}/edit`}
           underline="never"
-          c="inherit"
-          flex={1}
         >
           <RowBody
-            tx={tx}
             filterAccountId={filterAccountId}
             showRunningBalance={false}
+            tx={tx}
           />
         </Anchor>
       </Group>
@@ -270,7 +270,7 @@ function SortableRow({
         opacity: isDragging ? 0.5 : 1,
       }}
     >
-      <Group p="sm" align="flex-start">
+      <Group align="flex-start" p="sm">
         {/* DnD / Expand */}
         <UnstyledButton
           c="dimmed"
@@ -283,34 +283,34 @@ function SortableRow({
         </UnstyledButton>
         {isMultiLine && (
           <UnstyledButton
+            aria-label={expanded ? "Collapse lines" : "Expand lines"}
             c="dimmed"
             onClick={() => setExpanded((v) => !v)}
-            aria-label={expanded ? "Collapse lines" : "Expand lines"}
           >
             {expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
           </UnstyledButton>
         )}
         {/* TX row */}
         <Anchor
+          c="inherit"
           component={Link}
+          flex={1}
           to={`/transactions/${tx.id}/edit`}
           underline="never"
-          c="inherit"
-          flex={1}
         >
           <RowBody
-            tx={tx}
             filterAccountId={filterAccountId}
             showRunningBalance
+            tx={tx}
           />
           {isMultiLine && expanded && (
             <Stack gap={0}>
               {tx.lines.map((line, i) => (
                 <Group key={i} justify="space-between">
-                  <Text size="xs" c="dimmed">
+                  <Text c="dimmed" size="xs">
                     {categoryLabel(line)}
                   </Text>
-                  <Text size="xs" c="dimmed" ff="monospace">
+                  <Text c="dimmed" ff="monospace" size="xs">
                     {formatMoney(BigInt(line.amount), line.currency)}
                   </Text>
                 </Group>
@@ -340,19 +340,19 @@ function RowBody({
   return (
     <Group>
       <Box flex={1}>
-        <Text size="sm" fw={500}>
+        <Text fw={500} size="sm">
           {primary}
         </Text>
-        <Text size="xs" c="dimmed">
+        <Text c="dimmed" size="xs">
           {metaParts.join(" · ")}
         </Text>
       </Box>
-      <Stack gap={0} align="flex-end">
-        <Text size="sm" fw={500} ff="monospace" c={amountColor(tx, amount)}>
+      <Stack align="flex-end" gap={0}>
+        <Text c={amountColor(tx, amount)} ff="monospace" fw={500} size="sm">
           {formatMoney(amount, currency)}
         </Text>
         {showRunningBalance && tx.balanceAfter !== undefined && (
-          <Text size="xs" c="dimmed" ff="monospace">
+          <Text c="dimmed" ff="monospace" size="xs">
             {formatMoney(BigInt(tx.balanceAfter), currency)}
           </Text>
         )}

@@ -23,25 +23,25 @@ export function GroupSelector({
   return (
     <>
       <NativeSelect
-        label="Group"
-        value={value}
-        onChange={(e) => onValueChange(e.target.value)}
-        required
         data={[
           { value: "", label: "Select…", disabled: true },
           ...groups.map((g) => ({ value: g.id, label: g.name })),
           { value: CREATE_NEW, label: "+ Create new group" },
         ]}
+        label="Group"
+        required
+        value={value}
+        onChange={(e) => onValueChange(e.target.value)}
       />
       {creatingNew && (
         <TextInput
-          label="New group name"
-          value={newGroupName}
-          onChange={(e) => onNewGroupNameChange(e.target.value)}
-          required
           data-autofocus
+          label="New group name"
           maxLength={100}
           placeholder="Investments"
+          required
+          value={newGroupName}
+          onChange={(e) => onNewGroupNameChange(e.target.value)}
         />
       )}
     </>

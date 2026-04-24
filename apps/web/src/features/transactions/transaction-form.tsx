@@ -23,9 +23,9 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { CategorySelector, CREATE_NEW } from "./category-selector";
 
-export type TxType = "income" | "expense" | "transfer";
+type TxType = "income" | "expense" | "transfer";
 
-export type LineFormValues = {
+type LineFormValues = {
   amount: string;
   categoryId: string;
   newCategoryName: string;
@@ -210,42 +210,38 @@ export function TransactionForm({
           />
         ) : isMultiLine ? (
           <MultiLineEditor
-            lines={lines}
             categories={relevantCategories}
-            onUpdate={updateLine}
+            lines={lines}
             onAdd={addLine}
             onRemove={removeLine}
+            onUpdate={updateLine}
           />
         ) : (
           <SingleLineEditor
-            line={lines[0]}
             categories={relevantCategories}
-            onUpdate={(patch) => updateLine(0, patch)}
+            line={lines[0]}
             onSplit={addLine}
+            onUpdate={(patch) => updateLine(0, patch)}
           />
         )}
 
         <Checkbox
           checked={isPending}
-          onChange={(e) => setIsPending(e.currentTarget.checked)}
           label="Mark as pending (settles later)"
+          onChange={(e) => setIsPending(e.currentTarget.checked)}
         />
 
         {!isPending && (
           <TextInput
-            type="date"
             label="Date"
+            required
+            type="date"
             value={dateStr}
             onChange={(e) => setDateStr(e.target.value)}
-            required
           />
         )}
 
         <NativeSelect
-          label={type === "transfer" ? "From account" : "Account"}
-          value={accountId}
-          onChange={(e) => handleAccountChange(e.target.value)}
-          required
           data={[
             { value: "", label: "Select…", disabled: true },
             ...sourceAccounts.map((a) => ({
@@ -253,14 +249,14 @@ export function TransactionForm({
               label: `${a.name} (${a.currency})`,
             })),
           ]}
+          label={type === "transfer" ? "From account" : "Account"}
+          required
+          value={accountId}
+          onChange={(e) => handleAccountChange(e.target.value)}
         />
 
         {type === "transfer" && (
           <NativeSelect
-            label="To account"
-            value={destinationAccountId}
-            onChange={(e) => handleDestinationChange(e.target.value)}
-            required
             data={[
               { value: "", label: "Select…", disabled: true },
               ...destinationAccounts.map((a) => ({
@@ -268,30 +264,34 @@ export function TransactionForm({
                 label: `${a.name} (${a.currency})`,
               })),
             ]}
+            label="To account"
+            required
+            value={destinationAccountId}
+            onChange={(e) => handleDestinationChange(e.target.value)}
           />
         )}
 
         <NativeSelect
-          label="Tag (optional)"
-          value={tagId}
-          onChange={(e) => setTagId(e.target.value)}
           data={[
             { value: "", label: "—" },
             ...tags.map((t) => ({ value: t.id, label: t.name })),
           ]}
+          label="Tag (optional)"
+          value={tagId}
+          onChange={(e) => setTagId(e.target.value)}
         />
 
         <TextInput
           label="Description (optional)"
+          maxLength={500}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          maxLength={500}
         />
 
         {error && <Alert color="red">{error}</Alert>}
 
         <Group>
-          <Button type="submit" loading={pending}>
+          <Button loading={pending} type="submit">
             {submitLabel}
           </Button>
           <Button component={Link} to="/" variant="subtle">
@@ -314,14 +314,14 @@ function MoneyField({
 }) {
   return (
     <TextInput
-      label={label}
-      type="number"
       inputMode="decimal"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      required
+      label={label}
       min={0}
       placeholder="0.00"
+      required
+      type="number"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
     />
   );
 }
@@ -347,18 +347,18 @@ function SingleLineEditor({
       <CategorySelector
         categories={categories}
         categoryId={line.categoryId}
-        onCategoryChange={(v) => onUpdate({ categoryId: v })}
         newCategoryName={line.newCategoryName}
-        onNewCategoryNameChange={(v) => onUpdate({ newCategoryName: v })}
-        subcategoryId={line.subcategoryId}
-        onSubcategoryChange={(v) => onUpdate({ subcategoryId: v })}
         newSubcategoryName={line.newSubcategoryName}
+        subcategoryId={line.subcategoryId}
+        onCategoryChange={(v) => onUpdate({ categoryId: v })}
+        onNewCategoryNameChange={(v) => onUpdate({ newCategoryName: v })}
         onNewSubcategoryNameChange={(v) => onUpdate({ newSubcategoryName: v })}
+        onSubcategoryChange={(v) => onUpdate({ subcategoryId: v })}
       />
       <Button
+        leftSection={<Plus size={14} />}
         type="button"
         variant="subtle"
-        leftSection={<Plus size={14} />}
         w="fit-content"
         onClick={onSplit}
       >
@@ -388,16 +388,16 @@ function MultiLineEditor({
   return (
     <Stack gap="xs">
       {lines.map((line, i) => (
-        <Card key={i} withBorder padding="sm">
+        <Card key={i} padding="sm" withBorder>
           <Stack gap={0}>
             <Group justify="space-between">
-              <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+              <Text c="dimmed" fw={700} size="xs" tt="uppercase">
                 Line {i + 1}
               </Text>
               <ActionIcon
-                onClick={() => onRemove(i)}
-                color="red"
                 aria-label={`Remove line ${i + 1}`}
+                color="red"
+                onClick={() => onRemove(i)}
               >
                 <Trash2 size={14} />
               </ActionIcon>
@@ -410,36 +410,36 @@ function MultiLineEditor({
             <CategorySelector
               categories={categories}
               categoryId={line.categoryId}
-              onCategoryChange={(v) => onUpdate(i, { categoryId: v })}
               newCategoryName={line.newCategoryName}
+              newSubcategoryName={line.newSubcategoryName}
+              subcategoryId={line.subcategoryId}
+              onCategoryChange={(v) => onUpdate(i, { categoryId: v })}
               onNewCategoryNameChange={(v) =>
                 onUpdate(i, { newCategoryName: v })
               }
-              subcategoryId={line.subcategoryId}
-              onSubcategoryChange={(v) => onUpdate(i, { subcategoryId: v })}
-              newSubcategoryName={line.newSubcategoryName}
               onNewSubcategoryNameChange={(v) =>
                 onUpdate(i, { newSubcategoryName: v })
               }
+              onSubcategoryChange={(v) => onUpdate(i, { subcategoryId: v })}
             />
           </Stack>
         </Card>
       ))}
       <Button
+        leftSection={<Plus size={14} />}
         type="button"
         variant="subtle"
-        leftSection={<Plus size={14} />}
-        onClick={onAdd}
         w="fit-content"
+        onClick={onAdd}
       >
         Add line
       </Button>
-      <Card withBorder p="sm">
+      <Card p="sm" withBorder>
         <Group justify="space-between">
-          <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
+          <Text c="dimmed" fw={700} size="xs" tt="uppercase">
             Total
           </Text>
-          <Text size="sm" fw={500} ff="monospace">
+          <Text ff="monospace" fw={500} size="sm">
             {total.toFixed(2)}
           </Text>
         </Group>
@@ -461,10 +461,10 @@ function TypeTabs({
       {options.map((t) => (
         <Button
           key={t}
-          type="button"
-          variant={value === t ? "filled" : "default"}
           fullWidth
           tt="capitalize"
+          type="button"
+          variant={value === t ? "filled" : "default"}
           onClick={() => onChange(t)}
         >
           {t}

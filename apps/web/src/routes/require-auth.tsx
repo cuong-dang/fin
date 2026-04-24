@@ -3,6 +3,6 @@ import { getGroupId, getToken } from "@/lib/auth";
 
 /** Redirects to /signin if no token or no active workspace is selected. */
 export function RequireAuth() {
-  if (!getToken() || !getGroupId()) return <Navigate to="/signin" replace />;
+  if (!getToken() || !getGroupId()) return <Navigate replace to="/signin" />;
   return <Outlet />;
 }

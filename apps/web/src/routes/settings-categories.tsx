@@ -23,18 +23,18 @@ export function SettingsCategoriesRoute() {
   const expense = cats.filter((c) => c.kind === "expense");
 
   return (
-    <Container size="sm" py="xl">
+    <Container py="xl" size="sm">
       <Stack>
         <BackLink to="/settings" />
         <Box>
           <Title order={2}>Categories</Title>
-          <Text size="sm" c="dimmed" mt={4}>
+          <Text c="dimmed" mt={4} size="sm">
             Income and expense categories organize your transactions. Each
             category can have subcategories for finer grouping.
           </Text>
         </Box>
-        <KindSection title="Income" kind="income" categories={income} />
-        <KindSection title="Expense" kind="expense" categories={expense} />
+        <KindSection categories={income} kind="income" title="Income" />
+        <KindSection categories={expense} kind="expense" title="Expense" />
       </Stack>
     </Container>
   );
@@ -51,16 +51,16 @@ function KindSection({
 }) {
   return (
     <Stack gap="sm" mt="md">
-      <Text size="sm" fw={600} tt="uppercase">
+      <Text fw={600} size="sm" tt="uppercase">
         {title}
       </Text>
       <NewNameForm
+        invalidate={[CATEGORIES_KEY]}
         placeholder={`New ${kind} category`}
         onSubmit={(name) => createCategory({ kind, name })}
-        invalidate={[CATEGORIES_KEY]}
       />
       {cats.length === 0 ? (
-        <Text size="sm" c="dimmed" fs="italic">
+        <Text c="dimmed" fs="italic" size="sm">
           No {kind} categories yet.
         </Text>
       ) : (
@@ -76,34 +76,34 @@ function KindSection({
 
 function CategorySection({ category }: { category: CategoryWithSubs }) {
   return (
-    <Card withBorder padding="sm">
+    <Card padding="sm" withBorder>
       <Stack gap="xs">
         <EditableName
-          name={category.name}
-          label={`category ${category.name}`}
-          onUpdate={(name) => updateCategory(category.id, { name })}
-          onDelete={() => deleteCategory(category.id)}
           confirmDeleteMessage={`Delete "${category.name}"? Its subcategories will be removed too. This cannot be undone.`}
           invalidate={[CATEGORIES_KEY]}
+          label={`category ${category.name}`}
+          name={category.name}
+          onDelete={() => deleteCategory(category.id)}
+          onUpdate={(name) => updateCategory(category.id, { name })}
         />
         <Stack gap={4} pl="md">
           {category.subcategories.map((s) => (
             <EditableName
               key={s.id}
-              name={s.name}
-              label={`subcategory ${s.name}`}
-              onUpdate={(name) => updateSubcategory(s.id, { name })}
-              onDelete={() => deleteSubcategory(s.id)}
               confirmDeleteMessage={`Delete subcategory "${s.name}"? This cannot be undone.`}
               invalidate={[CATEGORIES_KEY]}
+              label={`subcategory ${s.name}`}
+              name={s.name}
+              onDelete={() => deleteSubcategory(s.id)}
+              onUpdate={(name) => updateSubcategory(s.id, { name })}
             />
           ))}
         </Stack>
         <Box pl="md">
           <NewNameForm
+            invalidate={[CATEGORIES_KEY]}
             placeholder="New subcategory"
             onSubmit={(name) => createSubcategory(category.id, { name })}
-            invalidate={[CATEGORIES_KEY]}
           />
         </Box>
       </Stack>

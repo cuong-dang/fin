@@ -16,29 +16,29 @@ import { TransactionNewRoute } from "./routes/transaction-new";
 export function App() {
   return (
     <Routes>
-      <Route path="/signin" element={<SignInRoute />} />
-      <Route path="/auth/callback" element={<AuthCallbackRoute />} />
+      <Route element={<SignInRoute />} path="/signin" />
+      <Route element={<AuthCallbackRoute />} path="/auth/callback" />
       <Route element={<RequireAuth />}>
-        <Route path="/" element={<HomeRoute />} />
-        <Route path="/accounts" element={<AccountsManageRoute />} />
-        <Route path="/accounts/new" element={<AccountNewRoute />} />
-        <Route path="/accounts/:id/edit" element={<AccountEditRoute />} />
+        <Route element={<HomeRoute />} path="/" />
+        <Route element={<AccountsManageRoute />} path="/accounts" />
+        <Route element={<AccountNewRoute />} path="/accounts/new" />
+        <Route element={<AccountEditRoute />} path="/accounts/:id/edit" />
         <Route
-          path="/account-groups/:id/edit"
           element={<AccountGroupEditRoute />}
+          path="/account-groups/:id/edit"
         />
-        <Route path="/transactions/new" element={<TransactionNewRoute />} />
+        <Route element={<TransactionNewRoute />} path="/transactions/new" />
         <Route
-          path="/transactions/:id/edit"
           element={<TransactionEditRoute />}
+          path="/transactions/:id/edit"
         />
-        <Route path="/settings" element={<SettingsRoute />} />
+        <Route element={<SettingsRoute />} path="/settings" />
         <Route
-          path="/settings/categories"
           element={<SettingsCategoriesRoute />}
+          path="/settings/categories"
         />
       </Route>
-      <Route path="*" element={<NotFoundRoute />} />
+      <Route element={<NotFoundRoute />} path="*" />
     </Routes>
   );
 }

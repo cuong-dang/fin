@@ -49,15 +49,15 @@ export function TransactionNewRoute() {
         <TransactionForm
           accounts={accountsQ.data ?? []}
           categories={categoriesQ.data ?? []}
+          error={error}
+          pending={mutation.isPending}
+          submitLabel="Add"
           tags={tagsQ.data ?? []}
           title="New transaction"
-          submitLabel="Add"
           onSubmit={(body) => {
             setError(null);
             mutation.mutate(body);
           }}
-          pending={mutation.isPending}
-          error={error}
         />
       </Stack>
     </Container>

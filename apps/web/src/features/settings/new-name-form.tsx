@@ -33,18 +33,18 @@ export function NewNameForm({
     >
       <Group gap="xs" wrap="nowrap">
         <TextInput
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={placeholder}
           maxLength={100}
+          placeholder={placeholder}
           required
           style={{ flex: 1 }}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
         />
         <Button
-          type="submit"
-          size="sm"
-          loading={m.isPending}
           disabled={trimmed.length === 0}
+          loading={m.isPending}
+          size="sm"
+          type="submit"
         >
           {submitLabel}
         </Button>

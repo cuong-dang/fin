@@ -43,7 +43,7 @@ export function AccountsManageRoute() {
         {/* Title + new account */}
         <Group justify="space-between">
           <Title order={2}>Manage accounts</Title>
-          <Button component={Link} to="/accounts/new" size="sm">
+          <Button component={Link} size="sm" to="/accounts/new">
             New account
           </Button>
         </Group>
@@ -58,8 +58,8 @@ export function AccountsManageRoute() {
             {groups.map((g) => (
               <GroupSection
                 key={g.id}
-                group={g}
                 accounts={byGroup.get(g.id) ?? []}
+                group={g}
               />
             ))}
           </Stack>
@@ -86,20 +86,20 @@ function GroupSection({
     <Box component="section">
       {/* Name + edit/delete */}
       <Group justify="space-between">
-        <Text size="sm" fw={700} tt="uppercase">
+        <Text fw={700} size="sm" tt="uppercase">
           {group.name}
         </Text>
         <Group gap={0}>
           <ActionIcon
+            aria-label={`Edit group ${group.name}`}
             component={Link}
             to={`/account-groups/${group.id}/edit`}
-            aria-label={`Edit group ${group.name}`}
           >
             <Pencil size={14} />
           </ActionIcon>
           <ActionIcon
-            color="red"
             aria-label={`Delete group ${group.name}`}
+            color="red"
             onClick={() => {
               if (
                 confirm(`Delete group "${group.name}"? This cannot be undone.`)
@@ -117,7 +117,7 @@ function GroupSection({
 
       {/* Accounts */}
       {accounts.length === 0 ? (
-        <Text c="dimmed" size="sm" py="sm">
+        <Text c="dimmed" py="sm" size="sm">
           No accounts.
         </Text>
       ) : (
@@ -145,21 +145,21 @@ function AccountRowItem({ account }: { account: Account }) {
     <Group justify="space-between">
       <Text size="sm">
         <b>{account.name}</b>{" "}
-        <Text component="span" c="dimmed">
+        <Text c="dimmed" component="span">
           {account.currency}
         </Text>
       </Text>
       <Group gap={0}>
         <ActionIcon
+          aria-label={`Edit account ${account.name}`}
           component={Link}
           to={`/accounts/${account.id}/edit`}
-          aria-label={`Edit account ${account.name}`}
         >
           <Pencil size={14} />
         </ActionIcon>
         <ActionIcon
-          color="red"
           aria-label={`Delete account ${account.name}`}
+          color="red"
           onClick={() => {
             if (
               confirm(

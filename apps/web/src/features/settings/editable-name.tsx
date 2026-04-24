@@ -41,27 +41,27 @@ export function EditableName({
   if (editing) {
     return (
       <form
+        style={{ flex: 1 }}
         onSubmit={(e) => {
           e.preventDefault();
           update.mutate(draft);
         }}
-        style={{ flex: 1 }}
       >
         <Group gap="xs" wrap="nowrap">
           <TextInput
+            data-autofocus
+            maxLength={100}
+            required
+            style={{ flex: 1 }}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            data-autofocus
-            required
-            maxLength={100}
-            style={{ flex: 1 }}
           />
-          <Button type="submit" size="xs" loading={update.isPending}>
+          <Button loading={update.isPending} size="xs" type="submit">
             Save
           </Button>
           <Button
-            type="button"
             size="xs"
+            type="button"
             variant="subtle"
             onClick={() => {
               setDraft(name);
@@ -76,23 +76,23 @@ export function EditableName({
   }
 
   return (
-    <Group justify="space-between" gap="xs" style={{ flex: 1 }}>
+    <Group gap="xs" justify="space-between" style={{ flex: 1 }}>
       <Text>{name}</Text>
       <Group gap={4}>
         <ActionIcon
-          variant="subtle"
+          aria-label={`Edit ${label}`}
           color="gray"
           size="sm"
+          variant="subtle"
           onClick={() => setEditing(true)}
-          aria-label={`Edit ${label}`}
         >
           <Pencil size={14} />
         </ActionIcon>
         <ActionIcon
-          variant="subtle"
+          aria-label={`Delete ${label}`}
           color="red"
           size="sm"
-          aria-label={`Delete ${label}`}
+          variant="subtle"
           onClick={() => {
             if (confirm(confirmDeleteMessage)) del.mutate();
           }}

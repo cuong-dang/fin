@@ -54,18 +54,18 @@ function Form({ group }: { group: AccountGroup }) {
         >
           <Stack>
             <TextInput
+              data-autofocus
               label="Name"
+              maxLength={100}
+              required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              required
-              data-autofocus
-              maxLength={100}
             />
             {mutation.error && (
               <Alert color="red">{(mutation.error as Error).message}</Alert>
             )}
             <Group>
-              <Button type="submit" loading={mutation.isPending}>
+              <Button loading={mutation.isPending} type="submit">
                 Save
               </Button>
               <Button component={Link} to="/accounts" variant="subtle">

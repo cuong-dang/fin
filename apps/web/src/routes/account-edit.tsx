@@ -88,35 +88,35 @@ function Form({
         >
           <Stack>
             <TextInput
+              data-autofocus
               label="Name"
+              maxLength={100}
+              required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              required
-              data-autofocus
-              maxLength={100}
             />
-            <TextInput label="Currency" value={account.currency} disabled />
+            <TextInput disabled label="Currency" value={account.currency} />
             <GroupSelector
               groups={groups}
-              value={groupId}
-              onValueChange={setGroupId}
               newGroupName={newGroupName}
+              value={groupId}
               onNewGroupNameChange={setNewGroupName}
+              onValueChange={setGroupId}
             />
             <TextInput
-              label="Balance"
-              type="number"
-              step="any"
+              description={`Current: ${formatMoney(BigInt(account.presentBalance), account.currency)}. Changing this records an adjustment transaction for the delta.`}
               inputMode="decimal"
+              label="Balance"
+              step="any"
+              type="number"
               value={balance}
               onChange={(e) => setBalance(e.target.value)}
-              description={`Current: ${formatMoney(BigInt(account.presentBalance), account.currency)}. Changing this records an adjustment transaction for the delta.`}
             />
             {mutation.error && (
               <Alert color="red">{(mutation.error as Error).message}</Alert>
             )}
             <Group>
-              <Button type="submit" loading={mutation.isPending}>
+              <Button loading={mutation.isPending} type="submit">
                 Save
               </Button>
               <Button component={Link} to="/accounts" variant="subtle">

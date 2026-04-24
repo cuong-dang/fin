@@ -15,18 +15,18 @@ export function HomeRoute() {
     : undefined;
 
   return (
-    <AppShell navbar={{ width: 400, breakpoint: 100 }} header={{ height: 50 }}>
+    <AppShell header={{ height: 50 }} navbar={{ width: 400, breakpoint: 100 }}>
       <AppShell.Header>
-        <Group justify="space-between" h="100%" px="sm">
+        <Group h="100%" justify="space-between" px="sm">
           <Group>
             <Title order={4}>{accountName ?? "All transactions"}</Title>
             {accountName && (
-              <ActionIcon component={Link} to="/" aria-label="Clear filter">
+              <ActionIcon aria-label="Clear filter" component={Link} to="/">
                 <X />
               </ActionIcon>
             )}
           </Group>
-          <Button component={Link} to="/transactions/new" size="sm">
+          <Button component={Link} size="sm" to="/transactions/new">
             New transaction
           </Button>
         </Group>

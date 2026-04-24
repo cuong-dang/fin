@@ -1,4 +1,5 @@
 import js from "@eslint/js";
+import react from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
 import tseslint from "typescript-eslint";
 
@@ -16,7 +17,13 @@ export default [
   ...tseslint.configs.recommended,
   {
     files: ["apps/web/**/*.{ts,tsx}"],
-    plugins: { "react-hooks": reactHooks },
-    rules: reactHooks.configs.recommended.rules,
+    plugins: { "react-hooks": reactHooks, react },
+    rules: {
+      ...reactHooks.configs.recommended.rules,
+      "react/jsx-sort-props": [
+        "error",
+        { callbacksLast: true, reservedFirst: true },
+      ],
+    },
   },
 ];

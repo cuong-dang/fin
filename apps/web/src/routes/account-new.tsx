@@ -75,51 +75,51 @@ export function AccountNewRoute() {
         >
           <Stack>
             <TextInput
-              label="Name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
               data-autofocus
+              label="Name"
               maxLength={100}
               placeholder="Chase Checking"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
             />
             <NativeSelect
+              data={COMMON_CURRENCIES}
               label="Currency"
               value={currency}
               onChange={(e) => setCurrency(e.target.value)}
-              data={COMMON_CURRENCIES}
             />
             {hasGroups ? (
               <GroupSelector
                 groups={groups}
-                value={groupId}
-                onValueChange={setGroupId}
                 newGroupName={newGroupName}
+                value={groupId}
                 onNewGroupNameChange={setNewGroupName}
+                onValueChange={setGroupId}
               />
             ) : (
               <TextInput
                 label="New group name"
-                value={newGroupName}
-                onChange={(e) => setNewGroupName(e.target.value)}
-                required
                 maxLength={100}
                 placeholder="Banks"
+                required
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
               />
             )}
             <TextInput
-              label="Starting balance (optional)"
-              type="number"
               inputMode="decimal"
+              label="Starting balance (optional)"
+              placeholder="0.00"
+              type="number"
               value={startingBalance}
               onChange={(e) => setStartingBalance(e.target.value)}
-              placeholder="0.00"
             />
             {mutation.error && (
               <Alert color="red">{(mutation.error as Error).message}</Alert>
             )}
             <Group>
-              <Button type="submit" loading={mutation.isPending}>
+              <Button loading={mutation.isPending} type="submit">
                 Create
               </Button>
               <Button component={Link} to="/" variant="subtle">

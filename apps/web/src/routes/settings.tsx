@@ -10,9 +10,9 @@ export function SettingsRoute() {
         <Title order={2}>Settings</Title>
         <NavLink
           component={Link}
-          to="/settings/categories"
-          label="Categories"
           description="Income & expense categories and subcategories"
+          label="Categories"
+          to="/settings/categories"
         />
       </Stack>
     </Container>
