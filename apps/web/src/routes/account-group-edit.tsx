@@ -5,7 +5,6 @@ import {
   Container,
   Group,
   Stack,
-  Text,
   TextInput,
   Title,
 } from "@mantine/core";
@@ -14,6 +13,7 @@ import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { BackLink } from "@/components/back-link";
 import { listAccountGroups, updateAccountGroup } from "@/lib/endpoints";
+import { NotFoundRoute } from "./not-found";
 
 export function AccountGroupEditRoute() {
   const { id } = useParams<{ id: string }>();
@@ -24,16 +24,7 @@ export function AccountGroupEditRoute() {
   const group = groupsQ.data?.find((g) => g.id === id);
 
   if (groupsQ.isLoading) return null;
-  if (!group) {
-    return (
-      <Container size="xs" py="xl">
-        <Stack>
-          <BackLink to="/accounts" />
-          <Text size="sm">Group not found.</Text>
-        </Stack>
-      </Container>
-    );
-  }
+  if (!group) return <NotFoundRoute />;
   return <Form group={group} />;
 }
 
@@ -51,7 +42,7 @@ function Form({ group }: { group: AccountGroup }) {
   });
 
   return (
-    <Container size="xs" py="xl">
+    <Container>
       <Stack>
         <BackLink to="/accounts" />
         <Title order={2}>Edit account group</Title>
