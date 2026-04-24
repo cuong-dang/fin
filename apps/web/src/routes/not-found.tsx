@@ -9,7 +9,7 @@ export function NotFoundRoute() {
       <Text>
         <Code>{pathname}</Code> doesn't match any route.
       </Text>
-      <Button component={Link} to="/" w="fit-content">
+      <Button component={Link} to="/">
         Go home
       </Button>
     </Stack>

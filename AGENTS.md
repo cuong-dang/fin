@@ -100,7 +100,7 @@ or error from there.
 
 ## Invariants
 
-When a value *should* always be present by logical invariant, throw with
+When a value _should_ always be present by logical invariant, throw with
 a clear message instead of silently falling back to a default. Silent
 fallbacks (`?? []` on a `Map.get()` whose key was just proven to exist,
 `if (!x) return` on an "impossible" branch) hide bugs — thrown errors
@@ -108,7 +108,7 @@ surface them immediately.
 
 - Name the invariant in the error message, so future-you understands
   the expectation that was violated: `throw new Error("Invariant:
-  transaction ${id} has no legs")`.
+transaction ${id} has no legs")`.
 - Keep defensive fallbacks at real boundaries — user input, external
   APIs, `useQuery` data that's genuinely undefined during loading.
 - Non-null assertions (`x!`) are a compact form of this pattern when

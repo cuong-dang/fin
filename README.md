@@ -180,6 +180,8 @@ GET          /api/tags
 ```
 
 ## TODO
+
 - [ ] Tag CRUD
 - [ ] Review transaction row display
-- [ ] feature: Credit card account type
+- [ ] Credit card account type
+- [ ] Autofill account on new transaction

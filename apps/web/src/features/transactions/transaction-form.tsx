@@ -1,3 +1,4 @@
+import { localDateKey } from "@/lib/dates";
 import type {
   Account,
   CategoryWithSubs,
@@ -20,7 +21,6 @@ import {
 import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
-import { localDateKey } from "@/lib/dates";
 import { CategorySelector, CREATE_NEW } from "./category-selector";
 
 export type TxType = "income" | "expense" | "transfer";
@@ -307,22 +307,19 @@ function MoneyField({
   label,
   value,
   onChange,
-  required = true,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
-  required?: boolean;
 }) {
   return (
     <TextInput
       label={label}
       type="number"
-      step="any"
       inputMode="decimal"
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      required={required}
+      required
       min={0}
       placeholder="0.00"
     />
@@ -361,10 +358,9 @@ function SingleLineEditor({
       <Button
         type="button"
         variant="subtle"
-        size="compact-sm"
         leftSection={<Plus size={14} />}
-        onClick={onSplit}
         w="fit-content"
+        onClick={onSplit}
       >
         Split across categories
       </Button>
@@ -390,21 +386,18 @@ function MultiLineEditor({
     return Number.isFinite(n) ? s + n : s;
   }, 0);
   return (
-    <Stack>
+    <Stack gap="xs">
       {lines.map((line, i) => (
         <Card key={i} withBorder padding="sm">
-          <Stack gap="sm">
+          <Stack gap={0}>
             <Group justify="space-between">
-              <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+              <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
                 Line {i + 1}
               </Text>
               <ActionIcon
-                type="button"
-                variant="subtle"
-                color="gray"
-                size="sm"
-                aria-label={`Remove line ${i + 1}`}
                 onClick={() => onRemove(i)}
+                color="red"
+                aria-label={`Remove line ${i + 1}`}
               >
                 <Trash2 size={14} />
               </ActionIcon>
@@ -434,17 +427,16 @@ function MultiLineEditor({
       ))}
       <Button
         type="button"
-        variant="default"
-        size="sm"
+        variant="subtle"
         leftSection={<Plus size={14} />}
         onClick={onAdd}
         w="fit-content"
       >
         Add line
       </Button>
-      <Card withBorder padding="xs" bg="var(--mantine-color-default)">
+      <Card withBorder p="sm">
         <Group justify="space-between">
-          <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+          <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
             Total
           </Text>
           <Text size="sm" fw={500} ff="monospace">
@@ -471,9 +463,9 @@ function TypeTabs({
           key={t}
           type="button"
           variant={value === t ? "filled" : "default"}
-          onClick={() => onChange(t)}
           fullWidth
           tt="capitalize"
+          onClick={() => onChange(t)}
         >
           {t}
         </Button>
