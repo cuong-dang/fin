@@ -27,7 +27,7 @@ export const updateAccountBody = z.object({
   name: nameField,
   accountGroupId: z.uuid().optional(),
   newGroupName: newGroupField,
-  balance: moneyString.optional(),
+  newBalance: moneyString.optional(),
   adjustmentDate: dateString.optional(),
 });
 export type UpdateAccountBody = z.infer<typeof updateAccountBody>;

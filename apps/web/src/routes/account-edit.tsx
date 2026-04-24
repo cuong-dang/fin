@@ -5,7 +5,6 @@ import {
   Container,
   Group,
   Stack,
-  Text,
   TextInput,
   Title,
 } from "@mantine/core";
@@ -17,6 +16,7 @@ import { CREATE_NEW, GroupSelector } from "@/features/accounts/group-selector";
 import { localDateKey } from "@/lib/dates";
 import { getAccount, listAccountGroups, updateAccount } from "@/lib/endpoints";
 import { formatMoney, formatMoneyPlain } from "@/lib/money";
+import { NotFoundRoute } from "./not-found";
 
 export function AccountEditRoute() {
   const { id } = useParams<{ id: string }>();
@@ -31,17 +31,11 @@ export function AccountEditRoute() {
   });
 
   if (accountQ.isLoading || groupsQ.isLoading) return null;
-  if (!accountQ.data) {
-    return (
-      <Container size="xs" py="xl">
-        <Stack>
-          <BackLink to="/accounts" />
-          <Text size="sm">Account not found.</Text>
-        </Stack>
-      </Container>
-    );
+  if (accountQ.error || groupsQ.error) {
+    return <Alert color="red">Failed to load account.</Alert>;
   }
-  return <Form account={accountQ.data} groups={groupsQ.data ?? []} />;
+  if (!accountQ.data) return <NotFoundRoute />;
+  return <Form account={accountQ.data} groups={groupsQ.data!} />;
 }
 
 function Form({
@@ -59,7 +53,7 @@ function Form({
     account.currency,
   );
   const [name, setName] = useState(account.name);
-  const [groupValue, setGroupValue] = useState(account.accountGroupId);
+  const [groupId, setGroupId] = useState(account.accountGroupId);
   const [newGroupName, setNewGroupName] = useState("");
   const [balance, setBalance] = useState(initialBalance);
 
@@ -75,19 +69,19 @@ function Form({
   });
 
   return (
-    <Container size="xs" py="xl">
+    <Container>
       <Stack>
         <BackLink to="/accounts" />
         <Title order={2}>Edit account</Title>
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            const creatingNew = groupValue === CREATE_NEW;
+            const creatingNewGroup = groupId === CREATE_NEW;
             mutation.mutate({
               name,
-              accountGroupId: !creatingNew ? groupValue : undefined,
-              newGroupName: creatingNew ? newGroupName : undefined,
-              balance: balance !== initialBalance ? balance : undefined,
+              accountGroupId: creatingNewGroup ? undefined : groupId,
+              newGroupName: creatingNewGroup ? newGroupName : undefined,
+              newBalance: balance !== initialBalance ? balance : undefined,
               adjustmentDate: localDateKey(new Date()),
             });
           }}
@@ -104,8 +98,8 @@ function Form({
             <TextInput label="Currency" value={account.currency} disabled />
             <GroupSelector
               groups={groups}
-              value={groupValue}
-              onValueChange={setGroupValue}
+              value={groupId}
+              onValueChange={setGroupId}
               newGroupName={newGroupName}
               onNewGroupNameChange={setNewGroupName}
             />

@@ -174,8 +174,8 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
 
     // Compute balance delta up front (bail on parse error before DB writes).
     let delta = 0n;
-    if (body.balance !== undefined) {
-      const newMinor = parseMoney(body.balance, account.currency);
+    if (body.newBalance !== undefined) {
+      const newMinor = parseMoney(body.newBalance, account.currency);
       // Present balance only — pending legs (transactions.date IS NULL)
       // haven't posted, so they must not count toward the delta.
       const [{ current }] = await db

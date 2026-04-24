@@ -55,7 +55,7 @@ export function AccountNewRoute() {
   const hasGroups = groups.length > 0;
 
   return (
-    <Container size="xs" p="sm">
+    <Container>
       <Stack>
         <BackLink to="/" />
         <Title order={2}>New account</Title>
@@ -68,7 +68,7 @@ export function AccountNewRoute() {
               currency,
               accountGroupId: creatingNewGroup ? undefined : groupId,
               newGroupName: creatingNewGroup ? newGroupName : undefined,
-              startingBalance: startingBalance,
+              startingBalance: startingBalance ? startingBalance : "0",
               adjustmentDate: localDateKey(new Date()),
             });
           }}

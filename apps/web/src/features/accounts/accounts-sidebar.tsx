@@ -32,6 +32,7 @@ export function AccountsSidebar() {
   const byGroup = groupBy(accounts, (a) => a.accountGroupId);
 
   return (
+    /* Title + settings/new */
     <Stack gap={0} h="100%">
       <Group justify="space-between" px="sm" py="sm">
         <Anchor component={Link} to="/" fw={700} underline="never">
@@ -49,6 +50,7 @@ export function AccountsSidebar() {
 
       <Divider />
 
+      {/* Group + account list */}
       <ScrollArea flex={1}>
         <NavLink
           component={Link}
@@ -57,7 +59,7 @@ export function AccountsSidebar() {
           active={!selectedAccountId}
         />
         {groups.length === 0 ? (
-          <Text size="sm" c="dimmed" px="sm" py="sm">
+          <Text size="sm" c="dimmed" p="sm">
             No accounts.
           </Text>
         ) : (
@@ -127,8 +129,8 @@ function GroupSection({
         )}
       </Group>
       {accounts.length === 0 ? (
-        <Text size="sm" c="dimmed" px="sm" py="sm">
-          Empty.
+        <Text size="sm" c="dimmed" p="sm">
+          No accounts.
         </Text>
       ) : (
         accounts.map((a) => (

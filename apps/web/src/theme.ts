@@ -1,4 +1,4 @@
-import { ActionIcon, createTheme } from "@mantine/core";
+import { ActionIcon, Container, createTheme } from "@mantine/core";
 
 /**
  * App-wide Mantine theme. Extend component `defaultProps` here to make a
@@ -11,6 +11,12 @@ export const theme = createTheme({
         size: "xs",
         color: "black",
         variant: "subtle",
+      },
+    }),
+    Container: Container.extend({
+      defaultProps: {
+        size: "xs",
+        p: "sm",
       },
     }),
   },

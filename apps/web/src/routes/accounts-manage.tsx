@@ -37,7 +37,7 @@ export function AccountsManageRoute() {
   const byGroup = groupBy(accounts, (a) => a.accountGroupId);
 
   return (
-    <Container size="xs" p="sm">
+    <Container>
       <Stack>
         <BackLink to="/" />
         {/* Title + new account */}
@@ -117,7 +117,7 @@ function GroupSection({
 
       {/* Accounts */}
       {accounts.length === 0 ? (
-        <Text c="dimmed" size="sm">
+        <Text c="dimmed" size="sm" py="sm">
           No accounts.
         </Text>
       ) : (
