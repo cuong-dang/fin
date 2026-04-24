@@ -149,23 +149,34 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
       let running = BigInt(present);
       for (const t of completedRows) {
         balanceAfterByTx.set(t.id, running);
-        const leg = (legsByTx.get(t.id) ?? []).find(
-          (l) => l.accountId === accountId,
-        );
-        if (leg) running -= leg.amount;
+        const legs = legsByTx.get(t.id);
+        if (!legs) {
+          throw new Error(`Invariant: transaction ${t.id} has no legs`);
+        }
+        const leg = legs.find((l) => l.accountId === accountId);
+        if (!leg) {
+          throw new Error(
+            `Invariant: tx ${t.id} came from accountId filter but has no matching leg`,
+          );
+        }
+        running -= leg.amount;
       }
     }
 
     // JSON can't carry bigint, so amounts are stringified.
     const enrich = (t: (typeof allRows)[number]): EnrichedTransaction => {
       const balanceAfter = balanceAfterByTx.get(t.id);
+      const legs = legsByTx.get(t.id);
+      if (!legs) {
+        throw new Error(`Invariant: transaction ${t.id} has no legs`);
+      }
       return {
         id: t.id,
         date: t.date,
         createdAt: t.createdAt.toISOString(),
         type: t.type,
         description: t.description,
-        legs: (legsByTx.get(t.id) ?? []).map((l) => ({
+        legs: legs.map((l) => ({
           accountId: l.accountId,
           accountName: l.accountName,
           accountCurrency: l.accountCurrency,

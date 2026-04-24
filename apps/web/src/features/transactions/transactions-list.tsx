@@ -125,15 +125,19 @@ export function TransactionsList({
       );
     }
 
-    const dayTxs = localByDay.get(activeDate) ?? [];
+    const dayTxs = localByDay.get(activeDate);
+    if (!dayTxs) {
+      throw new Error("Invariant: activeDate must be a key of localByDay");
+    }
     const oldIndex = dayTxs.findIndex((t) => t.id === activeId);
     const newIndex = dayTxs.findIndex((t) => t.id === overId);
     if (oldIndex === newIndex) return;
 
+    const movedDayTxs = arrayMove(dayTxs, oldIndex, newIndex);
     const reordered = new Map(localByDay);
-    reordered.set(activeDate, arrayMove(dayTxs, oldIndex, newIndex));
+    reordered.set(activeDate, movedDayTxs);
 
-    const targetIds = (reordered.get(overDate) ?? []).map((t) => t.id);
+    const targetIds = movedDayTxs.map((t) => t.id);
     mutation.mutate({ date: overDate, movingId: activeId, ids: targetIds });
     setLocalByDay(reordered);
   }
@@ -208,10 +212,6 @@ function PendingRow({
   filterAccountId: string | undefined;
 }) {
   const qc = useQueryClient();
-  const { primary, metaParts, amount, currency } = rowContent(
-    tx,
-    filterAccountId,
-  );
   const mark = useMutation({
     mutationFn: (date: string) => processTransaction(tx.id, { date }),
     onSuccess: () => {
@@ -232,19 +232,11 @@ function PendingRow({
           c="inherit"
           flex={1}
         >
-          <Group>
-            <Box flex={1}>
-              <Text size="sm" fw={500}>
-                {primary}
-              </Text>
-              <Text size="xs" c="dimmed">
-                {metaParts.join(" · ")}
-              </Text>
-            </Box>
-            <Text size="sm" fw={500} ff="monospace" c={amountColor(tx, amount)}>
-              {formatMoney(amount, currency)}
-            </Text>
-          </Group>
+          <RowBody
+            tx={tx}
+            filterAccountId={filterAccountId}
+            showRunningBalance={false}
+          />
         </Anchor>
       </Group>
       <Divider />
@@ -269,10 +261,6 @@ function SortableRow({
   } = useSortable({ id: tx.id });
   const [expanded, setExpanded] = useState(false);
   const isMultiLine = tx.lines.length > 1;
-  const { primary, metaParts, amount, currency } = rowContent(
-    tx,
-    filterAccountId,
-  );
   return (
     <Box
       ref={setNodeRef}
@@ -282,85 +270,94 @@ function SortableRow({
         opacity: isDragging ? 0.5 : 1,
       }}
     >
-      <Group gap="xs" align="flex-start" px="sm" py="sm" wrap="nowrap">
+      <Group p="sm" align="flex-start">
+        {/* DnD / Expand */}
         <UnstyledButton
-          aria-label="Drag to reorder"
-          mt={4}
           c="dimmed"
           style={{ cursor: "grab", touchAction: "none" }}
           {...attributes}
           {...listeners}
+          aria-label="Drag to reorder"
         >
-          <GripVertical size={16} />
+          <GripVertical size={14} />
         </UnstyledButton>
-        {isMultiLine ? (
+        {isMultiLine && (
           <UnstyledButton
-            aria-label={expanded ? "Collapse lines" : "Expand lines"}
-            onClick={() => setExpanded((v) => !v)}
-            mt={4}
             c="dimmed"
+            onClick={() => setExpanded((v) => !v)}
+            aria-label={expanded ? "Collapse lines" : "Expand lines"}
           >
-            {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            {expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
           </UnstyledButton>
-        ) : (
-          <Box w={16} h={16} mt={4} />
         )}
+        {/* TX row */}
         <Anchor
           component={Link}
           to={`/transactions/${tx.id}/edit`}
           underline="never"
           c="inherit"
           flex={1}
-          miw={0}
         >
-          <Group
-            justify="space-between"
-            gap="md"
-            align="flex-start"
-            wrap="nowrap"
-          >
-            <Box flex={1} miw={0}>
-              <Text size="sm" fw={500} truncate>
-                {primary}
-              </Text>
-              <Text size="xs" c="dimmed" truncate mt={2}>
-                {metaParts.join(" · ")}
-              </Text>
-            </Box>
-            <Stack gap={0} align="flex-end">
-              <Text
-                size="sm"
-                fw={500}
-                ff="monospace"
-                c={amountColor(tx, amount)}
-              >
-                {formatMoney(amount, currency)}
-              </Text>
-              {tx.balanceAfter !== undefined && (
-                <Text size="xs" c="dimmed" ff="monospace">
-                  {formatMoney(BigInt(tx.balanceAfter), currency)}
-                </Text>
-              )}
+          <RowBody
+            tx={tx}
+            filterAccountId={filterAccountId}
+            showRunningBalance
+          />
+          {isMultiLine && expanded && (
+            <Stack gap={0}>
+              {tx.lines.map((line, i) => (
+                <Group key={i} justify="space-between">
+                  <Text size="xs" c="dimmed">
+                    {categoryLabel(line)}
+                  </Text>
+                  <Text size="xs" c="dimmed" ff="monospace">
+                    {formatMoney(BigInt(line.amount), line.currency)}
+                  </Text>
+                </Group>
+              ))}
             </Stack>
-          </Group>
+          )}
         </Anchor>
       </Group>
-      {isMultiLine && expanded && (
-        <Stack gap={4} ml={36} pr="sm" pl="md" pb="xs">
-          {tx.lines.map((line, i) => (
-            <Group key={i} justify="space-between" gap="md" wrap="nowrap">
-              <Text size="xs" c="dimmed" truncate>
-                {categoryLabel(line)}
-              </Text>
-              <Text size="xs" c="dimmed" ff="monospace">
-                {formatMoney(BigInt(line.amount), line.currency)}
-              </Text>
-            </Group>
-          ))}
-        </Stack>
-      )}
       <Divider />
     </Box>
+  );
+}
+
+function RowBody({
+  tx,
+  filterAccountId,
+  showRunningBalance,
+}: {
+  tx: EnrichedTransaction;
+  filterAccountId: string | undefined;
+  showRunningBalance: boolean;
+}) {
+  const { primary, metaParts, amount, currency } = rowContent(
+    tx,
+    filterAccountId,
+  );
+  return (
+    <Group>
+      <Box flex={1}>
+        <Text size="sm" fw={500}>
+          {primary}
+        </Text>
+        <Text size="xs" c="dimmed">
+          {metaParts.join(" · ")}
+        </Text>
+      </Box>
+      <Stack gap={0} align="flex-end">
+        <Text size="sm" fw={500} ff="monospace" c={amountColor(tx, amount)}>
+          {formatMoney(amount, currency)}
+        </Text>
+        {showRunningBalance && tx.balanceAfter !== undefined && (
+          <Text size="xs" c="dimmed" ff="monospace">
+            {formatMoney(BigInt(tx.balanceAfter), currency)}
+          </Text>
+        )}
+      </Stack>
+    </Group>
   );
 }
 
