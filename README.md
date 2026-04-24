@@ -178,3 +178,8 @@ PATCH|DELETE /api/subcategories/:id
 
 GET          /api/tags
 ```
+
+## TODO
+- [ ] Tag CRUD
+- [ ] Review transaction row display
+- [ ] feature: Credit card account type

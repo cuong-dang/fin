@@ -1,7 +1,3 @@
-import { Container, Stack, Title } from "@mantine/core";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { useNavigate } from "react-router";
 import { BackLink } from "@/components/back-link";
 import { TransactionForm } from "@/features/transactions/transaction-form";
 import {
@@ -10,6 +6,10 @@ import {
   listCategories,
   listTags,
 } from "@/lib/endpoints";
+import { Container, Stack, Title } from "@mantine/core";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useNavigate } from "react-router";
 
 export function TransactionNewRoute() {
   const navigate = useNavigate();
@@ -42,7 +42,7 @@ export function TransactionNewRoute() {
   }
 
   return (
-    <Container size="sm" py="xl">
+    <Container>
       <Stack>
         <BackLink to="/" />
         <Title order={2}>New transaction</Title>
@@ -51,7 +51,7 @@ export function TransactionNewRoute() {
           categories={categoriesQ.data ?? []}
           tags={tagsQ.data ?? []}
           title="New transaction"
-          submitLabel="Create transaction"
+          submitLabel="Add"
           onSubmit={(body) => {
             setError(null);
             mutation.mutate(body);

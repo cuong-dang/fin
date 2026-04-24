@@ -98,12 +98,30 @@ or error from there.
 - Routing: React Router 7. Use `<Link to=...>`, `useNavigate`,
   `useParams`, `useSearchParams`. Never `next/link` / `next/navigation`.
 
+## Invariants
+
+When a value *should* always be present by logical invariant, throw with
+a clear message instead of silently falling back to a default. Silent
+fallbacks (`?? []` on a `Map.get()` whose key was just proven to exist,
+`if (!x) return` on an "impossible" branch) hide bugs — thrown errors
+surface them immediately.
+
+- Name the invariant in the error message, so future-you understands
+  the expectation that was violated: `throw new Error("Invariant:
+  transaction ${id} has no legs")`.
+- Keep defensive fallbacks at real boundaries — user input, external
+  APIs, `useQuery` data that's genuinely undefined during loading.
+- Non-null assertions (`x!`) are a compact form of this pattern when
+  preceded by an explicit throw that establishes the invariant.
+
 ## Style
 
 - Typescript strict. No `any` without a comment. No `// @ts-ignore`.
-- Tailwind v4 + shadcn/ui. UI primitives live in
-  `apps/web/src/components/ui/`. Add there if you need a new one,
-  don't inline Tailwind where a primitive exists.
+- Mantine 7. UI primitives (AppShell, Container, Stack, Group, Button,
+  TextInput, Anchor, ActionIcon, etc.) come from `@mantine/core`. Theme
+  overrides (default props) live in [apps/web/src/theme.ts]. Prefer
+  Mantine's style props (`p`, `px`, `gap`, `ta`, `c`, `flex`) over
+  inline `style`.
 - No `use server` / `use client` directives anywhere — this is a plain
   SPA + REST backend.
 - Prefer `pnpm --filter @fin/<pkg> <cmd>` over `cd` when running
