@@ -23,12 +23,12 @@ export function SettingsCategoriesRoute() {
   const expense = cats.filter((c) => c.kind === "expense");
 
   return (
-    <Container py="xl" size="sm">
+    <Container>
       <Stack>
         <BackLink to="/settings" />
         <Box>
           <Title order={2}>Categories</Title>
-          <Text c="dimmed" mt={4} size="sm">
+          <Text c="dimmed" size="sm">
             Income and expense categories organize your transactions. Each
             category can have subcategories for finer grouping.
           </Text>
@@ -50,7 +50,7 @@ function KindSection({
   categories: CategoryWithSubs[];
 }) {
   return (
-    <Stack gap="sm" mt="md">
+    <Stack gap="sm">
       <Text fw={700} size="sm" tt="uppercase">
         {title}
       </Text>
@@ -60,11 +60,11 @@ function KindSection({
         onSubmit={(name) => createCategory({ kind, name })}
       />
       {cats.length === 0 ? (
-        <Text c="dimmed" fs="italic" size="sm">
-          No {kind} categories yet.
+        <Text c="dimmed" size="sm">
+          No {kind} categories.
         </Text>
       ) : (
-        <Stack gap="md">
+        <Stack>
           {cats.map((c) => (
             <CategorySection key={c.id} category={c} />
           ))}
@@ -86,7 +86,7 @@ function CategorySection({ category }: { category: CategoryWithSubs }) {
           onDelete={() => deleteCategory(category.id)}
           onUpdate={(name) => updateCategory(category.id, { name })}
         />
-        <Stack gap={4} pl="md">
+        <Stack gap={0} pl="md">
           {category.subcategories.map((s) => (
             <EditableName
               key={s.id}
@@ -107,6 +107,6 @@ function CategorySection({ category }: { category: CategoryWithSubs }) {
           />
         </Box>
       </Stack>
-    </Card>
+    </Card >
   );
 }
