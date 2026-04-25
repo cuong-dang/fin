@@ -8,7 +8,10 @@ import { useState } from "react";
  * below the input — clicking one adds it. The list filters as the user types.
  *
  * `data={[]}` + `openOnFocus={false}` suppress Mantine's vertical dropdown
- * since we render our own horizontal suggestions.
+ * since we render our own horizontal suggestions. `acceptValueOnBlur={false}`
+ * stops Mantine from auto-committing the typed-but-uncommitted search when
+ * focus shifts to a suggestion pill — otherwise typing "es" then clicking
+ * "essential" would commit both.
  */
 export function TagsField({
   label,
@@ -40,6 +43,7 @@ export function TagsField({
       onFocus={() => setFocused(true)}
     >
       <TagsInput
+        acceptValueOnBlur={false}
         data={[]}
         label={label}
         leftSection={<Tag size={14} />}
@@ -62,7 +66,7 @@ export function TagsField({
                 setSearch("");
               }}
             >
-              <Badge style={{ cursor: "pointer" }} variant="light">
+              <Badge style={{ cursor: "pointer" }} tt="none" variant="light">
                 #{t}
               </Badge>
             </UnstyledButton>

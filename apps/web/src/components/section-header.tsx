@@ -1,4 +1,5 @@
 import { Text } from "@mantine/core";
+import type { ReactNode } from "react";
 
 /**
  * Uppercase, dimmed bold label used to mark sections in lists and forms.
@@ -8,7 +9,7 @@ export function SectionHeader({
   children,
   compact,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   compact?: boolean;
 }) {
   return (

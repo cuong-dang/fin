@@ -1,4 +1,5 @@
 import { Box, Container, Group, Stack, Text, Title } from "@mantine/core";
+import type { ReactNode } from "react";
 
 import { BackLink } from "./back-link";
 
@@ -16,9 +17,9 @@ export function PageShell({
 }: {
   back: string;
   title: string;
-  subtitle?: React.ReactNode;
-  right?: React.ReactNode;
-  children: React.ReactNode;
+  subtitle?: ReactNode;
+  right?: ReactNode;
+  children: ReactNode;
 }) {
   return (
     <Container>
