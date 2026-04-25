@@ -290,7 +290,6 @@ export const transactionLines = pgTable(
     subcategoryId: uuid("subcategory_id").references(() => subcategories.id, {
       onDelete: "restrict",
     }),
-    tagId: uuid("tag_id").references(() => tags.id, { onDelete: "set null" }),
     // Positive minor units in `currency`. Sign is implied by transaction type.
     amount: bigint("amount", { mode: "bigint" }).notNull(),
     currency: char("currency", { length: 3 }).notNull(),
@@ -299,6 +298,23 @@ export const transactionLines = pgTable(
   (t) => [
     index("transaction_lines_tx_idx").on(t.transactionId),
     index("transaction_lines_category_idx").on(t.categoryId),
-    index("transaction_lines_tag_idx").on(t.tagId),
+  ],
+);
+
+// Many-to-many: each line can carry zero or more tags. Deleting a tag
+// removes all its associations; deleting a line removes its tag rows.
+export const transactionLineTags = pgTable(
+  "transaction_line_tags",
+  {
+    lineId: uuid("line_id")
+      .notNull()
+      .references(() => transactionLines.id, { onDelete: "cascade" }),
+    tagId: uuid("tag_id")
+      .notNull()
+      .references(() => tags.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.lineId, t.tagId] }),
+    index("transaction_line_tags_tag_idx").on(t.tagId),
   ],
 );

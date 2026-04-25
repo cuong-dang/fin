@@ -26,6 +26,7 @@ async function fetchLines(txIds: string[]) {
   if (txIds.length === 0) return [];
   return db
     .select({
+      id: schema.transactionLines.id,
       transactionId: schema.transactionLines.transactionId,
       amount: schema.transactionLines.amount,
       currency: schema.transactionLines.currency,
@@ -33,8 +34,6 @@ async function fetchLines(txIds: string[]) {
       categoryName: schema.categories.name,
       subcategoryId: schema.transactionLines.subcategoryId,
       subcategoryName: schema.subcategories.name,
-      tagId: schema.transactionLines.tagId,
-      tagName: schema.tags.name,
     })
     .from(schema.transactionLines)
     .innerJoin(
@@ -45,21 +44,40 @@ async function fetchLines(txIds: string[]) {
       schema.subcategories,
       eq(schema.subcategories.id, schema.transactionLines.subcategoryId),
     )
-    .leftJoin(schema.tags, eq(schema.tags.id, schema.transactionLines.tagId))
     .where(inArray(schema.transactionLines.transactionId, txIds));
+}
+
+async function fetchLineTags(lineIds: string[]) {
+  if (lineIds.length === 0) return [];
+  return db
+    .select({
+      lineId: schema.transactionLineTags.lineId,
+      tagId: schema.tags.id,
+      tagName: schema.tags.name,
+    })
+    .from(schema.transactionLineTags)
+    .innerJoin(
+      schema.tags,
+      eq(schema.tags.id, schema.transactionLineTags.tagId),
+    )
+    .where(inArray(schema.transactionLineTags.lineId, lineIds))
+    .orderBy(schema.tags.name);
 }
 
 type LegRow = Awaited<ReturnType<typeof fetchLegs>>[number];
 type LineRow = Awaited<ReturnType<typeof fetchLines>>[number];
+type LineTagRow = Awaited<ReturnType<typeof fetchLineTags>>[number];
 
 export async function fetchLegsAndLines(txIds: string[]) {
   const [legRows, lineRows] = await Promise.all([
     fetchLegs(txIds),
     fetchLines(txIds),
   ]);
+  const tagRows = await fetchLineTags(lineRows.map((l) => l.id));
   return {
     legsByTx: groupBy(legRows, (l) => l.transactionId),
     linesByTx: groupBy(lineRows, (l) => l.transactionId),
+    tagsByLine: groupBy(tagRows, (t) => t.lineId),
   };
 }
 
@@ -73,6 +91,7 @@ export function enrichTx(
   },
   legs: LegRow[] | undefined,
   lines: LineRow[] | undefined,
+  tagsByLine: Map<string, LineTagRow[]>,
   balanceAfter?: bigint,
 ): EnrichedTransaction {
   if (!legs) {
@@ -97,8 +116,10 @@ export function enrichTx(
       categoryName: l.categoryName,
       subcategoryId: l.subcategoryId,
       subcategoryName: l.subcategoryName,
-      tagId: l.tagId,
-      tagName: l.tagName,
+      tags: (tagsByLine.get(l.id) ?? []).map((t) => ({
+        id: t.tagId,
+        name: t.tagName,
+      })),
     })),
     ...(balanceAfter !== undefined
       ? { balanceAfter: balanceAfter.toString() }

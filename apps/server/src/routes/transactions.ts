@@ -80,7 +80,7 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
     const txIds = [...pendingRows, ...completedRows].map((t) => t.id);
     if (txIds.length === 0) return { pending: [], completed: [] };
 
-    const { legsByTx, linesByTx } = await fetchLegsAndLines(txIds);
+    const { legsByTx, linesByTx, tagsByLine } = await fetchLegsAndLines(txIds);
 
     // Running balance: only when filtered to a single account, and only on
     // completed rows. Walk newest→oldest subtracting each row's leg; the
@@ -124,6 +124,7 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
         t,
         legsByTx.get(t.id),
         linesByTx.get(t.id),
+        tagsByLine,
         balanceAfterByTx.get(t.id),
       );
 
@@ -144,8 +145,10 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
         reply.code(404).send({ error: "Not found" });
         return;
       }
-      const { legsByTx, linesByTx } = await fetchLegsAndLines([id]);
-      return enrichTx(tx, legsByTx.get(id), linesByTx.get(id));
+      const { legsByTx, linesByTx, tagsByLine } = await fetchLegsAndLines([
+        id,
+      ]);
+      return enrichTx(tx, legsByTx.get(id), linesByTx.get(id), tagsByLine);
     },
   );
 

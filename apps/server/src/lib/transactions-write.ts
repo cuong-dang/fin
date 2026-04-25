@@ -1,4 +1,5 @@
 import type { TransactionBody, TransactionLineBody } from "@fin/schemas";
+import { and, eq, inArray } from "drizzle-orm";
 
 import { schema } from "../db";
 import { db } from "../db";
@@ -12,7 +13,8 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
  * already created (or wiped + re-created) the `transactions` row with the
  * given id. Income/expense supports multi-line splits: leg amount is the
  * sum of line amounts; each line resolves/creates its own category and
- * subcategory inline. Transfers validate destination + currency match.
+ * subcategory inline and links any provided tags via the junction.
+ * Transfers validate destination + currency match.
  */
 export async function insertLegsAndLines(
   tx: Tx,
@@ -51,14 +53,17 @@ export async function insertLegsAndLines(
         parsed.type,
         workspaceGroupId,
       );
-      await tx.insert(schema.transactionLines).values({
-        transactionId,
-        categoryId,
-        subcategoryId,
-        tagId: parsed.tagId ?? null,
-        amount: lineMinors[i],
-        currency: sourceAccount.currency,
-      });
+      const [lineRow] = await tx
+        .insert(schema.transactionLines)
+        .values({
+          transactionId,
+          categoryId,
+          subcategoryId,
+          amount: lineMinors[i],
+          currency: sourceAccount.currency,
+        })
+        .returning({ id: schema.transactionLines.id });
+      await linkTagsToLine(tx, lineRow.id, line.tagNames, workspaceGroupId);
     }
     return;
   }
@@ -88,7 +93,7 @@ export async function insertLegsAndLines(
       amount: amountMinor,
     },
   ]);
-  // Plain transfer: no lines.
+  // Plain transfer: no lines, no tags.
 }
 
 async function resolveCategoryForLine(
@@ -119,4 +124,49 @@ async function resolveCategoryForLine(
   }
 
   return { categoryId, subcategoryId };
+}
+
+/**
+ * Upsert each tag name for the workspace and link it to the line. Names
+ * are deduped and trimmed (Zod already trims). Existing tags match
+ * case-sensitively on the unique (group_id, name) constraint.
+ */
+async function linkTagsToLine(
+  tx: Tx,
+  lineId: string,
+  tagNames: string[] | undefined,
+  workspaceGroupId: string,
+): Promise<void> {
+  if (!tagNames || tagNames.length === 0) return;
+  const unique = [...new Set(tagNames)];
+
+  // Existing tags
+  const existing = await tx
+    .select({ id: schema.tags.id, name: schema.tags.name })
+    .from(schema.tags)
+    .where(
+      and(
+        eq(schema.tags.groupId, workspaceGroupId),
+        inArray(schema.tags.name, unique),
+      ),
+    );
+  const byName = new Map(existing.map((t) => [t.name, t.id]));
+
+  // Insert any that don't exist yet
+  const toInsert = unique.filter((n) => !byName.has(n));
+  if (toInsert.length > 0) {
+    const inserted = await tx
+      .insert(schema.tags)
+      .values(toInsert.map((name) => ({ groupId: workspaceGroupId, name })))
+      .returning({ id: schema.tags.id, name: schema.tags.name });
+    for (const t of inserted) byName.set(t.name, t.id);
+  }
+
+  await tx.insert(schema.transactionLineTags).values(
+    unique.map((name) => {
+      const tagId = byName.get(name);
+      if (!tagId) throw new Error(`Invariant: tag "${name}" not resolved`);
+      return { lineId, tagId };
+    }),
+  );
 }
