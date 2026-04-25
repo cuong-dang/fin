@@ -1,3 +1,7 @@
+import { BackLink } from "@/components/back-link";
+import { CREATE_NEW, GroupSelector } from "@/features/accounts/group-selector";
+import { localDateKey } from "@/lib/dates";
+import { createAccount, listAccountGroups } from "@/lib/endpoints";
 import {
   Alert,
   Button,
@@ -11,10 +15,6 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { BackLink } from "@/components/back-link";
-import { CREATE_NEW, GroupSelector } from "@/features/accounts/group-selector";
-import { localDateKey } from "@/lib/dates";
-import { createAccount, listAccountGroups } from "@/lib/endpoints";
 
 const COMMON_CURRENCIES = [
   "USD",
@@ -111,6 +111,7 @@ export function AccountNewRoute() {
               inputMode="decimal"
               label="Starting balance (optional)"
               placeholder="0.00"
+              step="any"
               type="number"
               value={startingBalance}
               onChange={(e) => setStartingBalance(e.target.value)}

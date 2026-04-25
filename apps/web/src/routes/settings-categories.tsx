@@ -107,6 +107,6 @@ function CategorySection({ category }: { category: CategoryWithSubs }) {
           />
         </Box>
       </Stack>
-    </Card >
+    </Card>
   );
 }

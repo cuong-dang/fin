@@ -41,13 +41,12 @@ export function EditableName({
   if (editing) {
     return (
       <form
-        style={{ flex: 1 }}
         onSubmit={(e) => {
           e.preventDefault();
           update.mutate(draft);
         }}
       >
-        <Group gap="xs" wrap="nowrap">
+        <Group gap="xs">
           <TextInput
             data-autofocus
             maxLength={100}
@@ -76,14 +75,11 @@ export function EditableName({
   }
 
   return (
-    <Group gap="xs" justify="space-between" style={{ flex: 1 }}>
+    <Group gap="xs" justify="space-between">
       <Text>{name}</Text>
-      <Group gap={4}>
+      <Group gap={0}>
         <ActionIcon
           aria-label={`Edit ${label}`}
-          color="gray"
-          size="sm"
-          variant="subtle"
           onClick={() => setEditing(true)}
         >
           <Pencil size={14} />
@@ -91,8 +87,6 @@ export function EditableName({
         <ActionIcon
           aria-label={`Delete ${label}`}
           color="red"
-          size="sm"
-          variant="subtle"
           onClick={() => {
             if (confirm(confirmDeleteMessage)) del.mutate();
           }}

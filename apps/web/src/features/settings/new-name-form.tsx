@@ -5,7 +5,6 @@ import { useState } from "react";
 /** Inline "add" form for name-only entities (controlled input that resets). */
 export function NewNameForm({
   placeholder,
-  submitLabel = "Add",
   onSubmit,
   invalidate,
 }: {
@@ -31,7 +30,7 @@ export function NewNameForm({
         m.mutate(trimmed);
       }}
     >
-      <Group gap="xs" wrap="nowrap">
+      <Group gap="xs">
         <TextInput
           maxLength={100}
           placeholder={placeholder}
@@ -43,10 +42,9 @@ export function NewNameForm({
         <Button
           disabled={trimmed.length === 0}
           loading={m.isPending}
-          size="sm"
           type="submit"
         >
-          {submitLabel}
+          Add
         </Button>
       </Group>
     </form>

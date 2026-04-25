@@ -319,6 +319,7 @@ function MoneyField({
       min={0}
       placeholder="0.00"
       required
+      step="any"
       type="number"
       value={value}
       onChange={(e) => onChange(e.target.value)}
