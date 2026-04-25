@@ -23,6 +23,7 @@ import { Link } from "react-router";
 
 import { MoneyField } from "@/components/money-field";
 import { SectionHeader } from "@/components/section-header";
+import { TagsField } from "@/components/tags-field";
 import { localDateKey } from "@/lib/dates";
 
 import { CategorySelector, CREATE_NEW } from "./category-selector";
@@ -35,6 +36,7 @@ type LineFormValues = {
   newCategoryName: string;
   subcategoryId: string;
   newSubcategoryName: string;
+  tags: string[];
 };
 
 export type InitialTxValues = {
@@ -46,7 +48,6 @@ export type InitialTxValues = {
   destinationAccountId: string;
   transferAmount: string;
   lines: LineFormValues[];
-  tagId: string;
 };
 
 const emptyLine = (): LineFormValues => ({
@@ -55,6 +56,7 @@ const emptyLine = (): LineFormValues => ({
   newCategoryName: "",
   subcategoryId: "",
   newSubcategoryName: "",
+  tags: [],
 });
 
 export function TransactionForm({
@@ -85,7 +87,6 @@ export function TransactionForm({
     destinationAccountId: "",
     transferAmount: "",
     lines: [emptyLine()],
-    tagId: "",
   };
 
   const [type, setType] = useState<TxType>(defaults.type);
@@ -100,13 +101,13 @@ export function TransactionForm({
   );
   const [isPending, setIsPending] = useState(defaults.pending);
   const [description, setDescription] = useState(defaults.description);
-  const [tagId, setTagId] = useState(defaults.tagId);
 
   const isMultiLine = lines.length > 1;
   const relevantCategories =
     type === "transfer" ? [] : categories.filter((c) => c.kind === type);
   const sourceAccounts = accounts.filter((a) => a.id !== destinationAccountId);
   const destinationAccounts = accounts.filter((a) => a.id !== accountId);
+  const allTagNames = tags.map((t) => t.name);
 
   function handleTypeChange(newType: TxType) {
     setType(newType);
@@ -152,6 +153,7 @@ export function TransactionForm({
         : l.subcategoryId === CREATE_NEW
           ? l.newSubcategoryName
           : undefined,
+      tagNames: l.tags.length > 0 ? l.tags : undefined,
     };
   }
 
@@ -161,7 +163,6 @@ export function TransactionForm({
       pending: isPending,
       date: isPending ? undefined : dateStr,
       description: description || undefined,
-      tagId: tagId || undefined,
     };
 
     if (type === "transfer") {
@@ -210,6 +211,7 @@ export function TransactionForm({
           />
         ) : isMultiLine ? (
           <MultiLineEditor
+            allTags={allTagNames}
             categories={relevantCategories}
             lines={lines}
             onAdd={addLine}
@@ -218,6 +220,7 @@ export function TransactionForm({
           />
         ) : (
           <SingleLineEditor
+            allTags={allTagNames}
             categories={relevantCategories}
             line={lines[0]}
             onSplit={addLine}
@@ -271,16 +274,6 @@ export function TransactionForm({
           />
         )}
 
-        <NativeSelect
-          data={[
-            { value: "", label: "—" },
-            ...tags.map((t) => ({ value: t.id, label: t.name })),
-          ]}
-          label="Tag (optional)"
-          value={tagId}
-          onChange={(e) => setTagId(e.target.value)}
-        />
-
         <TextInput
           label="Description (optional)"
           maxLength={500}
@@ -306,11 +299,13 @@ export function TransactionForm({
 function SingleLineEditor({
   line,
   categories,
+  allTags,
   onUpdate,
   onSplit,
 }: {
   line: LineFormValues;
   categories: CategoryWithSubs[];
+  allTags: string[];
   onUpdate: (patch: Partial<LineFormValues>) => void;
   onSplit: () => void;
 }) {
@@ -333,6 +328,12 @@ function SingleLineEditor({
         onNewSubcategoryNameChange={(v) => onUpdate({ newSubcategoryName: v })}
         onSubcategoryChange={(v) => onUpdate({ subcategoryId: v })}
       />
+      <TagsField
+        allTags={allTags}
+        label="Tags (optional)"
+        value={line.tags}
+        onChange={(v) => onUpdate({ tags: v })}
+      />
       <Button
         leftSection={<Plus size={14} />}
         type="button"
@@ -349,12 +350,14 @@ function SingleLineEditor({
 function MultiLineEditor({
   lines,
   categories,
+  allTags,
   onUpdate,
   onAdd,
   onRemove,
 }: {
   lines: LineFormValues[];
   categories: CategoryWithSubs[];
+  allTags: string[];
   onUpdate: (index: number, patch: Partial<LineFormValues>) => void;
   onAdd: () => void;
   onRemove: (index: number) => void;
@@ -398,6 +401,12 @@ function MultiLineEditor({
                 onUpdate(i, { newSubcategoryName: v })
               }
               onSubcategoryChange={(v) => onUpdate(i, { subcategoryId: v })}
+            />
+            <TagsField
+              allTags={allTags}
+              label="Tags (optional)"
+              value={line.tags}
+              onChange={(v) => onUpdate(i, { tags: v })}
             />
           </Stack>
         </Card>

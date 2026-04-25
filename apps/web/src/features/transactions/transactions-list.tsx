@@ -311,6 +311,8 @@ function SortableRow({
                 <Group key={i} justify="space-between">
                   <Text c="dimmed" size="xs">
                     {categoryLabel(line)}
+                    {line.tags.length > 0 &&
+                      ` ${line.tags.map((t) => `#${t.name}`).join(" ")}`}
                   </Text>
                   <Text c="dimmed" ff="monospace" size="xs">
                     {formatMoney(BigInt(line.amount), line.currency)}
@@ -454,5 +456,15 @@ function rowContent(
     metaParts.push(categoryLabel(tx.lines[0]));
   }
   if (accountLabel) metaParts.push(accountLabel);
+  const tagLabel = tagsLabel(tx);
+  if (tagLabel) metaParts.push(tagLabel);
   return { primary, metaParts, amount, currency };
+}
+
+/** Dedupes tags across lines and renders as `#tag1 #tag2`. */
+function tagsLabel(tx: EnrichedTransaction): string {
+  const seen = new Set<string>();
+  for (const l of tx.lines) for (const t of l.tags) seen.add(t.name);
+  if (seen.size === 0) return "";
+  return [...seen].map((n) => `#${n}`).join(" ");
 }

@@ -8,8 +8,8 @@ export function SettingsRoute() {
     <PageShell back="/" title="Settings">
       <NavLink
         component={Link}
-        description="Income & expense categories and subcategories"
-        label="Categories"
+        description="Categories, subcategories, and tags"
+        label="Categories & tags"
         to="/settings/categories"
       />
     </PageShell>

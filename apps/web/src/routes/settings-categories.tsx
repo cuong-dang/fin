@@ -1,4 +1,4 @@
-import type { CategoryKind, CategoryWithSubs } from "@fin/schemas";
+import type { CategoryKind, CategoryWithSubs, Tag } from "@fin/schemas";
 import { Box, Card, Stack, Text } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 
@@ -9,29 +9,37 @@ import { NewNameForm } from "@/features/settings/new-name-form";
 import {
   createCategory,
   createSubcategory,
+  createTag,
   deleteCategory,
   deleteSubcategory,
+  deleteTag,
   listCategories,
+  listTags,
   updateCategory,
   updateSubcategory,
+  updateTag,
 } from "@/lib/endpoints";
 
 const CATEGORIES_KEY = ["categories"];
+const TAGS_KEY = ["tags"];
 
 export function SettingsCategoriesRoute() {
-  const q = useQuery({ queryKey: CATEGORIES_KEY, queryFn: listCategories });
-  const cats = q.data ?? [];
+  const catsQ = useQuery({ queryKey: CATEGORIES_KEY, queryFn: listCategories });
+  const tagsQ = useQuery({ queryKey: TAGS_KEY, queryFn: listTags });
+  const cats = catsQ.data ?? [];
   const income = cats.filter((c) => c.kind === "income");
   const expense = cats.filter((c) => c.kind === "expense");
+  const tags = tagsQ.data ?? [];
 
   return (
     <PageShell
       back="/settings"
-      subtitle="Income and expense categories organize your transactions. Each category can have subcategories for finer grouping."
-      title="Categories"
+      subtitle="Categories organize transactions; tags add a free-form second axis. Lines can carry multiple tags."
+      title="Categories & tags"
     >
       <KindSection categories={income} kind="income" title="Income" />
       <KindSection categories={expense} kind="expense" title="Expense" />
+      <TagsSection tags={tags} />
     </PageShell>
   );
 }
@@ -102,5 +110,39 @@ function CategorySection({ category }: { category: CategoryWithSubs }) {
         </Box>
       </Stack>
     </Card>
+  );
+}
+
+function TagsSection({ tags }: { tags: Tag[] }) {
+  return (
+    <Stack gap="sm">
+      <SectionHeader>Tags</SectionHeader>
+      <NewNameForm
+        invalidate={[TAGS_KEY]}
+        placeholder="New tag"
+        onSubmit={(name) => createTag({ name })}
+      />
+      {tags.length === 0 ? (
+        <Text c="dimmed" size="sm">
+          No tags.
+        </Text>
+      ) : (
+        <Card padding="sm" withBorder>
+          <Stack gap="xs">
+            {tags.map((t) => (
+              <EditableName
+                key={t.id}
+                confirmDeleteMessage={`Delete tag "${t.name}"? It will be removed from any transactions that used it. This cannot be undone.`}
+                invalidate={[TAGS_KEY]}
+                label={`tag ${t.name}`}
+                name={t.name}
+                onDelete={() => deleteTag(t.id)}
+                onUpdate={(name) => updateTag(t.id, { name })}
+              />
+            ))}
+          </Stack>
+        </Card>
+      )}
+    </Stack>
   );
 }

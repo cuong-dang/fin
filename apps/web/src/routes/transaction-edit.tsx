@@ -246,7 +246,6 @@ function deriveInitial(tx: EnrichedTransaction): InitialTxValues {
     destinationAccountId: "",
     transferAmount: "",
     lines: [],
-    tagId: "",
   };
   if (tx.type === "transfer") {
     const outLeg = tx.legs.find((l) => BigInt(l.amount) < 0n);
@@ -277,9 +276,9 @@ function deriveInitial(tx: EnrichedTransaction): InitialTxValues {
       newCategoryName: "",
       subcategoryId: line.subcategoryId ?? "",
       newSubcategoryName: "",
+      tags: line.tags.map((t) => t.name),
     })),
     accountId: leg.accountId,
-    tagId: tx.lines[0].tagId ?? "",
   };
 }
 

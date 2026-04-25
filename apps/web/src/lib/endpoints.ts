@@ -6,6 +6,7 @@ import type {
   CreateAccountBody,
   CreateCategoryBody,
   CreateSubcategoryBody,
+  CreateTagBody,
   EnrichedTransaction,
   Me,
   ProcessTransactionBody,
@@ -17,6 +18,7 @@ import type {
   UpdateAccountGroupBody,
   UpdateCategoryBody,
   UpdateSubcategoryBody,
+  UpdateTagBody,
 } from "@fin/schemas";
 
 import { api } from "./api";
@@ -117,3 +119,12 @@ export const deleteSubcategory = (id: string) =>
   api<void>(`/api/subcategories/${id}`, { method: "DELETE" });
 
 export const listTags = () => api<Tag[]>("/api/tags");
+
+export const createTag = (body: CreateTagBody) =>
+  api<Tag>("/api/tags", { method: "POST", json: body });
+
+export const updateTag = (id: string, body: UpdateTagBody) =>
+  api<void>(`/api/tags/${id}`, { method: "PATCH", json: body });
+
+export const deleteTag = (id: string) =>
+  api<void>(`/api/tags/${id}`, { method: "DELETE" });
