@@ -80,7 +80,8 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
     const txIds = [...pendingRows, ...completedRows].map((t) => t.id);
     if (txIds.length === 0) return { pending: [], completed: [] };
 
-    const { legsByTx, linesByTx, tagsByLine } = await fetchLegsAndLines(txIds);
+    const { legsByTx, linesByTx, tagsByLine, subByTx } =
+      await fetchLegsAndLines(txIds);
 
     // Running balance: only when filtered to a single account, and only on
     // completed rows. Walk newest→oldest subtracting each row's leg; the
@@ -125,6 +126,7 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
         legsByTx.get(t.id),
         linesByTx.get(t.id),
         tagsByLine,
+        subByTx.get(t.id),
         balanceAfterByTx.get(t.id),
       );
 
@@ -145,8 +147,15 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
         reply.code(404).send({ error: "Not found" });
         return;
       }
-      const { legsByTx, linesByTx, tagsByLine } = await fetchLegsAndLines([id]);
-      return enrichTx(tx, legsByTx.get(id), linesByTx.get(id), tagsByLine);
+      const { legsByTx, linesByTx, tagsByLine, subByTx } =
+        await fetchLegsAndLines([id]);
+      return enrichTx(
+        tx,
+        legsByTx.get(id),
+        linesByTx.get(id),
+        tagsByLine,
+        subByTx.get(id),
+      );
     },
   );
 
@@ -163,7 +172,21 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
     if (!sourceAccount)
       return reply.code(404).send({ error: "Account not found" });
 
+    // An expense may carry an optional subscription link (it represents a
+    // sub charge in that case). Validate ownership before writing.
+    if (body.type === "expense" && body.subscriptionId) {
+      const sub = await findOwned(
+        schema.subscriptions,
+        body.subscriptionId,
+        req.auth.groupId,
+      );
+      if (!sub)
+        return reply.code(404).send({ error: "Subscription not found" });
+    }
+
     const newDate = body.pending ? null : (body.date ?? null);
+    const subscriptionId =
+      body.type === "expense" ? (body.subscriptionId ?? null) : null;
 
     const result = await db.transaction(async (tx) => {
       const sortKey = newDate
@@ -179,6 +202,7 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
           sortKey,
           type: body.type,
           description: body.description ?? null,
+          subscriptionId,
         })
         .returning({ id: schema.transactions.id });
 
@@ -217,9 +241,21 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
     if (!sourceAccount)
       return reply.code(404).send({ error: "Account not found" });
 
+    if (body.type === "expense" && body.subscriptionId) {
+      const sub = await findOwned(
+        schema.subscriptions,
+        body.subscriptionId,
+        req.auth.groupId,
+      );
+      if (!sub)
+        return reply.code(404).send({ error: "Subscription not found" });
+    }
+
     const oldDate = existing.date;
     const newDate = body.pending ? null : (body.date ?? null);
     const dateChanged = oldDate !== newDate;
+    const subscriptionId =
+      body.type === "expense" ? (body.subscriptionId ?? null) : null;
 
     await db.transaction(async (tx) => {
       // When the bucket changes, move this row to the end of the new bucket
@@ -237,6 +273,7 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
           date: newDate,
           type: body.type,
           description: body.description ?? null,
+          subscriptionId,
           updatedAt: new Date(),
           ...(sortKey !== undefined ? { sortKey } : {}),
         })
@@ -428,8 +465,10 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
     const existing = await findOwned(schema.transactions, id, req.auth.groupId);
     if (!existing) return reply.code(404).send({ error: "Not found" });
 
+    // Hard-delete: legs + lines + tag-junction rows cascade. Account
+    // balances and recurring-plan principal totals re-derive from the
+    // remaining legs/lines automatically.
     await db.transaction(async (tx) => {
-      // legs + lines cascade.
       await tx
         .delete(schema.transactions)
         .where(eq(schema.transactions.id, id));

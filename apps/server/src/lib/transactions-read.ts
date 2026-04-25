@@ -64,20 +64,44 @@ async function fetchLineTags(lineIds: string[]) {
     .orderBy(schema.tags.name);
 }
 
+/**
+ * Subscription names keyed by transaction id, for tx rows that link to a
+ * sub. We don't filter `subscriptions.deleted_at` — past transactions
+ * should still surface their (now-deleted) sub's name.
+ */
+async function fetchSubsForTxs(txIds: string[]) {
+  if (txIds.length === 0) return [];
+  return db
+    .select({
+      txId: schema.transactions.id,
+      subId: schema.subscriptions.id,
+      subName: schema.subscriptions.name,
+    })
+    .from(schema.transactions)
+    .innerJoin(
+      schema.subscriptions,
+      eq(schema.subscriptions.id, schema.transactions.subscriptionId),
+    )
+    .where(inArray(schema.transactions.id, txIds));
+}
+
 type LegRow = Awaited<ReturnType<typeof fetchLegs>>[number];
 type LineRow = Awaited<ReturnType<typeof fetchLines>>[number];
 type LineTagRow = Awaited<ReturnType<typeof fetchLineTags>>[number];
+type SubRow = Awaited<ReturnType<typeof fetchSubsForTxs>>[number];
 
 export async function fetchLegsAndLines(txIds: string[]) {
-  const [legRows, lineRows] = await Promise.all([
+  const [legRows, lineRows, subRows] = await Promise.all([
     fetchLegs(txIds),
     fetchLines(txIds),
+    fetchSubsForTxs(txIds),
   ]);
   const tagRows = await fetchLineTags(lineRows.map((l) => l.id));
   return {
     legsByTx: groupBy(legRows, (l) => l.transactionId),
     linesByTx: groupBy(lineRows, (l) => l.transactionId),
     tagsByLine: groupBy(tagRows, (t) => t.lineId),
+    subByTx: new Map(subRows.map((s) => [s.txId, s])),
   };
 }
 
@@ -88,10 +112,12 @@ export function enrichTx(
     createdAt: Date;
     type: "income" | "expense" | "transfer" | "adjustment";
     description: string | null;
+    subscriptionId: string | null;
   },
   legs: LegRow[] | undefined,
   lines: LineRow[] | undefined,
   tagsByLine: Map<string, LineTagRow[]>,
+  sub: SubRow | undefined,
   balanceAfter?: bigint,
 ): EnrichedTransaction {
   if (!legs) {
@@ -103,6 +129,8 @@ export function enrichTx(
     createdAt: tx.createdAt.toISOString(),
     type: tx.type,
     description: tx.description,
+    subscriptionId: tx.subscriptionId,
+    subscriptionName: sub?.subName ?? null,
     legs: legs.map((l) => ({
       accountId: l.accountId,
       accountName: l.accountName,

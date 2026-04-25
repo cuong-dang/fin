@@ -6,18 +6,18 @@ import {
   updateCategoryBody,
   updateSubcategoryBody,
 } from "@fin/schemas";
-import { eq, inArray, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
 
 import { schema } from "../db";
 import { db } from "../db";
-import { findOwned } from "../lib/authz";
+import { findOwned, ownedActive } from "../lib/authz";
 import { groupBy } from "../lib/collections";
 
 export const categoryRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
 
-  /** List all categories for the workspace with subcategories nested. */
+  /** List active categories for the workspace with active subcategories nested. */
   app.get("/", async (req): Promise<CategoryWithSubs[]> => {
     const catRows = await db
       .select({
@@ -26,7 +26,7 @@ export const categoryRoutes: FastifyPluginAsync = async (app) => {
         name: schema.categories.name,
       })
       .from(schema.categories)
-      .where(eq(schema.categories.groupId, req.auth.groupId))
+      .where(ownedActive(schema.categories, req.auth.groupId))
       .orderBy(schema.categories.name);
 
     const catIds = catRows.map((c) => c.id);
@@ -39,7 +39,12 @@ export const categoryRoutes: FastifyPluginAsync = async (app) => {
               name: schema.subcategories.name,
             })
             .from(schema.subcategories)
-            .where(inArray(schema.subcategories.categoryId, catIds))
+            .where(
+              and(
+                inArray(schema.subcategories.categoryId, catIds),
+                isNull(schema.subcategories.deletedAt),
+              ),
+            )
             .orderBy(schema.subcategories.name)
         : [];
     const subsByCategory = groupBy(subRows, (s) => s.categoryId);
@@ -89,29 +94,14 @@ export const categoryRoutes: FastifyPluginAsync = async (app) => {
     const existing = await findOwned(schema.categories, id, req.auth.groupId);
     if (!existing) return reply.code(404).send({ error: "Not found" });
 
-    // transaction_lines.category_id AND transaction_lines.subcategory_id are
-    // both ON DELETE RESTRICT. Check both in one sweep so we give a useful
-    // error rather than a raw FK violation.
-    const [{ count }] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(schema.transactionLines)
-      .leftJoin(
-        schema.subcategories,
-        eq(schema.subcategories.id, schema.transactionLines.subcategoryId),
-      )
-      .where(
-        or(
-          eq(schema.transactionLines.categoryId, id),
-          eq(schema.subcategories.categoryId, id),
-        ),
-      );
-    if (count > 0) {
-      return reply.code(409).send({
-        error: `Cannot delete: ${count} transaction line(s) reference this category or its subcategories`,
-      });
-    }
-    // Subcategories cascade.
-    await db.delete(schema.categories).where(eq(schema.categories.id, id));
+    // Soft-delete: subcategories aren't cascaded; the list query filters
+    // them out via their parent's deleted_at, and they remain individually
+    // available for manual restoration if needed. tx_lines that reference
+    // this category stay intact and still display its name on history.
+    await db
+      .update(schema.categories)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(eq(schema.categories.id, id));
     return reply.code(204).send();
   });
 
@@ -145,6 +135,11 @@ export const categoryRoutes: FastifyPluginAsync = async (app) => {
 export const subcategoryRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
 
+  /**
+   * Subcategories don't carry their own group_id — they inherit via parent
+   * category. We also enforce that both the subcategory and its parent are
+   * not soft-deleted (a subcategory under a deleted category is hidden).
+   */
   async function findOwnedSubcategory(id: string, workspaceGroupId: string) {
     const [row] = await db
       .select({
@@ -156,7 +151,13 @@ export const subcategoryRoutes: FastifyPluginAsync = async (app) => {
         schema.categories,
         eq(schema.categories.id, schema.subcategories.categoryId),
       )
-      .where(eq(schema.subcategories.id, id))
+      .where(
+        and(
+          eq(schema.subcategories.id, id),
+          isNull(schema.subcategories.deletedAt),
+          isNull(schema.categories.deletedAt),
+        ),
+      )
       .limit(1);
     if (!row || row.parentGroupId !== workspaceGroupId) return null;
     return row;
@@ -180,17 +181,9 @@ export const subcategoryRoutes: FastifyPluginAsync = async (app) => {
     const existing = await findOwnedSubcategory(id, req.auth.groupId);
     if (!existing) return reply.code(404).send({ error: "Not found" });
 
-    const [{ count }] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(schema.transactionLines)
-      .where(eq(schema.transactionLines.subcategoryId, id));
-    if (count > 0) {
-      return reply.code(409).send({
-        error: `Cannot delete: ${count} transaction line(s) reference this subcategory`,
-      });
-    }
     await db
-      .delete(schema.subcategories)
+      .update(schema.subcategories)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
       .where(eq(schema.subcategories.id, id));
     return reply.code(204).send();
   });

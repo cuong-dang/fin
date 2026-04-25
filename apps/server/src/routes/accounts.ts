@@ -4,14 +4,19 @@ import type { FastifyPluginAsync } from "fastify";
 
 import { schema } from "../db";
 import { db } from "../db";
-import { findOwned } from "../lib/authz";
+import { findOwned, ownedActive } from "../lib/authz";
 import { parseMoney } from "../lib/money";
 import { nextSortKey } from "../lib/transactions-order";
 
 export const accountRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
 
-  /** List accounts with present + available balance. */
+  // Pending = date IS NULL. Hard-deleted transactions take their legs
+  // with them, so we don't need a deleted_at filter here.
+  const presentBalanceSql = sql<string>`COALESCE(SUM(${schema.transactionLegs.amount}) FILTER (WHERE ${schema.transactions.date} IS NOT NULL), 0)`;
+  const availableBalanceSql = sql<string>`COALESCE(SUM(${schema.transactionLegs.amount}), 0)`;
+
+  /** List active accounts with present + available balance. */
   app.get("/", async (req) => {
     return db
       .select({
@@ -19,14 +24,8 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
         accountGroupId: schema.accounts.accountGroupId,
         name: schema.accounts.name,
         currency: schema.accounts.currency,
-        presentBalance:
-          sql<string>`COALESCE(SUM(${schema.transactionLegs.amount}) FILTER (WHERE ${schema.transactions.date} IS NOT NULL), 0)`.as(
-            "present_balance",
-          ),
-        availableBalance:
-          sql<string>`COALESCE(SUM(${schema.transactionLegs.amount}), 0)`.as(
-            "available_balance",
-          ),
+        presentBalance: presentBalanceSql.as("present_balance"),
+        availableBalance: availableBalanceSql.as("available_balance"),
       })
       .from(schema.accounts)
       .leftJoin(
@@ -37,7 +36,7 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
         schema.transactions,
         eq(schema.transactions.id, schema.transactionLegs.transactionId),
       )
-      .where(eq(schema.accounts.groupId, req.auth.groupId))
+      .where(ownedActive(schema.accounts, req.auth.groupId))
       .groupBy(schema.accounts.id)
       .orderBy(schema.accounts.name);
   });
@@ -53,14 +52,8 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
         accountGroupId: schema.accounts.accountGroupId,
         name: schema.accounts.name,
         currency: schema.accounts.currency,
-        presentBalance:
-          sql<string>`COALESCE(SUM(${schema.transactionLegs.amount}) FILTER (WHERE ${schema.transactions.date} IS NOT NULL), 0)`.as(
-            "present_balance",
-          ),
-        availableBalance:
-          sql<string>`COALESCE(SUM(${schema.transactionLegs.amount}), 0)`.as(
-            "available_balance",
-          ),
+        presentBalance: presentBalanceSql.as("present_balance"),
+        availableBalance: availableBalanceSql.as("available_balance"),
       })
       .from(schema.accounts)
       .leftJoin(
@@ -255,17 +248,14 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
     const account = await findOwned(schema.accounts, id, req.auth.groupId);
     if (!account) return reply.code(404).send({ error: "Not found" });
 
-    const [{ count }] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(schema.transactionLegs)
-      .where(eq(schema.transactionLegs.accountId, id));
-    if (count > 0) {
-      return reply.code(409).send({
-        error: `Cannot delete account: ${count} transaction leg(s) reference it`,
-      });
-    }
-
-    await db.delete(schema.accounts).where(eq(schema.accounts.id, id));
+    // Soft-delete: existing transaction legs stay attached and historical
+    // tx displays still resolve the account name. The account simply
+    // disappears from balances/sidebars/pickers. (No more "has tx" gate —
+    // soft-delete has no integrity issue with referencing legs.)
+    await db
+      .update(schema.accounts)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(eq(schema.accounts.id, id));
     return reply.code(204).send();
   });
 };

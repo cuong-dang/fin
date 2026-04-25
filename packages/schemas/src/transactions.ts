@@ -31,9 +31,15 @@ const incomeFields = commonFields.extend({
   lines: z.array(transactionLineBody).min(1),
 });
 
+// Expense optionally carries a subscription link — sub charges are stored
+// as expenses (no balance-reducing leg, no principal); the `subscriptionId`
+// just marks the source. The "Payment" tab in the form is a UX portal that
+// produces this shape with `subscriptionId` set. Loan/credit-card payments
+// will get their own type when they land (hybrid transfer + expense lines).
 const expenseFields = commonFields.extend({
   type: z.literal("expense"),
   accountId: z.uuid(),
+  subscriptionId: z.uuid().optional(),
   lines: z.array(transactionLineBody).min(1),
 });
 
@@ -108,6 +114,11 @@ export type EnrichedTransaction = {
   createdAt: string; // ISO
   type: "income" | "expense" | "transfer" | "adjustment";
   description: string | null;
+  subscriptionId: string | null;
+  // Joined from `subscriptions` so the row can render "↻ Netflix" without a
+  // second client fetch. Resolves even if the sub was soft-deleted, since
+  // historical fidelity matters for past payments.
+  subscriptionName: string | null;
   legs: TxLeg[];
   lines: TxLine[];
   // Present only when the list is filtered by accountId and this is a

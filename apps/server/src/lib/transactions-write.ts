@@ -1,10 +1,11 @@
-import type { TransactionBody, TransactionLineBody } from "@fin/schemas";
-import { and, eq, inArray } from "drizzle-orm";
+import type { TransactionBody } from "@fin/schemas";
 
 import { schema } from "../db";
 import { db } from "../db";
 import { findOwned } from "./authz";
+import { resolveCategory } from "./categories-resolve";
 import { parseMoney } from "./money";
+import { upsertTags } from "./tags-upsert";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -47,7 +48,7 @@ export async function insertLegsAndLines(
 
     for (let i = 0; i < parsed.lines.length; i++) {
       const line = parsed.lines[i];
-      const { categoryId, subcategoryId } = await resolveCategoryForLine(
+      const { categoryId, subcategoryId } = await resolveCategory(
         tx,
         line,
         parsed.type,
@@ -96,40 +97,9 @@ export async function insertLegsAndLines(
   // Plain transfer: no lines, no tags.
 }
 
-async function resolveCategoryForLine(
-  tx: Tx,
-  line: TransactionLineBody,
-  kind: "income" | "expense",
-  workspaceGroupId: string,
-): Promise<{ categoryId: string; subcategoryId: string | null }> {
-  let categoryId = line.categoryId;
-  if (line.newCategoryName) {
-    const [row] = await tx
-      .insert(schema.categories)
-      .values({ groupId: workspaceGroupId, kind, name: line.newCategoryName })
-      .returning({ id: schema.categories.id });
-    categoryId = row.id;
-  }
-  if (!categoryId) {
-    throw new Error("Category is required (pick one or name a new one)");
-  }
-
-  let subcategoryId: string | null = line.subcategoryId ?? null;
-  if (line.newSubcategoryName) {
-    const [row] = await tx
-      .insert(schema.subcategories)
-      .values({ categoryId, name: line.newSubcategoryName })
-      .returning({ id: schema.subcategories.id });
-    subcategoryId = row.id;
-  }
-
-  return { categoryId, subcategoryId };
-}
-
 /**
- * Upsert each tag name for the workspace and link it to the line. Names
- * are deduped and trimmed (Zod already trims). Existing tags match
- * case-sensitively on the unique (group_id, name) constraint.
+ * Upsert each tag name for the workspace and link it to the line via the
+ * `transaction_line_tags` junction. Tag names are deduped (Zod trims).
  */
 async function linkTagsToLine(
   tx: Tx,
@@ -138,30 +108,8 @@ async function linkTagsToLine(
   workspaceGroupId: string,
 ): Promise<void> {
   if (!tagNames || tagNames.length === 0) return;
+  const byName = await upsertTags(tx, tagNames, workspaceGroupId);
   const unique = [...new Set(tagNames)];
-
-  // Existing tags
-  const existing = await tx
-    .select({ id: schema.tags.id, name: schema.tags.name })
-    .from(schema.tags)
-    .where(
-      and(
-        eq(schema.tags.groupId, workspaceGroupId),
-        inArray(schema.tags.name, unique),
-      ),
-    );
-  const byName = new Map(existing.map((t) => [t.name, t.id]));
-
-  // Insert any that don't exist yet
-  const toInsert = unique.filter((n) => !byName.has(n));
-  if (toInsert.length > 0) {
-    const inserted = await tx
-      .insert(schema.tags)
-      .values(toInsert.map((name) => ({ groupId: workspaceGroupId, name })))
-      .returning({ id: schema.tags.id, name: schema.tags.name });
-    for (const t of inserted) byName.set(t.name, t.id);
-  }
-
   await tx.insert(schema.transactionLineTags).values(
     unique.map((name) => {
       const tagId = byName.get(name);

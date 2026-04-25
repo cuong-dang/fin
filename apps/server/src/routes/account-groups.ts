@@ -3,12 +3,12 @@ import {
   idParam,
   updateAccountGroupBody,
 } from "@fin/schemas";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
 
 import { schema } from "../db";
 import { db } from "../db";
-import { findOwned } from "../lib/authz";
+import { findOwned, ownedActive } from "../lib/authz";
 
 export const accountGroupRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
@@ -17,7 +17,7 @@ export const accountGroupRoutes: FastifyPluginAsync = async (app) => {
     return db
       .select({ id: schema.accountGroups.id, name: schema.accountGroups.name })
       .from(schema.accountGroups)
-      .where(eq(schema.accountGroups.groupId, req.auth.groupId))
+      .where(ownedActive(schema.accountGroups, req.auth.groupId))
       .orderBy(schema.accountGroups.name);
   });
 
@@ -65,20 +65,27 @@ export const accountGroupRoutes: FastifyPluginAsync = async (app) => {
     );
     if (!existing) return reply.code(404).send({ error: "Not found" });
 
-    // accounts.account_group_id is ON DELETE RESTRICT — pre-check so the
-    // error message is useful rather than a raw FK violation.
+    // Soft-delete blocks if any *active* account still references the group
+    // — otherwise those accounts would point at a hidden parent and end up
+    // orphaned-looking in the UI. User must move or soft-delete them first.
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(schema.accounts)
-      .where(eq(schema.accounts.accountGroupId, id));
+      .where(
+        and(
+          eq(schema.accounts.accountGroupId, id),
+          isNull(schema.accounts.deletedAt),
+        ),
+      );
     if (count > 0) {
       return reply.code(409).send({
-        error: `Cannot delete group: ${count} account(s) still reference it`,
+        error: `Cannot delete group: ${count} active account(s) still reference it`,
       });
     }
 
     await db
-      .delete(schema.accountGroups)
+      .update(schema.accountGroups)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
       .where(eq(schema.accountGroups.id, id));
     return reply.code(204).send();
   });
