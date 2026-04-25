@@ -1,18 +1,21 @@
 import { z } from "zod";
 
 import { dateString, moneyString } from "./common";
+import { tagName } from "./tags";
 
 // ─── Create / update (full: income / expense / transfer) ──────────────────
 
 // One split of an income/expense transaction into a single category. A
 // transaction always has at least one line; multi-line means the user split
 // the amount across multiple categories. Leg amount = sum of line amounts.
+// Each line can carry zero or more tags; tags are upserted by name.
 export const transactionLineBody = z.object({
   amount: moneyString,
   categoryId: z.uuid().optional(),
   newCategoryName: z.string().trim().min(1).max(100).optional(),
   subcategoryId: z.uuid().optional(),
   newSubcategoryName: z.string().trim().min(1).max(100).optional(),
+  tagNames: z.array(tagName).max(20).optional(),
 });
 export type TransactionLineBody = z.infer<typeof transactionLineBody>;
 
@@ -20,7 +23,6 @@ const commonFields = z.object({
   date: dateString.optional(), // absent when pending
   pending: z.boolean().default(false),
   description: z.string().trim().min(1).max(500).optional(),
-  tagId: z.uuid().optional(),
 });
 
 const incomeFields = commonFields.extend({
@@ -97,8 +99,7 @@ export type TxLine = {
   categoryName: string;
   subcategoryId: string | null;
   subcategoryName: string | null;
-  tagId: string | null;
-  tagName: string | null;
+  tags: { id: string; name: string }[];
 };
 
 export type EnrichedTransaction = {
