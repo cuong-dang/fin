@@ -1,5 +1,13 @@
 import type { Account, AccountGroup } from "@fin/schemas";
-import { ActionIcon, Box, Button, Divider, Group, Stack, Text } from "@mantine/core";
+import {
+  ActionIcon,
+  Box,
+  Button,
+  Divider,
+  Group,
+  Stack,
+  Text,
+} from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
 import { Link } from "react-router";

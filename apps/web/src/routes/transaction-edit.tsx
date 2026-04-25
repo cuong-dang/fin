@@ -170,7 +170,11 @@ export function TransactionEditRoute() {
     });
 
     return (
-      <PageShell back="/" subtitle="Balance adjustment" title="Edit transaction">
+      <PageShell
+        back="/"
+        subtitle="Balance adjustment"
+        title="Edit transaction"
+      >
         <form
           onSubmit={(e) => {
             e.preventDefault();

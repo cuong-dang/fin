@@ -145,9 +145,7 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
         reply.code(404).send({ error: "Not found" });
         return;
       }
-      const { legsByTx, linesByTx, tagsByLine } = await fetchLegsAndLines([
-        id,
-      ]);
+      const { legsByTx, linesByTx, tagsByLine } = await fetchLegsAndLines([id]);
       return enrichTx(tx, legsByTx.get(id), linesByTx.get(id), tagsByLine);
     },
   );

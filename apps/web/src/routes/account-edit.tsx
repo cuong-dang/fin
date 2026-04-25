@@ -1,11 +1,5 @@
 import type { Account, AccountGroup } from "@fin/schemas";
-import {
-  Alert,
-  Button,
-  Group,
-  Stack,
-  TextInput,
-} from "@mantine/core";
+import { Alert, Button, Group, Stack, TextInput } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
