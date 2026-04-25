@@ -20,8 +20,9 @@ things typical money-tracking apps don't do well (or at all), which this app
 aims to be great at:
 
 - Transactions that split across **multiple categories** in a single entry.
-- **First-class installment plans** (mortgages, car loans, BNPL) as a
-  modeled entity, not a hack on top of recurring transactions.
+- **First-class recurring plans** — installments (mortgages, car loans,
+  BNPL) and subscriptions (Netflix, Spotify) as a modeled entity sharing
+  one cadence/amount template, not a hack on top of recurring transactions.
 - **Advanced analytics**: stats, charts, and graphs that answer real
   financial questions, e.g., cash-flow trends, category drill-downs over time,
   net-worth tracking.
@@ -77,13 +78,13 @@ drizzle/       Generated migrations
 ## Tech stack
 
 - **Fastify 5** server with **@fastify/jwt** + **@fastify/oauth2** (Google)
-- **Vite 6** + **React 19** + **React Router 7** web SPA
+- **Vite 8** + **React 19** + **React Router 7** web SPA
 - **TanStack Query 5** for client-side server state
 - **TypeScript** end to end
-- **Drizzle ORM** + **Postgres 17**
+- **Drizzle ORM** + **Postgres 18**
 - **Zod v4** for schema validation at every API boundary, shared
   between server and clients via `@fin/schemas`
-- **Mantine 7** for UI primitives (styled, accessible, no Tailwind)
+- **Mantine 9** for UI primitives (styled, accessible, no Tailwind)
 - **dnd-kit** for drag-and-drop (same-day tx reorder, cross-day move)
 - Bearer-token auth (JWT in `Authorization: Bearer`) + `X-Group-Id`
   header for the active workspace. Mobile clients plug in identically —
@@ -166,6 +167,7 @@ GET|POST     /api/accounts
 GET|PATCH|DELETE /api/accounts/:id
 
 GET|POST     /api/transactions          (?accountId= to filter)
+GET          /api/transactions/:id
 PATCH|DELETE /api/transactions/:id
 PATCH        /api/transactions/:id/adjustment
 POST         /api/transactions/:id/process
@@ -176,12 +178,12 @@ PATCH|DELETE /api/categories/:id
 POST         /api/categories/:id/subcategories
 PATCH|DELETE /api/subcategories/:id
 
-GET          /api/tags
+GET|POST     /api/tags
+PATCH|DELETE /api/tags/:id
 ```
 
-## TODO
+### TODO
 
-- [ ] Tag CRUD
-- [ ] Review transaction row display
-- [ ] Credit card account type
-- [ ] Autofill account on new transaction
+- [x] feature: Tags
+- [ ] feature: Credit card account type
+- [ ] nicety: Auto-select filtered account when adding new transactions

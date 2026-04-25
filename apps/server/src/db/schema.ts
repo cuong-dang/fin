@@ -28,10 +28,19 @@ export const transactionTypeEnum = pgEnum("transaction_type", [
 
 export const memberRoleEnum = pgEnum("member_role", ["owner", "member"]);
 
-export const installmentFrequencyEnum = pgEnum("installment_frequency", [
+export const recurringFrequencyEnum = pgEnum("recurring_frequency", [
   "monthly",
   "biweekly",
   "weekly",
+]);
+
+// Disambiguates principal vs interest vs fee within a recurring-plan
+// payment. Lives on `transaction_lines` so a single payment transaction
+// can split across all three.
+export const recurringPlanRoleEnum = pgEnum("recurring_plan_role", [
+  "principal",
+  "interest",
+  "fee",
 ]);
 
 export const categoryKindEnum = pgEnum("category_kind", ["income", "expense"]);
@@ -181,20 +190,30 @@ export const tags = pgTable(
   (t) => [unique("tags_group_name_unique").on(t.groupId, t.name)],
 );
 
-// ─── Installment plans ─────────────────────────────────────────────────────
+// ─── Recurring plans (installments + subscriptions) ────────────────────────
 
-export const installmentPlans = pgTable("installment_plans", {
+// Templated transactions with a cadence — covers both installment plans
+// (mortgages, car loans, BNPL — usually with a fixed end via totalPeriods)
+// and subscriptions (Netflix, Spotify — open-ended, totalPeriods IS NULL).
+export const recurringPlans = pgTable("recurring_plans", {
   id: uuid("id").primaryKey().defaultRandom(),
   groupId: uuid("group_id")
     .notNull()
     .references(() => groups.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  // Minor units in `currency`. e.g., $300,000 mortgage at USD → 30000000.
-  totalAmount: bigint("total_amount", { mode: "bigint" }).notNull(),
+  // Scheduled per-period charge in `currency`. e.g., $1,800 mortgage payment
+  // → 180000; $15.99 Netflix → 1599. BNPL services may absorb cents on the
+  // last payment — that variation is recorded by the actual transaction,
+  // not here.
+  amountPerPeriod: bigint("amount_per_period", { mode: "bigint" }).notNull(),
   currency: char("currency", { length: 3 }).notNull(),
-  // null = open-ended (e.g., line of credit)
+  // null = open-ended (subscriptions, lines of credit)
   totalPeriods: integer("total_periods"),
-  frequency: installmentFrequencyEnum("frequency").notNull(),
+  // Original loan principal in `currency`. Set for installments where the
+  // user wants interest analytics — total interest paid = sum of principal-
+  // role line amounts minus this. Null for subscriptions (no principal).
+  principalAmount: bigint("principal_amount", { mode: "bigint" }),
+  frequency: recurringFrequencyEnum("frequency").notNull(),
   firstPaymentDate: date("first_payment_date").notNull(),
   description: text("description"),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -228,8 +247,8 @@ export const transactions = pgTable(
     date: date("date", { mode: "string" }),
     type: transactionTypeEnum("type").notNull(),
     description: text("description"),
-    installmentPlanId: uuid("installment_plan_id").references(
-      () => installmentPlans.id,
+    recurringPlanId: uuid("recurring_plan_id").references(
+      () => recurringPlans.id,
       { onDelete: "set null" },
     ),
     // Stored as decimal for precision; high scale so minor-unit math is lossless.
@@ -290,6 +309,11 @@ export const transactionLines = pgTable(
     subcategoryId: uuid("subcategory_id").references(() => subcategories.id, {
       onDelete: "restrict",
     }),
+    // For lines in a recurring-plan payment, disambiguates principal /
+    // interest / fee. Null when the line isn't part of a loan or
+    // subscription split. The plan link itself lives on the parent
+    // transaction's `recurring_plan_id`.
+    recurringPlanRole: recurringPlanRoleEnum("recurring_plan_role"),
     // Positive minor units in `currency`. Sign is implied by transaction type.
     amount: bigint("amount", { mode: "bigint" }).notNull(),
     currency: char("currency", { length: 3 }).notNull(),
