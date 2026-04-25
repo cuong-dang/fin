@@ -1,4 +1,3 @@
-import { schema } from "../db";
 import {
   createAccountGroupBody,
   idParam,
@@ -6,6 +5,8 @@ import {
 } from "@fin/schemas";
 import { eq, sql } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
+
+import { schema } from "../db";
 import { db } from "../db";
 import { findOwned } from "../lib/authz";
 

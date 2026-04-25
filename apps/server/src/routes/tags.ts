@@ -1,6 +1,7 @@
-import { schema } from "../db";
 import { eq } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
+
+import { schema } from "../db";
 import { db } from "../db";
 
 export const tagRoutes: FastifyPluginAsync = async (app) => {

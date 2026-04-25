@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@fastify/jwt": "^9.0.0",
+    "@fastify/jwt": "^10.0.0",
     "@fastify/oauth2": "^8.0.0",
     "@fin/schemas": "workspace:*",
     "drizzle-orm": "^0.45.2",
@@ -19,8 +19,8 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/node": "^20",
+    "@types/node": "^24.12.2",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^6.0.3"
   }
 }

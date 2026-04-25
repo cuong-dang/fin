@@ -1,4 +1,5 @@
 import { Navigate, Outlet } from "react-router";
+
 import { getGroupId, getToken } from "@/lib/auth";
 
 /** Redirects to /signin if no token or no active workspace is selected. */

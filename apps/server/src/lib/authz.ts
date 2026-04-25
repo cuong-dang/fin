@@ -1,5 +1,6 @@
 import { eq, type InferSelectModel } from "drizzle-orm";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
+
 import { db } from "../db";
 
 type OwnedTable = PgTable & { id: PgColumn; groupId: PgColumn };

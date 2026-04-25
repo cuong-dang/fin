@@ -1,4 +1,23 @@
-import { BackLink } from "@/components/back-link";
+import type {
+  EnrichedTransaction,
+  TransactionsListResponse,
+} from "@fin/schemas";
+import {
+  Alert,
+  Box,
+  Button,
+  Divider,
+  Group,
+  Stack,
+  Text,
+  TextInput,
+} from "@mantine/core";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { Link, useNavigate, useParams } from "react-router";
+
+import { MoneyField } from "@/components/money-field";
+import { PageShell } from "@/components/page-shell";
 import {
   type InitialTxValues,
   TransactionForm,
@@ -13,25 +32,7 @@ import {
   updateTransaction,
 } from "@/lib/endpoints";
 import { formatMoneyPlain } from "@/lib/money";
-import type {
-  EnrichedTransaction,
-  TransactionsListResponse,
-} from "@fin/schemas";
-import {
-  Alert,
-  Box,
-  Button,
-  Container,
-  Divider,
-  Group,
-  Stack,
-  Text,
-  TextInput,
-  Title,
-} from "@mantine/core";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+
 import { NotFoundRoute } from "./not-found";
 
 export function TransactionEditRoute() {
@@ -105,12 +106,10 @@ export function TransactionEditRoute() {
     categories: Awaited<ReturnType<typeof listCategories>>;
     tags: Awaited<ReturnType<typeof listTags>>;
   }) {
-    const [error, setError] = useState<string | null>(null);
     const mutation = useMutation({
       mutationFn: (body: Parameters<typeof updateTransaction>[1]) =>
         updateTransaction(props.tx.id, body),
       onSuccess: go,
-      onError: (e) => setError((e as Error).message),
     });
     const del = useMutation({
       mutationFn: () => deleteTransaction(props.tx.id),
@@ -121,49 +120,35 @@ export function TransactionEditRoute() {
     const initial = deriveInitial(props.tx);
 
     return (
-      <Container>
-        <Stack>
-          <BackLink to="/" />
-          <Box>
-            <Title order={2}>Edit transaction</Title>
-            <Text c="dimmed" tt="capitalize">
-              {props.tx.type}
-            </Text>
-          </Box>
-          <TransactionForm
-            accounts={props.accounts}
-            categories={props.categories}
-            error={error}
-            initialValues={initial}
-            pending={mutation.isPending}
-            submitLabel="Save"
-            tags={props.tags}
-            title="Edit transaction"
-            onSubmit={(body) => {
-              setError(null);
-              mutation.mutate(body);
-            }}
-          />
-          <DangerZone
-            onDelete={() => {
-              if (
-                confirm(
-                  "Delete this transaction? Its legs and lines will be removed. This cannot be undone.",
-                )
-              ) {
-                del.mutate();
-              }
-            }}
-          />
-        </Stack>
-      </Container>
+      <PageShell back="/" subtitle={props.tx.type} title="Edit transaction">
+        <TransactionForm
+          accounts={props.accounts}
+          categories={props.categories}
+          error={mutation.error ? (mutation.error as Error).message : null}
+          initialValues={initial}
+          pending={mutation.isPending}
+          submitLabel="Save"
+          tags={props.tags}
+          onSubmit={(body) => mutation.mutate(body)}
+        />
+        <DangerZone
+          onDelete={() => {
+            if (
+              confirm(
+                "Delete this transaction? Its legs and lines will be removed. This cannot be undone.",
+              )
+            ) {
+              del.mutate();
+            }
+          }}
+        />
+      </PageShell>
     );
   }
 
   function AdjustmentEdit({ tx }: { tx: EnrichedTransaction }) {
     const leg = tx.legs[0];
     if (!leg) throw new Error(`Invariant: adjustment ${tx.id} has no leg`);
-    const [error, setError] = useState<string | null>(null);
     const [amount, setAmount] = useState(
       formatMoneyPlain(BigInt(leg.amount), leg.accountCurrency),
     );
@@ -177,7 +162,6 @@ export function TransactionEditRoute() {
           description: description || undefined,
         }),
       onSuccess: go,
-      onError: (e) => setError((e as Error).message),
     });
     const del = useMutation({
       mutationFn: () => deleteTransaction(tx.id),
@@ -186,62 +170,49 @@ export function TransactionEditRoute() {
     });
 
     return (
-      <Container>
-        <Stack>
-          <BackLink to="/" />
-          <Box>
-            <Title order={2}>Edit transaction</Title>
-            <Text c="dimmed">Balance adjustment</Text>
-          </Box>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              setError(null);
-              mutation.mutate();
-            }}
-          >
-            <Stack>
-              <TextInput
-                inputMode="decimal"
-                label="Amount"
-                required
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-              <TextInput
-                label="Date"
-                required
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-              />
-              <TextInput
-                label="Description"
-                maxLength={500}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-              {error && <Alert color="red">{error}</Alert>}
-              <Group>
-                <Button loading={mutation.isPending} type="submit">
-                  Save
-                </Button>
-                <Button component={Link} to="/" variant="subtle">
-                  Cancel
-                </Button>
-              </Group>
-            </Stack>
-          </form>
-          <DangerZone
-            onDelete={() => {
-              if (confirm("Delete this transaction? This cannot be undone.")) {
-                del.mutate();
-              }
-            }}
-          />
-        </Stack>
-      </Container>
+      <PageShell back="/" subtitle="Balance adjustment" title="Edit transaction">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            mutation.mutate();
+          }}
+        >
+          <Stack>
+            <MoneyField label="Amount" value={amount} onChange={setAmount} />
+            <TextInput
+              label="Date"
+              required
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+            <TextInput
+              label="Description"
+              maxLength={500}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+            {mutation.error && (
+              <Alert color="red">{(mutation.error as Error).message}</Alert>
+            )}
+            <Group>
+              <Button loading={mutation.isPending} type="submit">
+                Save
+              </Button>
+              <Button component={Link} to="/" variant="subtle">
+                Cancel
+              </Button>
+            </Group>
+          </Stack>
+        </form>
+        <DangerZone
+          onDelete={() => {
+            if (confirm("Delete this transaction? This cannot be undone.")) {
+              del.mutate();
+            }
+          }}
+        />
+      </PageShell>
     );
   }
 }
@@ -249,8 +220,8 @@ export function TransactionEditRoute() {
 function DangerZone({ onDelete }: { onDelete: () => void }) {
   return (
     <Box mt="xl">
-      <Divider mb="sm" />
-      <Stack gap="sm">
+      <Divider mb="xs" />
+      <Stack gap="xs">
         <Text fw={700} size="sm">
           Danger zone
         </Text>

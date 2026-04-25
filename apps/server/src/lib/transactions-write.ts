@@ -1,5 +1,6 @@
-import { schema } from "../db";
 import type { TransactionBody, TransactionLineBody } from "@fin/schemas";
+
+import { schema } from "../db";
 import { db } from "../db";
 import { findOwned } from "./authz";
 import { parseMoney } from "./money";

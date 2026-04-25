@@ -1,20 +1,17 @@
-import { Container, NavLink, Stack, Title } from "@mantine/core";
+import { NavLink } from "@mantine/core";
 import { Link } from "react-router";
-import { BackLink } from "@/components/back-link";
+
+import { PageShell } from "@/components/page-shell";
 
 export function SettingsRoute() {
   return (
-    <Container>
-      <Stack>
-        <BackLink to="/" />
-        <Title order={2}>Settings</Title>
-        <NavLink
-          component={Link}
-          description="Income & expense categories and subcategories"
-          label="Categories"
-          to="/settings/categories"
-        />
-      </Stack>
-    </Container>
+    <PageShell back="/" title="Settings">
+      <NavLink
+        component={Link}
+        description="Income & expense categories and subcategories"
+        label="Categories"
+        to="/settings/categories"
+      />
+    </PageShell>
   );
 }

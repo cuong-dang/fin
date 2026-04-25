@@ -1,11 +1,13 @@
-import { MantineProvider } from "@mantine/core";
 import "@mantine/core/styles.css";
+import "./globals.css";
+
+import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router";
+
 import { App } from "./app";
-import "./globals.css";
 import { theme } from "./theme";
 
 const queryClient = new QueryClient({

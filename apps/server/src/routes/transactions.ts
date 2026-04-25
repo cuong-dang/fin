@@ -1,7 +1,6 @@
-import { schema } from "../db";
 import {
-  type EnrichedTransaction,
   adjustmentUpdateBody,
+  type EnrichedTransaction,
   idParam,
   processTransactionBody,
   reorderTransactionsBody,
@@ -20,6 +19,8 @@ import {
 } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+
+import { schema } from "../db";
 import { db } from "../db";
 import { findOwned } from "../lib/authz";
 import { parseMoney } from "../lib/money";

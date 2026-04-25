@@ -18,6 +18,7 @@ import type {
   UpdateCategoryBody,
   UpdateSubcategoryBody,
 } from "@fin/schemas";
+
 import { api } from "./api";
 
 // ─── Auth ─────────────────────────────────────────────────────────────────

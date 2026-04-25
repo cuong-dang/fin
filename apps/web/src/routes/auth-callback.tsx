@@ -1,5 +1,7 @@
+import { Alert } from "@mantine/core";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
+
 import { getGroupId, getToken, setGroupId, setToken } from "@/lib/auth";
 import { me } from "@/lib/endpoints";
 
@@ -53,6 +55,6 @@ export function AuthCallbackRoute() {
       .catch((e: Error) => setError(e.message));
   }, [navigate]);
 
-  if (error) return <p className="p-4 text-red-600">Auth failed: {error}</p>;
+  if (error) return <Alert color="red">Auth failed: {error}</Alert>;
   return null;
 }

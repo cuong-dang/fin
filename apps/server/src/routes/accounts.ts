@@ -1,7 +1,8 @@
-import { schema } from "../db";
 import { createAccountBody, idParam, updateAccountBody } from "@fin/schemas";
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
+
+import { schema } from "../db";
 import { db } from "../db";
 import { findOwned } from "../lib/authz";
 import { parseMoney } from "../lib/money";

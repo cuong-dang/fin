@@ -32,10 +32,10 @@ export function NewNameForm({
     >
       <Group gap="xs">
         <TextInput
+          flex={1}
           maxLength={100}
           placeholder={placeholder}
           required
-          style={{ flex: 1 }}
           value={name}
           onChange={(e) => setName(e.target.value)}
         />

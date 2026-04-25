@@ -1,6 +1,7 @@
 import { type Me } from "@fin/schemas";
 import { eq } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
+
 import { db, schema } from "../db";
 import { env } from "../env";
 import { bootstrapSession } from "../lib/session";

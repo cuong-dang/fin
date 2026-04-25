@@ -1,4 +1,3 @@
-import { localDateKey } from "@/lib/dates";
 import type {
   Account,
   CategoryWithSubs,
@@ -21,6 +20,11 @@ import {
 import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
+
+import { MoneyField } from "@/components/money-field";
+import { SectionHeader } from "@/components/section-header";
+import { localDateKey } from "@/lib/dates";
+
 import { CategorySelector, CREATE_NEW } from "./category-selector";
 
 type TxType = "income" | "expense" | "transfer";
@@ -57,7 +61,6 @@ export function TransactionForm({
   accounts,
   categories,
   tags,
-  title,
   submitLabel,
   initialValues,
   onSubmit,
@@ -67,7 +70,6 @@ export function TransactionForm({
   accounts: Account[];
   categories: CategoryWithSubs[];
   tags: Tag[];
-  title: string;
   submitLabel: string;
   initialValues?: InitialTxValues;
   onSubmit: (body: TransactionBody) => void;
@@ -184,9 +186,6 @@ export function TransactionForm({
   if (accounts.length === 0) {
     return (
       <Stack>
-        <Text fw={700} size="xl">
-          {title}
-        </Text>
         <Text c="dimmed" size="sm">
           You need to create an account first.
         </Text>
@@ -205,6 +204,7 @@ export function TransactionForm({
         {type === "transfer" ? (
           <MoneyField
             label="Amount"
+            min={0}
             value={transferAmount}
             onChange={setTransferAmount}
           />
@@ -303,30 +303,6 @@ export function TransactionForm({
   );
 }
 
-function MoneyField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <TextInput
-      inputMode="decimal"
-      label={label}
-      min={0}
-      placeholder="0.00"
-      required
-      step="any"
-      type="number"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    />
-  );
-}
-
 function SingleLineEditor({
   line,
   categories,
@@ -342,6 +318,7 @@ function SingleLineEditor({
     <Stack>
       <MoneyField
         label="Amount"
+        min={0}
         value={line.amount}
         onChange={(v) => onUpdate({ amount: v })}
       />
@@ -392,9 +369,7 @@ function MultiLineEditor({
         <Card key={i} padding="sm" withBorder>
           <Stack gap={0}>
             <Group justify="space-between">
-              <Text c="dimmed" fw={700} size="xs" tt="uppercase">
-                Line {i + 1}
-              </Text>
+              <SectionHeader compact>Line {i + 1}</SectionHeader>
               <ActionIcon
                 aria-label={`Remove line ${i + 1}`}
                 color="red"
@@ -405,6 +380,7 @@ function MultiLineEditor({
             </Group>
             <MoneyField
               label="Amount"
+              min={0}
               value={line.amount}
               onChange={(v) => onUpdate(i, { amount: v })}
             />
@@ -437,9 +413,7 @@ function MultiLineEditor({
       </Button>
       <Card p="sm" withBorder>
         <Group justify="space-between">
-          <Text c="dimmed" fw={700} size="xs" tt="uppercase">
-            Total
-          </Text>
+          <SectionHeader compact>Total</SectionHeader>
           <Text ff="monospace" fw={500} size="sm">
             {total.toFixed(2)}
           </Text>

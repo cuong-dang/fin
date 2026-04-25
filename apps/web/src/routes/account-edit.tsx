@@ -2,20 +2,21 @@ import type { Account, AccountGroup } from "@fin/schemas";
 import {
   Alert,
   Button,
-  Container,
   Group,
   Stack,
   TextInput,
-  Title,
 } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
-import { BackLink } from "@/components/back-link";
+
+import { MoneyField } from "@/components/money-field";
+import { PageShell } from "@/components/page-shell";
 import { CREATE_NEW, GroupSelector } from "@/features/accounts/group-selector";
 import { localDateKey } from "@/lib/dates";
 import { getAccount, listAccountGroups, updateAccount } from "@/lib/endpoints";
 import { formatMoney, formatMoneyPlain } from "@/lib/money";
+
 import { NotFoundRoute } from "./not-found";
 
 export function AccountEditRoute() {
@@ -69,63 +70,56 @@ function Form({
   });
 
   return (
-    <Container>
-      <Stack>
-        <BackLink to="/accounts" />
-        <Title order={2}>Edit account</Title>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const creatingNewGroup = groupId === CREATE_NEW;
-            mutation.mutate({
-              name,
-              accountGroupId: creatingNewGroup ? undefined : groupId,
-              newGroupName: creatingNewGroup ? newGroupName : undefined,
-              newBalance: balance !== initialBalance ? balance : undefined,
-              adjustmentDate: localDateKey(new Date()),
-            });
-          }}
-        >
-          <Stack>
-            <TextInput
-              data-autofocus
-              label="Name"
-              maxLength={100}
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <TextInput disabled label="Currency" value={account.currency} />
-            <GroupSelector
-              groups={groups}
-              newGroupName={newGroupName}
-              value={groupId}
-              onNewGroupNameChange={setNewGroupName}
-              onValueChange={setGroupId}
-            />
-            <TextInput
-              description={`Current: ${formatMoney(BigInt(account.presentBalance), account.currency)}. Changing this records an adjustment transaction for the delta.`}
-              inputMode="decimal"
-              label="Balance"
-              step="any"
-              type="number"
-              value={balance}
-              onChange={(e) => setBalance(e.target.value)}
-            />
-            {mutation.error && (
-              <Alert color="red">{(mutation.error as Error).message}</Alert>
-            )}
-            <Group>
-              <Button loading={mutation.isPending} type="submit">
-                Save
-              </Button>
-              <Button component={Link} to="/accounts" variant="subtle">
-                Cancel
-              </Button>
-            </Group>
-          </Stack>
-        </form>
-      </Stack>
-    </Container>
+    <PageShell back="/accounts" title="Edit account">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          const creatingNewGroup = groupId === CREATE_NEW;
+          mutation.mutate({
+            name,
+            accountGroupId: creatingNewGroup ? undefined : groupId,
+            newGroupName: creatingNewGroup ? newGroupName : undefined,
+            newBalance: balance !== initialBalance ? balance : undefined,
+            adjustmentDate: localDateKey(new Date()),
+          });
+        }}
+      >
+        <Stack>
+          <TextInput
+            data-autofocus
+            label="Name"
+            maxLength={100}
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <TextInput disabled label="Currency" value={account.currency} />
+          <GroupSelector
+            groups={groups}
+            newGroupName={newGroupName}
+            value={groupId}
+            onNewGroupNameChange={setNewGroupName}
+            onValueChange={setGroupId}
+          />
+          <MoneyField
+            description={`Current: ${formatMoney(BigInt(account.presentBalance), account.currency)}. Changing this records an adjustment transaction for the delta.`}
+            label="Balance"
+            value={balance}
+            onChange={setBalance}
+          />
+          {mutation.error && (
+            <Alert color="red">{(mutation.error as Error).message}</Alert>
+          )}
+          <Group>
+            <Button loading={mutation.isPending} type="submit">
+              Save
+            </Button>
+            <Button component={Link} to="/accounts" variant="subtle">
+              Cancel
+            </Button>
+          </Group>
+        </Stack>
+      </form>
+    </PageShell>
   );
 }

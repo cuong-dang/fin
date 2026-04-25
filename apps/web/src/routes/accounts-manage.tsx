@@ -1,19 +1,12 @@
 import type { Account, AccountGroup } from "@fin/schemas";
-import {
-  ActionIcon,
-  Box,
-  Button,
-  Container,
-  Divider,
-  Group,
-  Stack,
-  Text,
-  Title,
-} from "@mantine/core";
+import { ActionIcon, Box, Button, Divider, Group, Stack, Text } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { Link } from "react-router";
-import { BackLink } from "@/components/back-link";
+
+import { DestructiveIconButton } from "@/components/destructive-icon-button";
+import { PageShell } from "@/components/page-shell";
+import { SectionHeader } from "@/components/section-header";
 import { groupBy } from "@/lib/collections";
 import {
   deleteAccount,
@@ -37,35 +30,31 @@ export function AccountsManageRoute() {
   const byGroup = groupBy(accounts, (a) => a.accountGroupId);
 
   return (
-    <Container>
-      <Stack>
-        <BackLink to="/" />
-        {/* Title + new account */}
-        <Group justify="space-between">
-          <Title order={2}>Manage accounts</Title>
-          <Button component={Link} size="sm" to="/accounts/new">
-            New account
-          </Button>
-        </Group>
-
-        {/* Account groups */}
-        {groups.length === 0 ? (
-          <Text c="dimmed" size="sm">
-            No accounts.
-          </Text>
-        ) : (
-          <Stack>
-            {groups.map((g) => (
-              <GroupSection
-                key={g.id}
-                accounts={byGroup.get(g.id) ?? []}
-                group={g}
-              />
-            ))}
-          </Stack>
-        )}
-      </Stack>
-    </Container>
+    <PageShell
+      back="/"
+      right={
+        <Button component={Link} to="/accounts/new">
+          New account
+        </Button>
+      }
+      title="Manage accounts"
+    >
+      {groups.length === 0 ? (
+        <Text c="dimmed" size="sm">
+          No accounts.
+        </Text>
+      ) : (
+        <Stack>
+          {groups.map((g) => (
+            <GroupSection
+              key={g.id}
+              accounts={byGroup.get(g.id) ?? []}
+              group={g}
+            />
+          ))}
+        </Stack>
+      )}
+    </PageShell>
   );
 }
 
@@ -84,11 +73,8 @@ function GroupSection({
   });
   return (
     <Box component="section">
-      {/* Name + edit/delete */}
       <Group justify="space-between">
-        <Text fw={700} size="sm" tt="uppercase">
-          {group.name}
-        </Text>
+        <SectionHeader>{group.name}</SectionHeader>
         <Group gap={0}>
           <ActionIcon
             aria-label={`Edit group ${group.name}`}
@@ -97,25 +83,16 @@ function GroupSection({
           >
             <Pencil size={14} />
           </ActionIcon>
-          <ActionIcon
-            aria-label={`Delete group ${group.name}`}
-            color="red"
-            onClick={() => {
-              if (
-                confirm(`Delete group "${group.name}"? This cannot be undone.`)
-              ) {
-                del.mutate();
-              }
-            }}
-          >
-            <Trash2 size={14} />
-          </ActionIcon>
+          <DestructiveIconButton
+            confirmMessage={`Delete group "${group.name}"? This cannot be undone.`}
+            label={`Delete group ${group.name}`}
+            onConfirm={() => del.mutate()}
+          />
         </Group>
       </Group>
 
       <Divider />
 
-      {/* Accounts */}
       {accounts.length === 0 ? (
         <Text c="dimmed" py="sm" size="sm">
           No accounts.
@@ -123,7 +100,7 @@ function GroupSection({
       ) : (
         <Stack py="sm">
           {accounts.map((a) => (
-            <AccountRowItem account={a} />
+            <AccountRowItem key={a.id} account={a} />
           ))}
         </Stack>
       )}
@@ -157,21 +134,11 @@ function AccountRowItem({ account }: { account: Account }) {
         >
           <Pencil size={14} />
         </ActionIcon>
-        <ActionIcon
-          aria-label={`Delete account ${account.name}`}
-          color="red"
-          onClick={() => {
-            if (
-              confirm(
-                `Delete account "${account.name}"? This cannot be undone.`,
-              )
-            ) {
-              del.mutate();
-            }
-          }}
-        >
-          <Trash2 size={14} />
-        </ActionIcon>
+        <DestructiveIconButton
+          confirmMessage={`Delete account "${account.name}"? This cannot be undone.`}
+          label={`Delete account ${account.name}`}
+          onConfirm={() => del.mutate()}
+        />
       </Group>
     </Group>
   );

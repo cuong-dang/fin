@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+
 import { db, schema } from "../db";
 
 type BootstrappedUser = {

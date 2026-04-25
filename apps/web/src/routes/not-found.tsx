@@ -5,7 +5,7 @@ export function NotFoundRoute() {
   const { pathname } = useLocation();
   return (
     <Stack align="center" h="100%" justify="center">
-      <Title>Not found</Title>
+      <Title order={2}>Not found</Title>
       <Text>
         <Code>{pathname}</Code> doesn't match any route.
       </Text>

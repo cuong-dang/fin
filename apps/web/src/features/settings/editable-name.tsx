@@ -1,7 +1,9 @@
 import { ActionIcon, Button, Group, Text, TextInput } from "@mantine/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { useState } from "react";
+
+import { DestructiveIconButton } from "@/components/destructive-icon-button";
 
 /** Inline-editable name cell with delete. Controlled via callbacks. */
 export function EditableName({
@@ -49,9 +51,9 @@ export function EditableName({
         <Group gap="xs">
           <TextInput
             data-autofocus
+            flex={1}
             maxLength={100}
             required
-            style={{ flex: 1 }}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
           />
@@ -84,15 +86,11 @@ export function EditableName({
         >
           <Pencil size={14} />
         </ActionIcon>
-        <ActionIcon
-          aria-label={`Delete ${label}`}
-          color="red"
-          onClick={() => {
-            if (confirm(confirmDeleteMessage)) del.mutate();
-          }}
-        >
-          <Trash2 size={14} />
-        </ActionIcon>
+        <DestructiveIconButton
+          confirmMessage={confirmDeleteMessage}
+          label={`Delete ${label}`}
+          onConfirm={() => del.mutate()}
+        />
       </Group>
     </Group>
   );

@@ -12,9 +12,12 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Settings, SlidersHorizontal } from "lucide-react";
 import { Link, useSearchParams } from "react-router";
+
+import { SectionHeader } from "@/components/section-header";
 import { groupBy } from "@/lib/collections";
 import { listAccountGroups, listAccounts, me } from "@/lib/endpoints";
 import { formatMoney } from "@/lib/money";
+
 import { SignOutButton } from "./sign-out-button";
 
 export function AccountsSidebar() {
@@ -39,10 +42,18 @@ export function AccountsSidebar() {
           fin
         </Anchor>
         <Group gap={0}>
-          <ActionIcon component={Link} to="/accounts">
+          <ActionIcon
+            aria-label="Manage accounts"
+            component={Link}
+            to="/accounts"
+          >
             <Settings size={14} />
           </ActionIcon>
-          <ActionIcon component={Link} to="/accounts/new">
+          <ActionIcon
+            aria-label="New account"
+            component={Link}
+            to="/accounts/new"
+          >
             <Plus size={14} />
           </ActionIcon>
         </Group>
@@ -119,9 +130,7 @@ function GroupSection({
   return (
     <Stack gap={0} py="sm">
       <Group justify="space-between" px="sm">
-        <Text c="dimmed" fw={700} size="sm" tt="uppercase">
-          {group.name}
-        </Text>
+        <SectionHeader>{group.name}</SectionHeader>
         {subtotal && (
           <Text c="dimmed" ff="monospace" size="sm">
             {formatMoney(subtotal.amount, subtotal.currency)}

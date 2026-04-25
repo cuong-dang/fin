@@ -1,10 +1,11 @@
-import { AccountsSidebar } from "@/features/accounts/accounts-sidebar";
-import { TransactionsList } from "@/features/transactions/transactions-list";
-import { listAccounts } from "@/lib/endpoints";
 import { ActionIcon, AppShell, Button, Group, Title } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { Link, useSearchParams } from "react-router";
+
+import { AccountsSidebar } from "@/features/accounts/accounts-sidebar";
+import { TransactionsList } from "@/features/transactions/transactions-list";
+import { listAccounts } from "@/lib/endpoints";
 
 export function HomeRoute() {
   const [params] = useSearchParams();

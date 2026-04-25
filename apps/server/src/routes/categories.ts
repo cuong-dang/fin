@@ -1,4 +1,3 @@
-import { schema } from "../db";
 import {
   type CategoryWithSubs,
   createCategoryBody,
@@ -9,6 +8,8 @@ import {
 } from "@fin/schemas";
 import { eq, inArray, or, sql } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
+
+import { schema } from "../db";
 import { db } from "../db";
 import { findOwned } from "../lib/authz";
 import { groupBy } from "../lib/collections";

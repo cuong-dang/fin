@@ -1,4 +1,9 @@
-import { BackLink } from "@/components/back-link";
+import type { CategoryKind, CategoryWithSubs } from "@fin/schemas";
+import { Box, Card, Stack, Text } from "@mantine/core";
+import { useQuery } from "@tanstack/react-query";
+
+import { PageShell } from "@/components/page-shell";
+import { SectionHeader } from "@/components/section-header";
 import { EditableName } from "@/features/settings/editable-name";
 import { NewNameForm } from "@/features/settings/new-name-form";
 import {
@@ -10,9 +15,6 @@ import {
   updateCategory,
   updateSubcategory,
 } from "@/lib/endpoints";
-import type { CategoryKind, CategoryWithSubs } from "@fin/schemas";
-import { Box, Card, Container, Stack, Text, Title } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
 
 const CATEGORIES_KEY = ["categories"];
 
@@ -23,20 +25,14 @@ export function SettingsCategoriesRoute() {
   const expense = cats.filter((c) => c.kind === "expense");
 
   return (
-    <Container>
-      <Stack>
-        <BackLink to="/settings" />
-        <Box>
-          <Title order={2}>Categories</Title>
-          <Text c="dimmed" size="sm">
-            Income and expense categories organize your transactions. Each
-            category can have subcategories for finer grouping.
-          </Text>
-        </Box>
-        <KindSection categories={income} kind="income" title="Income" />
-        <KindSection categories={expense} kind="expense" title="Expense" />
-      </Stack>
-    </Container>
+    <PageShell
+      back="/settings"
+      subtitle="Income and expense categories organize your transactions. Each category can have subcategories for finer grouping."
+      title="Categories"
+    >
+      <KindSection categories={income} kind="income" title="Income" />
+      <KindSection categories={expense} kind="expense" title="Expense" />
+    </PageShell>
   );
 }
 
@@ -51,9 +47,7 @@ function KindSection({
 }) {
   return (
     <Stack gap="sm">
-      <Text fw={700} size="sm" tt="uppercase">
-        {title}
-      </Text>
+      <SectionHeader>{title}</SectionHeader>
       <NewNameForm
         invalidate={[CATEGORIES_KEY]}
         placeholder={`New ${kind} category`}

@@ -1,5 +1,6 @@
 import Fastify, { type FastifyError } from "fastify";
 import { ZodError } from "zod";
+
 import { env } from "./env";
 import { authPlugin } from "./plugins/auth";
 import { accountGroupRoutes } from "./routes/account-groups";

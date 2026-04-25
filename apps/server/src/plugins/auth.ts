@@ -3,6 +3,7 @@ import fastifyOauth2, { type OAuth2Namespace } from "@fastify/oauth2";
 import { and, eq } from "drizzle-orm";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
+
 import { db, schema } from "../db";
 import { env } from "../env";
 

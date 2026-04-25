@@ -1,11 +1,3 @@
-import { groupBy } from "@/lib/collections";
-import { formatDayHeader, localDateKey } from "@/lib/dates";
-import {
-  listTransactions,
-  processTransaction,
-  reorderTransactions,
-} from "@/lib/endpoints";
-import { formatMoney } from "@/lib/money";
 import {
   DndContext,
   type DragEndEvent,
@@ -38,6 +30,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronDown, ChevronRight, GripVertical } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
+
+import { SectionHeader } from "@/components/section-header";
+import { groupBy } from "@/lib/collections";
+import { formatDayHeader, localDateKey } from "@/lib/dates";
+import {
+  listTransactions,
+  processTransaction,
+  reorderTransactions,
+} from "@/lib/endpoints";
+import { formatMoney } from "@/lib/money";
 
 export function TransactionsList({
   accountId,
@@ -195,9 +197,9 @@ function Section({
 }) {
   return (
     <>
-      <Text c="dimmed" fw={700} p="xs" size="xs" tt="uppercase">
-        {title}
-      </Text>
+      <Box p="xs">
+        <SectionHeader compact>{title}</SectionHeader>
+      </Box>
       <Divider />
       {children}
     </>
@@ -287,7 +289,7 @@ function SortableRow({
             c="dimmed"
             onClick={() => setExpanded((v) => !v)}
           >
-            {expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+            {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           </UnstyledButton>
         )}
         {/* TX row */}

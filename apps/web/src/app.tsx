@@ -1,4 +1,5 @@
 import { Route, Routes } from "react-router";
+
 import { AccountEditRoute } from "./routes/account-edit";
 import { AccountGroupEditRoute } from "./routes/account-group-edit";
 import { AccountNewRoute } from "./routes/account-new";
@@ -7,8 +8,8 @@ import { AuthCallbackRoute } from "./routes/auth-callback";
 import { HomeRoute } from "./routes/home";
 import { NotFoundRoute } from "./routes/not-found";
 import { RequireAuth } from "./routes/require-auth";
-import { SettingsCategoriesRoute } from "./routes/settings-categories";
 import { SettingsRoute } from "./routes/settings";
+import { SettingsCategoriesRoute } from "./routes/settings-categories";
 import { SignInRoute } from "./routes/signin";
 import { TransactionEditRoute } from "./routes/transaction-edit";
 import { TransactionNewRoute } from "./routes/transaction-new";

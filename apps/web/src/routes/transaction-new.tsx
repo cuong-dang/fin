@@ -1,4 +1,7 @@
-import { BackLink } from "@/components/back-link";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router";
+
+import { PageShell } from "@/components/page-shell";
 import { TransactionForm } from "@/features/transactions/transaction-form";
 import {
   createTransaction,
@@ -6,15 +9,10 @@ import {
   listCategories,
   listTags,
 } from "@/lib/endpoints";
-import { Container, Stack, Title } from "@mantine/core";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { useNavigate } from "react-router";
 
 export function TransactionNewRoute() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
 
   const accountsQ = useQuery({
     queryKey: ["accounts"],
@@ -34,7 +32,6 @@ export function TransactionNewRoute() {
       qc.invalidateQueries({ queryKey: ["categories"] });
       navigate("/");
     },
-    onError: (e) => setError((e as Error).message),
   });
 
   if (accountsQ.isLoading || categoriesQ.isLoading || tagsQ.isLoading) {
@@ -42,24 +39,16 @@ export function TransactionNewRoute() {
   }
 
   return (
-    <Container>
-      <Stack>
-        <BackLink to="/" />
-        <Title order={2}>New transaction</Title>
-        <TransactionForm
-          accounts={accountsQ.data ?? []}
-          categories={categoriesQ.data ?? []}
-          error={error}
-          pending={mutation.isPending}
-          submitLabel="Add"
-          tags={tagsQ.data ?? []}
-          title="New transaction"
-          onSubmit={(body) => {
-            setError(null);
-            mutation.mutate(body);
-          }}
-        />
-      </Stack>
-    </Container>
+    <PageShell back="/" title="New transaction">
+      <TransactionForm
+        accounts={accountsQ.data ?? []}
+        categories={categoriesQ.data ?? []}
+        error={mutation.error ? (mutation.error as Error).message : null}
+        pending={mutation.isPending}
+        submitLabel="Add"
+        tags={tagsQ.data ?? []}
+        onSubmit={(body) => mutation.mutate(body)}
+      />
+    </PageShell>
   );
 }
