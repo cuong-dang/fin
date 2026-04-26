@@ -66,7 +66,12 @@ export function TagsField({
                 setSearch("");
               }}
             >
-              <Badge color="gray" style={{ cursor: "pointer" }} tt="none" variant="light">
+              <Badge
+                color="gray"
+                style={{ cursor: "pointer" }}
+                tt="none"
+                variant="light"
+              >
                 #{t}
               </Badge>
             </UnstyledButton>

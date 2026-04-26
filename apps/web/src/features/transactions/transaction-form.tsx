@@ -43,10 +43,10 @@ const PAYMENT_KIND_OPTIONS: {
   label: string;
   disabled?: boolean;
 }[] = [
-    { value: "subscription", label: "Subscription" },
-    { value: "loan", label: "Loan", disabled: true },
-    { value: "creditCard", label: "Credit card", disabled: true },
-  ];
+  { value: "subscription", label: "Subscription" },
+  { value: "loan", label: "Loan", disabled: true },
+  { value: "creditCard", label: "Credit card", disabled: true },
+];
 
 type LineFormValues = CategoryLineFormValues;
 
