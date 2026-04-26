@@ -150,7 +150,7 @@ export function TransactionsList({
 
   if (pending.length === 0 && localByDay.size === 0) {
     return (
-      <Text c="dimmed" p="sm" size="sm" ta="center">
+      <Text c="dimmed" size="sm" ta="center">
         No transactions yet.
       </Text>
     );
@@ -191,9 +191,7 @@ export function TransactionsList({
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <>
-      <Box p="xs">
-        <SectionHeader compact>{title}</SectionHeader>
-      </Box>
+      <SectionHeader compact>{title}</SectionHeader>
       <Divider />
       {children}
     </>
@@ -217,7 +215,7 @@ function PendingRow({
   });
   return (
     <>
-      <Group p="sm">
+      <Group>
         <ActionIcon onClick={() => mark.mutate(localDateKey(new Date()))}>
           <Check size={14} />
         </ActionIcon>
@@ -235,7 +233,6 @@ function PendingRow({
           />
         </Anchor>
       </Group>
-      <Divider />
     </>
   );
 }
@@ -266,7 +263,7 @@ function SortableRow({
         opacity: isDragging ? 0.5 : 1,
       }}
     >
-      <Group align="flex-start" p="sm">
+      <Group align="flex-start">
         {/* DnD / Expand */}
         <UnstyledButton
           c="dimmed"
@@ -300,7 +297,7 @@ function SortableRow({
             tx={tx}
           />
           {isMultiLine && expanded && (
-            <Stack gap={0}>
+            <Stack>
               {tx.lines.map((line, i) => (
                 <Group key={i} justify="space-between">
                   <Text c="dimmed" size="xs">
@@ -317,7 +314,6 @@ function SortableRow({
           )}
         </Anchor>
       </Group>
-      <Divider />
     </Box>
   );
 }
@@ -345,7 +341,7 @@ function RowBody({
           {metaParts.join(" · ")}
         </Text>
       </Box>
-      <Stack align="flex-end" gap={0}>
+      <Stack>
         <Text c={amountColor(tx, amount)} ff="monospace" fw={500} size="sm">
           {formatMoney(amount, currency)}
         </Text>

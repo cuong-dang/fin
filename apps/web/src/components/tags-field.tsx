@@ -33,7 +33,7 @@ export function TagsField({
 
   return (
     <Stack
-      gap="xs"
+      gap={0}
       onBlur={(e) => {
         // Keep focused while focus moves to a child (e.g., a suggestion pill).
         if (!e.currentTarget.contains(e.relatedTarget as Node)) {
@@ -56,7 +56,7 @@ export function TagsField({
         onSearchChange={setSearch}
       />
       {focused && suggestions.length > 0 && (
-        <Group gap="xs">
+        <Group>
           {suggestions.map((t) => (
             <UnstyledButton
               key={t}
@@ -67,7 +67,7 @@ export function TagsField({
               }}
             >
               <Badge
-                color="gray"
+                color="black"
                 style={{ cursor: "pointer" }}
                 tt="none"
                 variant="light"

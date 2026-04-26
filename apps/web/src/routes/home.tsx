@@ -18,7 +18,7 @@ export function HomeRoute() {
   return (
     <AppShell header={{ height: 50 }} navbar={{ width: 400, breakpoint: 100 }}>
       <AppShell.Header>
-        <Group h="100%" justify="space-between" px="sm">
+        <Group h="100%" justify="space-between">
           <Group>
             <Title order={4}>{accountName ?? "All transactions"}</Title>
             {accountName && (

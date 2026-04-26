@@ -1,4 +1,4 @@
-import { Box, Container, Group, Stack, Text, Title } from "@mantine/core";
+import { Container, Group, Stack, Text, Title } from "@mantine/core";
 import type { ReactNode } from "react";
 
 import { BackLink } from "./back-link";
@@ -25,7 +25,7 @@ export function PageShell({
     <Container>
       <Stack>
         <BackLink to={back} />
-        <Box>
+        <Stack>
           <Group justify="space-between">
             <Title order={2}>{title}</Title>
             {right}
@@ -35,7 +35,7 @@ export function PageShell({
               {subtitle}
             </Text>
           )}
-        </Box>
+        </Stack>
         {children}
       </Stack>
     </Container>

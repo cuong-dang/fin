@@ -35,7 +35,7 @@ export function SettingsSubscriptionsRoute() {
       ) : (
         <Stack>
           {active.length > 0 && (
-            <Stack gap="xs">
+            <Stack>
               <SectionHeader>Active</SectionHeader>
               {active.map((s) => (
                 <Row key={s.id} sub={s} />
@@ -43,7 +43,7 @@ export function SettingsSubscriptionsRoute() {
             </Stack>
           )}
           {cancelled.length > 0 && (
-            <Stack gap="xs">
+            <Stack>
               <SectionHeader>Cancelled</SectionHeader>
               {cancelled.map((s) => (
                 <Row key={s.id} sub={s} />
@@ -70,7 +70,7 @@ function Row({ sub }: { sub: Subscription }) {
           <Text fw={500} size="sm">
             {sub.name}
           </Text>
-          <Badge color="gray" variant="light">
+          <Badge color="black" variant="light">
             {sub.frequency}
           </Badge>
         </Group>

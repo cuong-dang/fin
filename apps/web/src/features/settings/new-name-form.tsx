@@ -30,7 +30,7 @@ export function NewNameForm({
         m.mutate(trimmed);
       }}
     >
-      <Group gap="xs">
+      <Group>
         <TextInput
           flex={1}
           maxLength={100}

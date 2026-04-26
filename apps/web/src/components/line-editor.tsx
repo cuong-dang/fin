@@ -93,10 +93,10 @@ export function MultiLineEditor({
     return Number.isFinite(n) ? s + n : s;
   }, 0);
   return (
-    <Stack gap="xs">
+    <Stack>
       {lines.map((line, i) => (
         <Card key={i} padding="sm" withBorder>
-          <Stack gap={0}>
+          <Stack>
             <Group justify="space-between">
               <SectionHeader compact>Line {i + 1}</SectionHeader>
               <ActionIcon
@@ -146,7 +146,7 @@ export function MultiLineEditor({
       >
         Add line
       </Button>
-      <Card p="sm" withBorder>
+      <Card withBorder>
         <Group justify="space-between">
           <SectionHeader compact>Total</SectionHeader>
           <Text ff="monospace" fw={500} size="sm">

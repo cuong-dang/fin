@@ -102,7 +102,7 @@ function Form({
       title="Edit subscription"
     >
       {cancelled && (
-        <Alert color="gray">
+        <Alert color="black">
           This subscription has been cancelled. Past transactions still
           reference it; editing here updates future projections only.
         </Alert>
@@ -154,7 +154,7 @@ function DangerZone({
   return (
     <Box mt="xl">
       <Divider mb="xs" />
-      <Stack gap="xs">
+      <Stack>
         <Text fw={700} size="sm">
           Danger zone
         </Text>

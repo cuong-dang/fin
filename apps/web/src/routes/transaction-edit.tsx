@@ -238,7 +238,7 @@ function DangerZone({ onDelete }: { onDelete: () => void }) {
   return (
     <Box mt="xl">
       <Divider mb="xs" />
-      <Stack gap="xs">
+      <Stack>
         <Text fw={700} size="sm">
           Danger zone
         </Text>

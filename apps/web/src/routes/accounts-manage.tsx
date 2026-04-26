@@ -83,7 +83,7 @@ function GroupSection({
     <Box component="section">
       <Group justify="space-between">
         <SectionHeader>{group.name}</SectionHeader>
-        <Group gap={0}>
+        <Group>
           <ActionIcon
             aria-label={`Edit group ${group.name}`}
             component={Link}
@@ -102,11 +102,11 @@ function GroupSection({
       <Divider />
 
       {accounts.length === 0 ? (
-        <Text c="dimmed" py="sm" size="sm">
+        <Text c="dimmed" size="sm">
           No accounts yet.
         </Text>
       ) : (
-        <Stack py="sm">
+        <Stack>
           {accounts.map((a) => (
             <AccountRowItem key={a.id} account={a} />
           ))}
@@ -134,7 +134,7 @@ function AccountRowItem({ account }: { account: Account }) {
           {account.currency}
         </Text>
       </Text>
-      <Group gap={0}>
+      <Group>
         <ActionIcon
           aria-label={`Edit account ${account.name}`}
           component={Link}

@@ -48,7 +48,7 @@ export function EditableName({
           update.mutate(draft);
         }}
       >
-        <Group gap="xs">
+        <Group>
           <TextInput
             data-autofocus
             flex={1}
@@ -77,9 +77,9 @@ export function EditableName({
   }
 
   return (
-    <Group gap="xs" justify="space-between">
+    <Group justify="space-between">
       <Text>{name}</Text>
-      <Group gap={0}>
+      <Group>
         <ActionIcon
           aria-label={`Edit ${label}`}
           onClick={() => setEditing(true)}

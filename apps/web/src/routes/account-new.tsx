@@ -1,8 +1,10 @@
+import type { Account, AccountType } from "@fin/schemas";
 import {
   Alert,
   Button,
   Group,
   NativeSelect,
+  SegmentedControl,
   Stack,
   TextInput,
 } from "@mantine/core";
@@ -15,7 +17,11 @@ import { PageShell } from "@/components/page-shell";
 import { CREATE_NEW, GroupSelector } from "@/features/accounts/group-selector";
 import { COMMON_CURRENCIES } from "@/lib/currencies";
 import { localDateKey } from "@/lib/dates";
-import { createAccount, listAccountGroups } from "@/lib/endpoints";
+import {
+  createAccount,
+  listAccountGroups,
+  listAccounts,
+} from "@/lib/endpoints";
 
 export function AccountNewRoute() {
   const navigate = useNavigate();
@@ -24,12 +30,16 @@ export function AccountNewRoute() {
     queryKey: ["account-groups"],
     queryFn: listAccountGroups,
   });
+  const accountsQ = useQuery({ queryKey: ["accounts"], queryFn: listAccounts });
 
+  const [type, setType] = useState<AccountType>("checking_savings");
   const [name, setName] = useState("");
   const [currency, setCurrency] = useState("USD");
   const [groupId, setGroupId] = useState("");
   const [newGroupName, setNewGroupName] = useState("");
   const [startingBalance, setStartingBalance] = useState("");
+  const [creditLimit, setCreditLimit] = useState("");
+  const [defaultPayFromAccountId, setDefaultPayFromAccountId] = useState("");
 
   const mutation = useMutation({
     mutationFn: createAccount,
@@ -41,6 +51,10 @@ export function AccountNewRoute() {
   });
 
   const groups = groupsQ.data ?? [];
+  const accounts = accountsQ.data ?? [];
+  const checkingAccounts = accounts.filter(
+    (a: Account) => a.type === "checking_savings",
+  );
   const hasGroups = groups.length > 0;
 
   return (
@@ -49,22 +63,42 @@ export function AccountNewRoute() {
         onSubmit={(e) => {
           e.preventDefault();
           const creatingNewGroup = !hasGroups || groupId === CREATE_NEW;
-          mutation.mutate({
+          const common = {
             name,
             currency,
             accountGroupId: creatingNewGroup ? undefined : groupId,
             newGroupName: creatingNewGroup ? newGroupName : undefined,
             startingBalance: startingBalance ? startingBalance : "0",
             adjustmentDate: localDateKey(new Date()),
-          });
+          };
+          if (type === "credit_card") {
+            mutation.mutate({
+              type: "credit_card",
+              ...common,
+              creditLimit,
+              defaultPayFromAccountId: defaultPayFromAccountId || undefined,
+            });
+          } else {
+            mutation.mutate({ type: "checking_savings", ...common });
+          }
         }}
       >
         <Stack>
+          <SegmentedControl
+            data={[
+              { value: "checking_savings", label: "Checking / savings" },
+              { value: "credit_card", label: "Credit card" },
+            ]}
+            value={type}
+            onChange={(v) => setType(v as AccountType)}
+          />
           <TextInput
             data-autofocus
             label="Name"
             maxLength={100}
-            placeholder="Chase Checking"
+            placeholder={
+              type === "credit_card" ? "Chase Sapphire" : "Chase Checking"
+            }
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -93,7 +127,35 @@ export function AccountNewRoute() {
               onChange={(e) => setNewGroupName(e.target.value)}
             />
           )}
+          {type === "credit_card" && (
+            <>
+              <MoneyField
+                label="Credit limit"
+                min={0}
+                value={creditLimit}
+                onChange={setCreditLimit}
+              />
+              <NativeSelect
+                data={[
+                  { value: "", label: "— No default —" },
+                  ...checkingAccounts.map((a) => ({
+                    value: a.id,
+                    label: `${a.name} (${a.currency})`,
+                  })),
+                ]}
+                description="Pre-fills the source account when paying this card."
+                label="Default pay-from account (optional)"
+                value={defaultPayFromAccountId}
+                onChange={(e) => setDefaultPayFromAccountId(e.target.value)}
+              />
+            </>
+          )}
           <MoneyField
+            description={
+              type === "credit_card"
+                ? "Outstanding balance you currently owe (enter as a negative number)."
+                : undefined
+            }
             label="Starting balance (optional)"
             required={false}
             value={startingBalance}

@@ -54,7 +54,7 @@ function KindSection({
   categories: CategoryWithSubs[];
 }) {
   return (
-    <Stack gap="sm">
+    <Stack>
       <SectionHeader>{title}</SectionHeader>
       <NewNameForm
         invalidate={[CATEGORIES_KEY]}
@@ -79,7 +79,7 @@ function KindSection({
 function CategorySection({ category }: { category: CategoryWithSubs }) {
   return (
     <Card padding="sm" withBorder>
-      <Stack gap="xs">
+      <Stack>
         <EditableName
           confirmDeleteMessage={`Delete "${category.name}"? Its subcategories will be removed too. This cannot be undone.`}
           invalidate={[CATEGORIES_KEY]}
@@ -88,7 +88,7 @@ function CategorySection({ category }: { category: CategoryWithSubs }) {
           onDelete={() => deleteCategory(category.id)}
           onUpdate={(name) => updateCategory(category.id, { name })}
         />
-        <Stack gap={0} pl="md">
+        <Stack pl="md">
           {category.subcategories.map((s) => (
             <EditableName
               key={s.id}
@@ -115,7 +115,7 @@ function CategorySection({ category }: { category: CategoryWithSubs }) {
 
 function TagsSection({ tags }: { tags: Tag[] }) {
   return (
-    <Stack gap="sm">
+    <Stack>
       <SectionHeader>Tags</SectionHeader>
       <NewNameForm
         invalidate={[TAGS_KEY]}
@@ -128,7 +128,7 @@ function TagsSection({ tags }: { tags: Tag[] }) {
         </Text>
       ) : (
         <Card padding="sm" withBorder>
-          <Stack gap="xs">
+          <Stack>
             {tags.map((t) => (
               <EditableName
                 key={t.id}

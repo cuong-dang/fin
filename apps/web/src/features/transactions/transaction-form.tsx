@@ -158,8 +158,19 @@ export function TransactionForm({
     categoryKindForType === null
       ? []
       : categories.filter((c) => c.kind === categoryKindForType);
-  const sourceAccounts = accounts.filter((a) => a.id !== destinationAccountId);
-  const destinationAccounts = accounts.filter((a) => a.id !== accountId);
+  // Transfers move money between checking/savings accounts only. Other
+  // tabs (expense/income) accept all account types — a CC charge is an
+  // expense from the CC, a refund/credit is income to it.
+  const transferAccountPool =
+    type === "transfer"
+      ? accounts.filter((a) => a.type === "checking_savings")
+      : accounts;
+  const sourceAccounts = transferAccountPool.filter(
+    (a) => a.id !== destinationAccountId,
+  );
+  const destinationAccounts = transferAccountPool.filter(
+    (a) => a.id !== accountId,
+  );
   const allTagNames = tags.map((t) => t.name);
 
   function handleTypeChange(newType: TxType) {
@@ -275,7 +286,7 @@ export function TransactionForm({
         <TypeTabs value={type} onChange={handleTypeChange} />
 
         {type === "payment" && (
-          <Stack gap="sm">
+          <Stack>
             <SegmentedControl
               data={PAYMENT_KIND_OPTIONS}
               value={paymentKind}
@@ -413,7 +424,7 @@ function PaymentSubscriptionPicker({
     return (
       <Stack>
         <Text c="dimmed" size="sm">
-          You don't have any subscriptions yet.
+          No subscriptions yet.
         </Text>
         <Button
           component={Link}
