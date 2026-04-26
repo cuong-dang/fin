@@ -9,19 +9,22 @@ import { upsertTags } from "./tags-upsert";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+type SourceAccount = { currency: string; type: string };
+
 /**
  * Insert legs + lines for a transaction. Caller is responsible for having
  * already created (or wiped + re-created) the `transactions` row with the
  * given id. Income/expense supports multi-line splits: leg amount is the
  * sum of line amounts; each line resolves/creates its own category and
  * subcategory inline and links any provided tags via the junction.
- * Transfers validate destination + currency match.
+ * Transfers validate destination + currency match and reject credit-card
+ * accounts on either side — CC payments will land in the Payment tab.
  */
 export async function insertLegsAndLines(
   tx: Tx,
   transactionId: string,
   parsed: TransactionBody,
-  sourceAccount: { currency: string },
+  sourceAccount: SourceAccount,
   workspaceGroupId: string,
 ): Promise<void> {
   if (parsed.type === "income" || parsed.type === "expense") {
@@ -75,12 +78,18 @@ export async function insertLegsAndLines(
   if (parsed.accountId === parsed.destinationAccountId) {
     throw new Error("Source and destination accounts must differ");
   }
+  if (sourceAccount.type !== "checking_savings") {
+    throw new Error("Transfers are only between checking/savings accounts");
+  }
   const destAccount = await findOwned(
     schema.accounts,
     parsed.destinationAccountId,
     workspaceGroupId,
   );
   if (!destAccount) throw new Error("Destination account not found");
+  if (destAccount.type !== "checking_savings") {
+    throw new Error("Transfers are only between checking/savings accounts");
+  }
   if (destAccount.currency !== sourceAccount.currency) {
     throw new Error(
       "FX transfers not yet supported — accounts must share a currency",

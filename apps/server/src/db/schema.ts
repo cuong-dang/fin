@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   bigint,
   char,
   check,
@@ -50,6 +51,14 @@ export const recurringPlanRoleEnum = pgEnum("recurring_plan_role", [
 ]);
 
 export const categoryKindEnum = pgEnum("category_kind", ["income", "expense"]);
+
+// `loan` is reserved — only `checking_savings` and `credit_card` are wired
+// today. Loan accounts will pair 1:1 with a recurring_plan when added.
+export const accountTypeEnum = pgEnum("account_type", [
+  "checking_savings",
+  "credit_card",
+  "loan",
+]);
 
 // ─── Users & Groups ────────────────────────────────────────────────────────
 
@@ -136,6 +145,18 @@ export const accounts = pgTable(
       .references(() => accountGroups.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
     currency: char("currency", { length: 3 }).notNull(),
+    type: accountTypeEnum("type").notNull().default("checking_savings"),
+    // Credit limit in `currency` minor units. Set iff `type='credit_card'`.
+    // Limit-remaining = creditLimit + Σ legs.amount on this account
+    // (charges are negative legs, payments are positive transfer-in legs).
+    creditLimit: bigint("credit_limit", { mode: "bigint" }),
+    // Optional default source account for paying this CC. Must point to a
+    // checking_savings account in the same group; enforced at the route.
+    // RESTRICT to match the convention for FKs to soft-deletable parents.
+    defaultPayFromAccountId: uuid("default_pay_from_account_id").references(
+      (): AnyPgColumn => accounts.id,
+      { onDelete: "restrict" },
+    ),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

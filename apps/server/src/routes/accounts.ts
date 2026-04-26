@@ -1,6 +1,12 @@
-import { createAccountBody, idParam, updateAccountBody } from "@fin/schemas";
+import {
+  type CreateAccountBody,
+  createAccountBody,
+  idParam,
+  type UpdateAccountBody,
+  updateAccountBody,
+} from "@fin/schemas";
 import { and, eq, isNotNull, sql } from "drizzle-orm";
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyReply } from "fastify";
 
 import { schema } from "../db";
 import { db } from "../db";
@@ -24,6 +30,11 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
         accountGroupId: schema.accounts.accountGroupId,
         name: schema.accounts.name,
         currency: schema.accounts.currency,
+        type: schema.accounts.type,
+        creditLimit: sql<
+          string | null
+        >`${schema.accounts.creditLimit}::text`.as("credit_limit"),
+        defaultPayFromAccountId: schema.accounts.defaultPayFromAccountId,
         presentBalance: presentBalanceSql.as("present_balance"),
         availableBalance: availableBalanceSql.as("available_balance"),
       })
@@ -52,6 +63,11 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
         accountGroupId: schema.accounts.accountGroupId,
         name: schema.accounts.name,
         currency: schema.accounts.currency,
+        type: schema.accounts.type,
+        creditLimit: sql<
+          string | null
+        >`${schema.accounts.creditLimit}::text`.as("credit_limit"),
+        defaultPayFromAccountId: schema.accounts.defaultPayFromAccountId,
         presentBalance: presentBalanceSql.as("present_balance"),
         availableBalance: availableBalanceSql.as("available_balance"),
       })
@@ -71,10 +87,10 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
 
   app.post("/", async (req, reply) => {
     const body = createAccountBody.parse(req.body);
-    if (!body.accountGroupId && !body.newGroupName) {
-      return reply
-        .code(400)
-        .send({ error: "Select an existing group or name a new one" });
+    if (Boolean(body.accountGroupId) === Boolean(body.newGroupName)) {
+      return reply.code(400).send({
+        error: "Provide exactly one of an existing group or a new group name",
+      });
     }
 
     // Parse starting balance up front so a bad value aborts before any write.
@@ -87,6 +103,14 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
           "adjustmentDate is required when a non-zero startingBalance is set",
       });
     }
+
+    const ccFields = await resolveCcFields(
+      body,
+      body.currency,
+      req.auth.groupId,
+      reply,
+    );
+    if (ccFields === null) return;
 
     const result = await db.transaction(async (tx) => {
       let accountGroupId = body.accountGroupId;
@@ -105,12 +129,16 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
           accountGroupId: accountGroupId!,
           name: body.name,
           currency: body.currency,
+          type: body.type,
+          creditLimit: ccFields.creditLimit,
+          defaultPayFromAccountId: ccFields.defaultPayFromAccountId,
         })
         .returning({
           id: schema.accounts.id,
           accountGroupId: schema.accounts.accountGroupId,
           name: schema.accounts.name,
           currency: schema.accounts.currency,
+          type: schema.accounts.type,
         });
 
       if (startingMinor !== 0n) {
@@ -146,14 +174,19 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
   app.patch("/:id", async (req, reply) => {
     const { id } = idParam.parse(req.params);
     const body = updateAccountBody.parse(req.body);
-    if (!body.accountGroupId && !body.newGroupName) {
-      return reply
-        .code(400)
-        .send({ error: "Select an existing group or name a new one" });
+    if (Boolean(body.accountGroupId) === Boolean(body.newGroupName)) {
+      return reply.code(400).send({
+        error: "Provide exactly one of an existing group or a new group name",
+      });
     }
 
     const account = await findOwned(schema.accounts, id, req.auth.groupId);
     if (!account) return reply.code(404).send({ error: "Not found" });
+    if (account.type !== body.type) {
+      return reply
+        .code(400)
+        .send({ error: "Account type cannot be changed after creation" });
+    }
 
     // Validate existing group pick up front; new group is created in the tx.
     if (!body.newGroupName && body.accountGroupId) {
@@ -165,6 +198,14 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
       if (!targetGroup)
         return reply.code(400).send({ error: "Destination group not found" });
     }
+
+    const ccFields = await resolveCcFields(
+      body,
+      account.currency,
+      req.auth.groupId,
+      reply,
+    );
+    if (ccFields === null) return;
 
     // Compute balance delta up front (bail on parse error before DB writes).
     let delta = 0n;
@@ -210,6 +251,8 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
         .set({
           name: body.name,
           accountGroupId: accountGroupId!,
+          creditLimit: ccFields.creditLimit,
+          defaultPayFromAccountId: ccFields.defaultPayFromAccountId,
           updatedAt: new Date(),
         })
         .where(eq(schema.accounts.id, id));
@@ -259,3 +302,60 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
     return reply.code(204).send();
   });
 };
+
+type CcFields = {
+  creditLimit: bigint | null;
+  defaultPayFromAccountId: string | null;
+};
+
+// Validates the CC pay-from account: exists, owned, and is a
+// checking_savings account. Self-reference is implicitly rejected by the
+// type check (a CC pointing at itself fails the checking_savings test).
+async function validatePayFrom(
+  payFromId: string,
+  workspaceGroupId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const target = await findOwned(schema.accounts, payFromId, workspaceGroupId);
+  if (!target) return { ok: false, error: "Pay-from account not found" };
+  if (target.type !== "checking_savings") {
+    return {
+      ok: false,
+      error: "Pay-from account must be a checking/savings account",
+    };
+  }
+  return { ok: true };
+}
+
+// Resolves CC-specific fields (limit, pay-from) for both create and update.
+// Currency is passed in because update bodies don't carry it (currency is
+// fixed at creation), but the body shape is otherwise identical for the
+// CC variant of either schema.
+async function resolveCcFields(
+  body: CreateAccountBody | UpdateAccountBody,
+  currency: string,
+  workspaceGroupId: string,
+  reply: FastifyReply,
+): Promise<CcFields | null> {
+  if (body.type !== "credit_card") {
+    return { creditLimit: null, defaultPayFromAccountId: null };
+  }
+  const limitMinor = parseMoney(body.creditLimit, currency);
+  if (limitMinor <= 0n) {
+    reply.code(400).send({ error: "Credit limit must be positive" });
+    return null;
+  }
+  if (body.defaultPayFromAccountId) {
+    const result = await validatePayFrom(
+      body.defaultPayFromAccountId,
+      workspaceGroupId,
+    );
+    if (!result.ok) {
+      reply.code(400).send({ error: result.error });
+      return null;
+    }
+  }
+  return {
+    creditLimit: limitMinor,
+    defaultPayFromAccountId: body.defaultPayFromAccountId ?? null,
+  };
+}
