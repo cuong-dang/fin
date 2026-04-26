@@ -49,7 +49,7 @@ export function AccountsManageRoute() {
     >
       {groups.length === 0 ? (
         <Text c="dimmed" size="sm">
-          No accounts.
+          No accounts yet.
         </Text>
       ) : (
         <Stack>
@@ -103,7 +103,7 @@ function GroupSection({
 
       {accounts.length === 0 ? (
         <Text c="dimmed" py="sm" size="sm">
-          No accounts.
+          No accounts yet.
         </Text>
       ) : (
         <Stack py="sm">

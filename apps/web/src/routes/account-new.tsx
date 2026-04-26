@@ -13,20 +13,9 @@ import { Link, useNavigate } from "react-router";
 import { MoneyField } from "@/components/money-field";
 import { PageShell } from "@/components/page-shell";
 import { CREATE_NEW, GroupSelector } from "@/features/accounts/group-selector";
+import { COMMON_CURRENCIES } from "@/lib/currencies";
 import { localDateKey } from "@/lib/dates";
 import { createAccount, listAccountGroups } from "@/lib/endpoints";
-
-const COMMON_CURRENCIES = [
-  "USD",
-  "AUD",
-  "CAD",
-  "CNY",
-  "EUR",
-  "GBP",
-  "JPY",
-  "KRW",
-  "VND",
-];
 
 export function AccountNewRoute() {
   const navigate = useNavigate();

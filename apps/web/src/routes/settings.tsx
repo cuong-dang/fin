@@ -12,6 +12,12 @@ export function SettingsRoute() {
         label="Categories & tags"
         to="/settings/categories"
       />
+      <NavLink
+        component={Link}
+        description="Recurring expenses (Netflix, Spotify, software, etc.)"
+        label="Subscriptions"
+        to="/settings/subscriptions"
+      />
     </PageShell>
   );
 }

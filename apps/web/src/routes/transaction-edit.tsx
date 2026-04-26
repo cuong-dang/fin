@@ -27,6 +27,7 @@ import {
   getTransaction,
   listAccounts,
   listCategories,
+  listSubscriptions,
   listTags,
   updateAdjustmentTransaction,
   updateTransaction,
@@ -73,8 +74,17 @@ export function TransactionEditRoute() {
     queryFn: listCategories,
   });
   const tagsQ = useQuery({ queryKey: ["tags"], queryFn: listTags });
+  const subsQ = useQuery({
+    queryKey: ["subscriptions"],
+    queryFn: listSubscriptions,
+  });
 
-  if (txQ.isLoading || accountsQ.isLoading || categoriesQ.isLoading) {
+  if (
+    txQ.isLoading ||
+    accountsQ.isLoading ||
+    categoriesQ.isLoading ||
+    subsQ.isLoading
+  ) {
     return null;
   }
   if (txQ.error || !txQ.data) return <NotFoundRoute />;
@@ -88,6 +98,7 @@ export function TransactionEditRoute() {
     <FullEdit
       accounts={accountsQ.data ?? []}
       categories={categoriesQ.data ?? []}
+      subscriptions={subsQ.data ?? []}
       tags={tagsQ.data ?? []}
       tx={tx}
     />
@@ -104,6 +115,7 @@ export function TransactionEditRoute() {
     tx: EnrichedTransaction;
     accounts: Awaited<ReturnType<typeof listAccounts>>;
     categories: Awaited<ReturnType<typeof listCategories>>;
+    subscriptions: Awaited<ReturnType<typeof listSubscriptions>>;
     tags: Awaited<ReturnType<typeof listTags>>;
   }) {
     const mutation = useMutation({
@@ -128,6 +140,7 @@ export function TransactionEditRoute() {
           initialValues={initial}
           pending={mutation.isPending}
           submitLabel="Save"
+          subscriptions={props.subscriptions}
           tags={props.tags}
           onSubmit={(body) => mutation.mutate(body)}
         />
@@ -241,8 +254,16 @@ function DangerZone({ onDelete }: { onDelete: () => void }) {
 }
 
 function deriveInitial(tx: EnrichedTransaction): InitialTxValues {
+  // Sub-linked expenses land on the "Payment" UI tab; everything else
+  // tracks the underlying tx type. Adjustments are handled by a separate
+  // form upstream, so the fallback to "expense" is just defensive.
+  const formType: InitialTxValues["type"] = tx.subscriptionId
+    ? "payment"
+    : tx.type === "adjustment"
+      ? "expense"
+      : tx.type;
   const base: InitialTxValues = {
-    type: tx.type === "adjustment" ? "expense" : tx.type,
+    type: formType,
     date: tx.date ?? "",
     pending: tx.date === null,
     description: tx.description ?? "",
@@ -250,6 +271,7 @@ function deriveInitial(tx: EnrichedTransaction): InitialTxValues {
     destinationAccountId: "",
     transferAmount: "",
     lines: [],
+    subscriptionId: tx.subscriptionId ?? "",
   };
   if (tx.type === "transfer") {
     const outLeg = tx.legs.find((l) => BigInt(l.amount) < 0n);

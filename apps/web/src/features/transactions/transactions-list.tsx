@@ -28,7 +28,7 @@ import {
 } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronDown, ChevronRight, GripVertical } from "lucide-react";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { Link } from "react-router";
 
 import { SectionHeader } from "@/components/section-header";
@@ -151,7 +151,7 @@ export function TransactionsList({
   if (pending.length === 0 && localByDay.size === 0) {
     return (
       <Text c="dimmed" p="sm" size="sm" ta="center">
-        No transactions.
+        No transactions yet.
       </Text>
     );
   }
@@ -188,13 +188,7 @@ export function TransactionsList({
   );
 }
 
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <>
       <Box p="xs">
@@ -456,9 +450,20 @@ function rowContent(
     metaParts.push(categoryLabel(tx.lines[0]));
   }
   if (accountLabel) metaParts.push(accountLabel);
+  const recurringLabel = recurringSourceLabel(tx);
+  if (recurringLabel) metaParts.push(recurringLabel);
   const tagLabel = tagsLabel(tx);
   if (tagLabel) metaParts.push(tagLabel);
   return { primary, metaParts, amount, currency };
+}
+
+/**
+ * "↻ Netflix" when the tx is a sub charge. Loan / CC payments will plug in
+ * here too — same `↻` glyph, name pulled from the corresponding entity.
+ */
+function recurringSourceLabel(tx: EnrichedTransaction): string {
+  if (tx.subscriptionName) return `↻ ${tx.subscriptionName}`;
+  return "";
 }
 
 /** Dedupes tags across lines and renders as `#tag1 #tag2`. */

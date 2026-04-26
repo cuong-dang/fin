@@ -6,11 +6,13 @@ import type {
   CreateAccountBody,
   CreateCategoryBody,
   CreateSubcategoryBody,
+  CreateSubscriptionBody,
   CreateTagBody,
   EnrichedTransaction,
   Me,
   ProcessTransactionBody,
   ReorderTransactionsBody,
+  Subscription,
   Tag,
   TransactionBody,
   TransactionsListResponse,
@@ -18,6 +20,7 @@ import type {
   UpdateAccountGroupBody,
   UpdateCategoryBody,
   UpdateSubcategoryBody,
+  UpdateSubscriptionBody,
   UpdateTagBody,
 } from "@fin/schemas";
 
@@ -128,3 +131,23 @@ export const updateTag = (id: string, body: UpdateTagBody) =>
 
 export const deleteTag = (id: string) =>
   api<void>(`/api/tags/${id}`, { method: "DELETE" });
+
+// ─── Subscriptions ────────────────────────────────────────────────────────
+
+export const listSubscriptions = () =>
+  api<Subscription[]>("/api/subscriptions");
+
+export const getSubscription = (id: string) =>
+  api<Subscription>(`/api/subscriptions/${id}`);
+
+export const createSubscription = (body: CreateSubscriptionBody) =>
+  api<{ id: string }>("/api/subscriptions", { method: "POST", json: body });
+
+export const updateSubscription = (id: string, body: UpdateSubscriptionBody) =>
+  api<void>(`/api/subscriptions/${id}`, { method: "PATCH", json: body });
+
+export const cancelSubscription = (id: string) =>
+  api<void>(`/api/subscriptions/${id}/cancel`, { method: "POST" });
+
+export const deleteSubscription = (id: string) =>
+  api<void>(`/api/subscriptions/${id}`, { method: "DELETE" });

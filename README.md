@@ -15,23 +15,39 @@ replacement.
 
 ## Goals
 
-**Clean, minimal UI, but with powerful features under the hood.** A few
-things typical money-tracking apps don't do well (or at all), which this app
-aims to be great at:
-
-- Transactions that split across **multiple categories** in a single entry.
-- **First-class recurring plans** — installments (mortgages, car loans,
-  BNPL) and subscriptions (Netflix, Spotify) as a modeled entity sharing
-  one cadence/amount template, not a hack on top of recurring transactions.
-- **Advanced analytics**: stats, charts, and graphs that answer real
-  financial questions, e.g., cash-flow trends, category drill-downs over time,
-  net-worth tracking.
-- _More to come as the project matures._
+**Clean, minimal UI, but with powerful features under the hood.** See
+[Highlight features](#highlight-features) below for what's shipped today.
 
 **A codebase I'm proud of.** This is also a learning vehicle for modern
 full-stack TypeScript development. I care about readability, strong types,
 small focused modules, and honest abstractions, the kind of code I'd want
 to maintain in a year.
+
+## Highlight features
+
+What's shipped and works end-to-end today:
+
+- **Accurate transaction model with legs & lines.** Double-entry-style:
+  every transaction has _legs_ (signed account movements) separate from
+  _lines_ (categorization). This is what supports income, expense,
+  transfer, and balance-adjustment transactions uniformly — no
+  special-casing per type — and keeps account balances and category
+  rollups internally consistent.
+
+- **Multi-line splits in one transaction.** A single shopping receipt can
+  be one tx with multiple lines, each with its own category, subcategory,
+  and tags (e.g., "$87 at Costco" → $50 Groceries / $25 Household / $12
+  Snacks). Most apps force you to record each line as a separate tx; here
+  the split lives at line level, so the timeline stays the shape of real
+  events while analytics still sees the breakdown.
+
+- **Native subscription support.** Subscriptions (Netflix, Spotify, gym,
+  software licenses) are first-class entities with cadence, a default
+  source account, and a categorization template (lines + tags). Recording
+  a charge through the **Payment** tab auto-fills name, account, lines,
+  and amount from the template — every field is still editable per charge
+  for off-pattern bills. Past charges link back to their sub (rendered as
+  `↻ Netflix` on the tx row) for "how much per month on subs?" analytics.
 
 ## What's distinctive about the data model
 
@@ -58,6 +74,13 @@ A few things that might matter if you're reading the source:
 - **Strict per-workspace ownership** on every mutation via a `findOwned`
   helper, no row is read or written without verifying it belongs to the
   caller's group.
+- **Soft-delete for reference entities, hard-delete for transactions.**
+  Accounts, categories, subcategories, tags, account groups, and
+  subscriptions all carry a `deleted_at` timestamp + an active-only
+  partial unique index, so historical transactions still resolve their
+  (now-deleted) entity names. Transactions themselves are hard-deleted
+  — nothing else references them, and balances re-derive automatically
+  from the remaining legs.
 
 ## Architecture
 
@@ -180,10 +203,16 @@ PATCH|DELETE /api/subcategories/:id
 
 GET|POST     /api/tags
 PATCH|DELETE /api/tags/:id
+
+GET|POST         /api/subscriptions
+GET|PATCH|DELETE /api/subscriptions/:id
+POST             /api/subscriptions/:id/cancel
 ```
 
 ### TODO
 
 - [x] feature: Tags
+- [x] feature: Subscription
 - [ ] feature: Credit card account type
+- [ ] feature: Loan/Installment
 - [ ] nicety: Auto-select filtered account when adding new transactions

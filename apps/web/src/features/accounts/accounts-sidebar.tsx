@@ -71,7 +71,7 @@ export function AccountsSidebar() {
         />
         {groups.length === 0 ? (
           <Text c="dimmed" p="sm" size="sm">
-            No accounts.
+            No accounts yet.
           </Text>
         ) : (
           groups.map((g) => (
@@ -139,7 +139,7 @@ function GroupSection({
       </Group>
       {accounts.length === 0 ? (
         <Text c="dimmed" p="sm" size="sm">
-          No accounts.
+          No accounts yet.
         </Text>
       ) : (
         accounts.map((a) => (

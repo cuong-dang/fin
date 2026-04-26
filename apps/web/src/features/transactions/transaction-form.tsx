@@ -1,43 +1,54 @@
 import type {
   Account,
   CategoryWithSubs,
+  Subscription,
   Tag,
   TransactionBody,
   TransactionLineBody,
 } from "@fin/schemas";
 import {
-  ActionIcon,
   Alert,
   Button,
-  Card,
   Checkbox,
   Group,
   NativeSelect,
+  SegmentedControl,
   Stack,
   Text,
   TextInput,
 } from "@mantine/core";
-import { Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { type ComponentProps, useState } from "react";
 import { Link } from "react-router";
 
+import {
+  type CategoryLineFormValues,
+  packCategoryLine,
+} from "@/components/category-selector";
+import { MultiLineEditor, SingleLineEditor } from "@/components/line-editor";
 import { MoneyField } from "@/components/money-field";
-import { SectionHeader } from "@/components/section-header";
-import { TagsField } from "@/components/tags-field";
 import { localDateKey } from "@/lib/dates";
+import { formatMoneyPlain } from "@/lib/money";
 
-import { CategorySelector, CREATE_NEW } from "./category-selector";
+type TxType = "income" | "expense" | "transfer" | "payment";
 
-type TxType = "income" | "expense" | "transfer";
+// "Payment" is a UX portal that ultimately submits as a typed transaction
+// (today: expense + subscriptionId for sub charges; later: a hybrid type
+// for loan and credit-card payments). The kind picker shows all three
+// planned sources so the design intent is visible today; only the
+// implemented one is enabled.
+type PaymentKind = "subscription" | "loan" | "creditCard";
 
-type LineFormValues = {
-  amount: string;
-  categoryId: string;
-  newCategoryName: string;
-  subcategoryId: string;
-  newSubcategoryName: string;
-  tags: string[];
-};
+const PAYMENT_KIND_OPTIONS: {
+  value: PaymentKind;
+  label: string;
+  disabled?: boolean;
+}[] = [
+    { value: "subscription", label: "Subscription" },
+    { value: "loan", label: "Loan", disabled: true },
+    { value: "creditCard", label: "Credit card", disabled: true },
+  ];
+
+type LineFormValues = CategoryLineFormValues;
 
 export type InitialTxValues = {
   type: TxType;
@@ -48,6 +59,7 @@ export type InitialTxValues = {
   destinationAccountId: string;
   transferAmount: string;
   lines: LineFormValues[];
+  subscriptionId: string;
 };
 
 const emptyLine = (): LineFormValues => ({
@@ -63,6 +75,7 @@ export function TransactionForm({
   accounts,
   categories,
   tags,
+  subscriptions,
   submitLabel,
   initialValues,
   onSubmit,
@@ -72,6 +85,7 @@ export function TransactionForm({
   accounts: Account[];
   categories: CategoryWithSubs[];
   tags: Tag[];
+  subscriptions: Subscription[];
   submitLabel: string;
   initialValues?: InitialTxValues;
   onSubmit: (body: TransactionBody) => void;
@@ -87,6 +101,7 @@ export function TransactionForm({
     destinationAccountId: "",
     transferAmount: "",
     lines: [emptyLine()],
+    subscriptionId: "",
   };
 
   const [type, setType] = useState<TxType>(defaults.type);
@@ -101,16 +116,68 @@ export function TransactionForm({
   );
   const [isPending, setIsPending] = useState(defaults.pending);
   const [description, setDescription] = useState(defaults.description);
+  const [subscriptionId, setSubscriptionId] = useState(defaults.subscriptionId);
+  // Only "subscription" is enabled today; future loan/CC kinds keep
+  // their entity ids in sibling state when added.
+  const [paymentKind, setPaymentKind] = useState<PaymentKind>("subscription");
+
+  // Active subs + the currently linked one (even if cancelled), so editing
+  // a payment that points at a since-cancelled sub still resolves.
+  const subOptions = subscriptions.filter(
+    (s) => s.cancelledAt === null || s.id === subscriptionId,
+  );
+
+  function applySubscription(newId: string) {
+    setSubscriptionId(newId);
+    if (!newId) {
+      // Cleared the picker — leave existing lines/account; the user is
+      // probably about to pick a different sub or switch tabs.
+      return;
+    }
+    const sub = subscriptions.find((s) => s.id === newId);
+    if (!sub) return;
+    setLines(
+      sub.defaultLines.map((l) => ({
+        amount: formatMoneyPlain(BigInt(l.amount), l.currency),
+        categoryId: l.categoryId,
+        newCategoryName: "",
+        subcategoryId: l.subcategoryId ?? "",
+        newSubcategoryName: "",
+        tags: l.tags.map((t) => t.name),
+      })),
+    );
+    if (sub.defaultAccountId) setAccountId(sub.defaultAccountId);
+  }
 
   const isMultiLine = lines.length > 1;
+  // Categories shown in the line editor. Income lines pick income-kind;
+  // expense and payment both pick expense-kind. Transfer doesn't have lines.
+  const categoryKindForType =
+    type === "income" ? "income" : type === "transfer" ? null : "expense";
   const relevantCategories =
-    type === "transfer" ? [] : categories.filter((c) => c.kind === type);
+    categoryKindForType === null
+      ? []
+      : categories.filter((c) => c.kind === categoryKindForType);
   const sourceAccounts = accounts.filter((a) => a.id !== destinationAccountId);
   const destinationAccounts = accounts.filter((a) => a.id !== accountId);
   const allTagNames = tags.map((t) => t.name);
 
   function handleTypeChange(newType: TxType) {
     setType(newType);
+    // Reset line + sub state on tab switch — matches existing behavior so
+    // each tab starts fresh. paymentKind defaults back too, since it only
+    // applies to the Payment tab.
+    setLines([emptyLine()]);
+    setSubscriptionId("");
+    setPaymentKind("subscription");
+  }
+
+  function handlePaymentKindChange(newKind: PaymentKind) {
+    setPaymentKind(newKind);
+    // Switching kinds invalidates the prefilled state (each kind has its
+    // own entity + template). For now only `subscription` is enabled, so
+    // we just clear the sub-specific state.
+    setSubscriptionId("");
     setLines([emptyLine()]);
   }
 
@@ -138,26 +205,10 @@ export function TransactionForm({
     setLines((prev) => prev.filter((_, i) => i !== index));
   }
 
-  function lineToBody(l: LineFormValues): TransactionLineBody {
-    const creatingCategory = l.categoryId === CREATE_NEW;
-    return {
-      amount: l.amount,
-      categoryId: creatingCategory ? undefined : l.categoryId || undefined,
-      newCategoryName: creatingCategory ? l.newCategoryName : undefined,
-      subcategoryId:
-        creatingCategory || l.subcategoryId === CREATE_NEW
-          ? undefined
-          : l.subcategoryId || undefined,
-      newSubcategoryName: creatingCategory
-        ? l.newSubcategoryName || undefined
-        : l.subcategoryId === CREATE_NEW
-          ? l.newSubcategoryName
-          : undefined,
-      tagNames: l.tags.length > 0 ? l.tags : undefined,
-    };
-  }
+  const lineToBody = (l: LineFormValues): TransactionLineBody =>
+    packCategoryLine(l);
 
-  const handleSubmit: React.ComponentProps<"form">["onSubmit"] = (e) => {
+  const handleSubmit: ComponentProps<"form">["onSubmit"] = (e) => {
     e.preventDefault();
     const commonBase = {
       pending: isPending,
@@ -172,6 +223,20 @@ export function TransactionForm({
         amount: transferAmount,
         accountId,
         destinationAccountId,
+      });
+      return;
+    }
+
+    if (type === "payment") {
+      // "Payment" is a UI portal; sub charges are persisted as expenses
+      // with `subscriptionId` set. Future loan / CC payments will get
+      // their own type with a hybrid leg shape.
+      onSubmit({
+        type: "expense",
+        ...commonBase,
+        accountId,
+        subscriptionId,
+        lines: lines.map(lineToBody),
       });
       return;
     }
@@ -197,238 +262,185 @@ export function TransactionForm({
     );
   }
 
+  // Payment tab requires a source entity (today: a subscription) before
+  // anything else makes sense. Hide the rest of the form until one is
+  // picked, and surface a "create one first" affordance when there are
+  // no subs at all. Future kinds will plug in via this same gate.
+  const paymentEntityMissing =
+    type === "payment" && paymentKind === "subscription" && !subscriptionId;
+
   return (
     <form onSubmit={handleSubmit}>
       <Stack>
         <TypeTabs value={type} onChange={handleTypeChange} />
 
-        {type === "transfer" ? (
-          <MoneyField
-            label="Amount"
-            min={0}
-            value={transferAmount}
-            onChange={setTransferAmount}
-          />
-        ) : isMultiLine ? (
-          <MultiLineEditor
-            allTags={allTagNames}
-            categories={relevantCategories}
-            lines={lines}
-            onAdd={addLine}
-            onRemove={removeLine}
-            onUpdate={updateLine}
-          />
-        ) : (
-          <SingleLineEditor
-            allTags={allTagNames}
-            categories={relevantCategories}
-            line={lines[0]}
-            onSplit={addLine}
-            onUpdate={(patch) => updateLine(0, patch)}
-          />
+        {type === "payment" && (
+          <Stack gap="sm">
+            <SegmentedControl
+              data={PAYMENT_KIND_OPTIONS}
+              value={paymentKind}
+              onChange={(v) => handlePaymentKindChange(v as PaymentKind)}
+            />
+            {paymentKind === "subscription" && (
+              <PaymentSubscriptionPicker
+                subOptions={subOptions}
+                subscriptionId={subscriptionId}
+                totalSubs={subscriptions.length}
+                onChange={applySubscription}
+              />
+            )}
+            {/*
+              Future: loan + credit-card pickers go here, branching on
+              `paymentKind`. Each will fetch its own list (recurring plans
+              for loans; credit-card-type accounts for CC), have its own
+              `apply<Kind>` prefill, and the gate above gets the matching
+              "<kind>EntityMissing" check.
+            */}
+          </Stack>
         )}
 
-        <Checkbox
-          checked={isPending}
-          label="Mark as pending (settles later)"
-          onChange={(e) => setIsPending(e.currentTarget.checked)}
-        />
+        {!paymentEntityMissing &&
+          (type === "transfer" ? (
+            <MoneyField
+              label="Amount"
+              min={0}
+              value={transferAmount}
+              onChange={setTransferAmount}
+            />
+          ) : isMultiLine ? (
+            <MultiLineEditor
+              allTags={allTagNames}
+              categories={relevantCategories}
+              lines={lines}
+              onAdd={addLine}
+              onRemove={removeLine}
+              onUpdate={updateLine}
+            />
+          ) : (
+            <SingleLineEditor
+              allTags={allTagNames}
+              categories={relevantCategories}
+              line={lines[0]}
+              onSplit={addLine}
+              onUpdate={(patch) => updateLine(0, patch)}
+            />
+          ))}
 
-        {!isPending && (
-          <TextInput
-            label="Date"
-            required
-            type="date"
-            value={dateStr}
-            onChange={(e) => setDateStr(e.target.value)}
-          />
+        {!paymentEntityMissing && (
+          <>
+            <Checkbox
+              checked={isPending}
+              label="Mark as pending (settles later)"
+              onChange={(e) => setIsPending(e.currentTarget.checked)}
+            />
+
+            {!isPending && (
+              <TextInput
+                label="Date"
+                required
+                type="date"
+                value={dateStr}
+                onChange={(e) => setDateStr(e.target.value)}
+              />
+            )}
+
+            <NativeSelect
+              data={[
+                { value: "", label: "Select…", disabled: true },
+                ...sourceAccounts.map((a) => ({
+                  value: a.id,
+                  label: `${a.name} (${a.currency})`,
+                })),
+              ]}
+              label={type === "transfer" ? "From account" : "Account"}
+              required
+              value={accountId}
+              onChange={(e) => handleAccountChange(e.target.value)}
+            />
+
+            {type === "transfer" && (
+              <NativeSelect
+                data={[
+                  { value: "", label: "Select…", disabled: true },
+                  ...destinationAccounts.map((a) => ({
+                    value: a.id,
+                    label: `${a.name} (${a.currency})`,
+                  })),
+                ]}
+                label="To account"
+                required
+                value={destinationAccountId}
+                onChange={(e) => handleDestinationChange(e.target.value)}
+              />
+            )}
+
+            <TextInput
+              label="Description (optional)"
+              maxLength={500}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+
+            {error && <Alert color="red">{error}</Alert>}
+
+            <Group>
+              <Button loading={pending} type="submit">
+                {submitLabel}
+              </Button>
+              <Button component={Link} to="/" variant="subtle">
+                Cancel
+              </Button>
+            </Group>
+          </>
         )}
-
-        <NativeSelect
-          data={[
-            { value: "", label: "Select…", disabled: true },
-            ...sourceAccounts.map((a) => ({
-              value: a.id,
-              label: `${a.name} (${a.currency})`,
-            })),
-          ]}
-          label={type === "transfer" ? "From account" : "Account"}
-          required
-          value={accountId}
-          onChange={(e) => handleAccountChange(e.target.value)}
-        />
-
-        {type === "transfer" && (
-          <NativeSelect
-            data={[
-              { value: "", label: "Select…", disabled: true },
-              ...destinationAccounts.map((a) => ({
-                value: a.id,
-                label: `${a.name} (${a.currency})`,
-              })),
-            ]}
-            label="To account"
-            required
-            value={destinationAccountId}
-            onChange={(e) => handleDestinationChange(e.target.value)}
-          />
-        )}
-
-        <TextInput
-          label="Description (optional)"
-          maxLength={500}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-        />
-
-        {error && <Alert color="red">{error}</Alert>}
-
-        <Group>
-          <Button loading={pending} type="submit">
-            {submitLabel}
-          </Button>
-          <Button component={Link} to="/" variant="subtle">
-            Cancel
-          </Button>
-        </Group>
       </Stack>
     </form>
   );
 }
 
-function SingleLineEditor({
-  line,
-  categories,
-  allTags,
-  onUpdate,
-  onSplit,
+function PaymentSubscriptionPicker({
+  subOptions,
+  subscriptionId,
+  totalSubs,
+  onChange,
 }: {
-  line: LineFormValues;
-  categories: CategoryWithSubs[];
-  allTags: string[];
-  onUpdate: (patch: Partial<LineFormValues>) => void;
-  onSplit: () => void;
+  subOptions: Subscription[];
+  subscriptionId: string;
+  totalSubs: number;
+  onChange: (id: string) => void;
 }) {
+  if (totalSubs === 0) {
+    return (
+      <Stack>
+        <Text c="dimmed" size="sm">
+          You don't have any subscriptions yet.
+        </Text>
+        <Button
+          component={Link}
+          to="/subscriptions/new"
+          variant="subtle"
+          w="fit-content"
+        >
+          Create subscription
+        </Button>
+      </Stack>
+    );
+  }
   return (
-    <Stack>
-      <MoneyField
-        label="Amount"
-        min={0}
-        value={line.amount}
-        onChange={(v) => onUpdate({ amount: v })}
-      />
-      <CategorySelector
-        categories={categories}
-        categoryId={line.categoryId}
-        newCategoryName={line.newCategoryName}
-        newSubcategoryName={line.newSubcategoryName}
-        subcategoryId={line.subcategoryId}
-        onCategoryChange={(v) => onUpdate({ categoryId: v })}
-        onNewCategoryNameChange={(v) => onUpdate({ newCategoryName: v })}
-        onNewSubcategoryNameChange={(v) => onUpdate({ newSubcategoryName: v })}
-        onSubcategoryChange={(v) => onUpdate({ subcategoryId: v })}
-      />
-      <TagsField
-        allTags={allTags}
-        label="Tags (optional)"
-        value={line.tags}
-        onChange={(v) => onUpdate({ tags: v })}
-      />
-      <Button
-        leftSection={<Plus size={14} />}
-        type="button"
-        variant="subtle"
-        w="fit-content"
-        onClick={onSplit}
-      >
-        Split across categories
-      </Button>
-    </Stack>
-  );
-}
-
-function MultiLineEditor({
-  lines,
-  categories,
-  allTags,
-  onUpdate,
-  onAdd,
-  onRemove,
-}: {
-  lines: LineFormValues[];
-  categories: CategoryWithSubs[];
-  allTags: string[];
-  onUpdate: (index: number, patch: Partial<LineFormValues>) => void;
-  onAdd: () => void;
-  onRemove: (index: number) => void;
-}) {
-  const total = lines.reduce((s, l) => {
-    const n = Number(l.amount);
-    return Number.isFinite(n) ? s + n : s;
-  }, 0);
-  return (
-    <Stack gap="xs">
-      {lines.map((line, i) => (
-        <Card key={i} padding="sm" withBorder>
-          <Stack gap={0}>
-            <Group justify="space-between">
-              <SectionHeader compact>Line {i + 1}</SectionHeader>
-              <ActionIcon
-                aria-label={`Remove line ${i + 1}`}
-                color="red"
-                onClick={() => onRemove(i)}
-              >
-                <Trash2 size={14} />
-              </ActionIcon>
-            </Group>
-            <MoneyField
-              label="Amount"
-              min={0}
-              value={line.amount}
-              onChange={(v) => onUpdate(i, { amount: v })}
-            />
-            <CategorySelector
-              categories={categories}
-              categoryId={line.categoryId}
-              newCategoryName={line.newCategoryName}
-              newSubcategoryName={line.newSubcategoryName}
-              subcategoryId={line.subcategoryId}
-              onCategoryChange={(v) => onUpdate(i, { categoryId: v })}
-              onNewCategoryNameChange={(v) =>
-                onUpdate(i, { newCategoryName: v })
-              }
-              onNewSubcategoryNameChange={(v) =>
-                onUpdate(i, { newSubcategoryName: v })
-              }
-              onSubcategoryChange={(v) => onUpdate(i, { subcategoryId: v })}
-            />
-            <TagsField
-              allTags={allTags}
-              label="Tags (optional)"
-              value={line.tags}
-              onChange={(v) => onUpdate(i, { tags: v })}
-            />
-          </Stack>
-        </Card>
-      ))}
-      <Button
-        leftSection={<Plus size={14} />}
-        type="button"
-        variant="subtle"
-        w="fit-content"
-        onClick={onAdd}
-      >
-        Add line
-      </Button>
-      <Card p="sm" withBorder>
-        <Group justify="space-between">
-          <SectionHeader compact>Total</SectionHeader>
-          <Text ff="monospace" fw={500} size="sm">
-            {total.toFixed(2)}
-          </Text>
-        </Group>
-      </Card>
-    </Stack>
+    <NativeSelect
+      data={[
+        { value: "", label: "Select a subscription…", disabled: true },
+        ...subOptions.map((s) => ({
+          value: s.id,
+          label: s.cancelledAt !== null ? `${s.name} (cancelled)` : s.name,
+        })),
+      ]}
+      description="Account and lines auto-fill from the subscription's defaults; you can edit either."
+      label="Subscription"
+      required
+      value={subscriptionId}
+      onChange={(e) => onChange(e.target.value)}
+    />
   );
 }
 
@@ -439,7 +451,7 @@ function TypeTabs({
   value: TxType;
   onChange: (t: TxType) => void;
 }) {
-  const options: TxType[] = ["expense", "income", "transfer"];
+  const options: TxType[] = ["expense", "income", "transfer", "payment"];
   return (
     <Button.Group>
       {options.map((t) => (

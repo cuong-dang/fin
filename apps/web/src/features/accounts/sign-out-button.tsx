@@ -7,7 +7,7 @@ export function SignOutButton() {
   const navigate = useNavigate();
   return (
     <Button
-      color="black"
+      color="gray"
       size="xs"
       variant="subtle"
       onClick={() => {

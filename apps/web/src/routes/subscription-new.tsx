@@ -2,61 +2,46 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 
 import { PageShell } from "@/components/page-shell";
-import { TransactionForm } from "@/features/transactions/transaction-form";
+import { SubscriptionForm } from "@/features/subscriptions/subscription-form";
 import {
-  createTransaction,
+  createSubscription,
   listAccounts,
   listCategories,
-  listSubscriptions,
   listTags,
 } from "@/lib/endpoints";
 
-export function TransactionNewRoute() {
+export function SubscriptionNewRoute() {
   const navigate = useNavigate();
   const qc = useQueryClient();
 
-  const accountsQ = useQuery({
-    queryKey: ["accounts"],
-    queryFn: listAccounts,
-  });
+  const accountsQ = useQuery({ queryKey: ["accounts"], queryFn: listAccounts });
   const categoriesQ = useQuery({
     queryKey: ["categories"],
     queryFn: listCategories,
   });
   const tagsQ = useQuery({ queryKey: ["tags"], queryFn: listTags });
-  const subsQ = useQuery({
-    queryKey: ["subscriptions"],
-    queryFn: listSubscriptions,
-  });
 
   const mutation = useMutation({
-    mutationFn: createTransaction,
+    mutationFn: createSubscription,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["transactions"] });
-      qc.invalidateQueries({ queryKey: ["accounts"] });
-      qc.invalidateQueries({ queryKey: ["categories"] });
-      navigate("/");
+      qc.invalidateQueries({ queryKey: ["subscriptions"] });
+      qc.invalidateQueries({ queryKey: ["tags"] });
+      navigate("/settings/subscriptions");
     },
   });
 
-  if (
-    accountsQ.isLoading ||
-    categoriesQ.isLoading ||
-    tagsQ.isLoading ||
-    subsQ.isLoading
-  ) {
+  if (accountsQ.isLoading || categoriesQ.isLoading || tagsQ.isLoading) {
     return null;
   }
 
   return (
-    <PageShell back="/" title="New transaction">
-      <TransactionForm
+    <PageShell back="/settings/subscriptions" title="New subscription">
+      <SubscriptionForm
         accounts={accountsQ.data ?? []}
         categories={categoriesQ.data ?? []}
         error={mutation.error ? (mutation.error as Error).message : null}
         pending={mutation.isPending}
-        submitLabel="Add"
-        subscriptions={subsQ.data ?? []}
+        submitLabel="Create"
         tags={tagsQ.data ?? []}
         onSubmit={(body) => mutation.mutate(body)}
       />

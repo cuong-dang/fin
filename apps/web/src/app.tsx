@@ -10,7 +10,10 @@ import { NotFoundRoute } from "./routes/not-found";
 import { RequireAuth } from "./routes/require-auth";
 import { SettingsRoute } from "./routes/settings";
 import { SettingsCategoriesRoute } from "./routes/settings-categories";
+import { SettingsSubscriptionsRoute } from "./routes/settings-subscriptions";
 import { SignInRoute } from "./routes/signin";
+import { SubscriptionEditRoute } from "./routes/subscription-edit";
+import { SubscriptionNewRoute } from "./routes/subscription-new";
 import { TransactionEditRoute } from "./routes/transaction-edit";
 import { TransactionNewRoute } from "./routes/transaction-new";
 
@@ -37,6 +40,15 @@ export function App() {
         <Route
           element={<SettingsCategoriesRoute />}
           path="/settings/categories"
+        />
+        <Route
+          element={<SettingsSubscriptionsRoute />}
+          path="/settings/subscriptions"
+        />
+        <Route element={<SubscriptionNewRoute />} path="/subscriptions/new" />
+        <Route
+          element={<SubscriptionEditRoute />}
+          path="/subscriptions/:id/edit"
         />
       </Route>
       <Route element={<NotFoundRoute />} path="*" />
