@@ -1,0 +1,1 @@
+ALTER TABLE "recurring_plans" DROP COLUMN "total_periods";

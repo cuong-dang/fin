@@ -1,6 +1,22 @@
 import { z } from "zod";
 
 import { dateString, moneyString } from "./common";
+import { recurringPlanBody } from "./recurring-plans";
+import type { RecurringFrequency } from "./subscriptions";
+
+/**
+ * Slim recurring-plan summary embedded on the loan account row. Holds
+ * what the sidebar (`~N of M left`) and the Payment > Loan flow
+ * (pre-fill source from `defaultAccountId`) need. The full plan
+ * (default lines + tags + description) is fetched separately when an
+ * editor for plans lands.
+ */
+export type AccountRecurringPlan = {
+  id: string;
+  amountPerPeriod: string; // stringified bigint
+  frequency: RecurringFrequency;
+  defaultAccountId: string | null;
+};
 
 const nameField = z.string().trim().min(1).max(100);
 const currencyField = z
@@ -10,8 +26,7 @@ const currencyField = z
   .transform((s) => s.toUpperCase());
 const newGroupField = z.string().trim().min(1).max(100).optional();
 
-// `loan` is reserved — only `checking_savings` and `credit_card` are wired
-// today. Loan accounts will pair 1:1 with a recurring_plan when added.
+// Loan accounts pair 1:1 with a `recurring_plans` row holding the schedule.
 export const accountType = z.enum(["checking_savings", "credit_card", "loan"]);
 export type AccountType = z.infer<typeof accountType>;
 
@@ -44,6 +59,16 @@ const creditCardCreate = baseCreate
   })
   .strict();
 
+// Loan create embeds the recurring-plan params; server creates the plan
+// row and the account row atomically and links them via
+// accounts.recurring_plan_id.
+const loanCreate = baseCreate
+  .extend({
+    type: z.literal("loan"),
+    recurringPlan: recurringPlanBody,
+  })
+  .strict();
+
 /**
  * Create request. Exactly one of accountGroupId or newGroupName must be
  * present. Validated in the route (Zod + in-action check).
@@ -51,6 +76,7 @@ const creditCardCreate = baseCreate
 export const createAccountBody = z.discriminatedUnion("type", [
   checkingSavingsCreate,
   creditCardCreate,
+  loanCreate,
 ]);
 export type CreateAccountBody = z.infer<typeof createAccountBody>;
 
@@ -79,9 +105,19 @@ const creditCardUpdate = baseUpdate
   })
   .strict();
 
+// Loan-account update (today): name + group + balance only. Plan terms
+// (principal, schedule, lines) edit through a separate plan endpoint
+// when that lands; for now they're sticky after creation.
+const loanUpdate = baseUpdate
+  .extend({
+    type: z.literal("loan"),
+  })
+  .strict();
+
 export const updateAccountBody = z.discriminatedUnion("type", [
   checkingSavingsUpdate,
   creditCardUpdate,
+  loanUpdate,
 ]);
 export type UpdateAccountBody = z.infer<typeof updateAccountBody>;
 
@@ -99,4 +135,6 @@ export type Account = {
   creditLimit: string | null;
   /** Set only when type='credit_card'. Optional. */
   defaultPayFromAccountId: string | null;
+  /** Set only when type='loan'. Joined plan summary; null otherwise. */
+  recurringPlan: AccountRecurringPlan | null;
 };

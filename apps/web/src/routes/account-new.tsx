@@ -1,4 +1,4 @@
-import type { Account, AccountType } from "@fin/schemas";
+import type { Account, AccountType, RecurringFrequency } from "@fin/schemas";
 import {
   Alert,
   Button,
@@ -12,6 +12,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
+import {
+  type CategoryLineFormValues,
+  packCategoryLine,
+} from "@/components/category-selector";
+import { MultiLineEditor } from "@/components/line-editor";
 import { MoneyField } from "@/components/money-field";
 import { PageShell } from "@/components/page-shell";
 import { CREATE_NEW, GroupSelector } from "@/features/accounts/group-selector";
@@ -21,7 +26,26 @@ import {
   createAccount,
   listAccountGroups,
   listAccounts,
+  listCategories,
+  listTags,
 } from "@/lib/endpoints";
+
+const FREQUENCY_OPTIONS: { value: RecurringFrequency; label: string }[] = [
+  { value: "weekly", label: "Weekly" },
+  { value: "biweekly", label: "Biweekly" },
+  { value: "monthly", label: "Monthly" },
+  { value: "quarterly", label: "Quarterly" },
+  { value: "yearly", label: "Yearly" },
+];
+
+const emptyLine = (): CategoryLineFormValues => ({
+  amount: "",
+  categoryId: "",
+  newCategoryName: "",
+  subcategoryId: "",
+  newSubcategoryName: "",
+  tagNames: [],
+});
 
 export function AccountNewRoute() {
   const navigate = useNavigate();
@@ -31,6 +55,11 @@ export function AccountNewRoute() {
     queryFn: listAccountGroups,
   });
   const accountsQ = useQuery({ queryKey: ["accounts"], queryFn: listAccounts });
+  const categoriesQ = useQuery({
+    queryKey: ["categories"],
+    queryFn: listCategories,
+  });
+  const tagsQ = useQuery({ queryKey: ["tags"], queryFn: listTags });
 
   const [type, setType] = useState<AccountType>("checking_savings");
   const [name, setName] = useState("");
@@ -38,24 +67,44 @@ export function AccountNewRoute() {
   const [groupId, setGroupId] = useState("");
   const [newGroupName, setNewGroupName] = useState("");
   const [startingBalance, setStartingBalance] = useState("");
+  // CC-specific state
   const [creditLimit, setCreditLimit] = useState("");
   const [defaultPayFromAccountId, setDefaultPayFromAccountId] = useState("");
+  // Loan-specific state (mirrors recurringPlanBody)
+  const [amountPerPeriod, setAmountPerPeriod] = useState("");
+  const [frequency, setFrequency] = useState<RecurringFrequency>("monthly");
+  const [firstPaymentDate, setFirstPaymentDate] = useState("");
+  const [planPayFromId, setPlanPayFromId] = useState("");
+  const [planDescription, setPlanDescription] = useState("");
+  const [planLines, setPlanLines] = useState<CategoryLineFormValues[]>([]);
 
   const mutation = useMutation({
     mutationFn: createAccount,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["accounts"] });
       qc.invalidateQueries({ queryKey: ["account-groups"] });
+      qc.invalidateQueries({ queryKey: ["categories"] });
+      qc.invalidateQueries({ queryKey: ["tags"] });
       navigate("/");
     },
   });
 
   const groups = groupsQ.data ?? [];
   const accounts = accountsQ.data ?? [];
+  const categories = categoriesQ.data ?? [];
+  const tags = tagsQ.data ?? [];
   const checkingAccounts = accounts.filter(
     (a: Account) => a.type === "checking_savings",
   );
+  const expenseCategories = categories.filter((c) => c.kind === "expense");
+  const allTagNames = tags.map((t) => t.name);
   const hasGroups = groups.length > 0;
+
+  function updatePlanLine(i: number, patch: Partial<CategoryLineFormValues>) {
+    setPlanLines((prev) =>
+      prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)),
+    );
+  }
 
   return (
     <PageShell back="/" title="New account">
@@ -78,6 +127,19 @@ export function AccountNewRoute() {
               creditLimit,
               defaultPayFromAccountId: defaultPayFromAccountId || undefined,
             });
+          } else if (type === "loan") {
+            mutation.mutate({
+              type: "loan",
+              ...common,
+              recurringPlan: {
+                amountPerPeriod,
+                frequency,
+                firstPaymentDate,
+                defaultAccountId: planPayFromId || undefined,
+                description: planDescription || undefined,
+                defaultLines: planLines.map(packCategoryLine),
+              },
+            });
           } else {
             mutation.mutate({ type: "checking_savings", ...common });
           }
@@ -88,6 +150,7 @@ export function AccountNewRoute() {
             data={[
               { value: "checking_savings", label: "Checking / savings" },
               { value: "credit_card", label: "Credit card" },
+              { value: "loan", label: "Loan" },
             ]}
             value={type}
             onChange={(v) => setType(v as AccountType)}
@@ -97,7 +160,11 @@ export function AccountNewRoute() {
             label="Name"
             maxLength={100}
             placeholder={
-              type === "credit_card" ? "Chase Sapphire" : "Chase Checking"
+              type === "credit_card"
+                ? "Chase Sapphire"
+                : type === "loan"
+                  ? "Mortgage"
+                  : "Chase Checking"
             }
             required
             value={name}
@@ -150,11 +217,68 @@ export function AccountNewRoute() {
               />
             </>
           )}
+          {type === "loan" && (
+            <>
+              <MoneyField
+                label="Amount per period"
+                min={0}
+                value={amountPerPeriod}
+                onChange={setAmountPerPeriod}
+              />
+              <NativeSelect
+                data={FREQUENCY_OPTIONS}
+                label="Frequency"
+                value={frequency}
+                onChange={(e) =>
+                  setFrequency(e.target.value as RecurringFrequency)
+                }
+              />
+              <TextInput
+                label="First payment date"
+                required
+                type="date"
+                value={firstPaymentDate}
+                onChange={(e) => setFirstPaymentDate(e.target.value)}
+              />
+              <NativeSelect
+                data={[
+                  { value: "", label: "— No default —" },
+                  ...checkingAccounts.map((a) => ({
+                    value: a.id,
+                    label: `${a.name} (${a.currency})`,
+                  })),
+                ]}
+                description="Pre-fills the source when paying this loan."
+                label="Default pay-from account (optional)"
+                value={planPayFromId}
+                onChange={(e) => setPlanPayFromId(e.target.value)}
+              />
+              <TextInput
+                label="Description (optional)"
+                maxLength={500}
+                value={planDescription}
+                onChange={(e) => setPlanDescription(e.target.value)}
+              />
+              <MultiLineEditor
+                allTags={allTagNames}
+                amountOptional
+                categories={expenseCategories}
+                lines={planLines}
+                onAdd={() => setPlanLines((prev) => [...prev, emptyLine()])}
+                onRemove={(i) =>
+                  setPlanLines((prev) => prev.filter((_, idx) => idx !== i))
+                }
+                onUpdate={updatePlanLine}
+              />
+            </>
+          )}
           <MoneyField
             description={
               type === "credit_card"
                 ? "Outstanding balance you currently owe (enter as a negative number)."
-                : undefined
+                : type === "loan"
+                  ? "Current debt (enter as a negative number). Defaults to 0 if you're starting tracking from today and recording payments going forward."
+                  : undefined
             }
             label="Starting balance (optional)"
             required={false}

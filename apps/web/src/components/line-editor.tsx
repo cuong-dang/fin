@@ -72,6 +72,11 @@ export function SingleLineEditor({
  * Multi-line editor: each line in its own card with category + tags + amount,
  * an "Add line" button at the bottom, and a running total card. Caller owns
  * the lines array; this component is purely presentational over it.
+ *
+ * `amountOptional` is for loan-plan default lines: amounts vary per period
+ * (amortizing loans), so the template records categorization but leaves the
+ * amount blank. When set, individual amounts aren't required and the
+ * running-total card is hidden (a sum of "may-be-blank" values is misleading).
  */
 export function MultiLineEditor({
   lines,
@@ -80,6 +85,7 @@ export function MultiLineEditor({
   onUpdate,
   onAdd,
   onRemove,
+  amountOptional = false,
 }: {
   lines: CategoryLineFormValues[];
   categories: CategoryWithSubs[];
@@ -87,6 +93,7 @@ export function MultiLineEditor({
   onUpdate: (index: number, patch: Partial<CategoryLineFormValues>) => void;
   onAdd: () => void;
   onRemove: (index: number) => void;
+  amountOptional?: boolean;
 }) {
   const total = lines.reduce((s, l) => {
     const n = Number(l.amount);
@@ -108,8 +115,9 @@ export function MultiLineEditor({
               </ActionIcon>
             </Group>
             <MoneyField
-              label="Amount"
+              label={amountOptional ? "Amount (optional)" : "Amount"}
               min={0}
+              required={!amountOptional}
               value={line.amount}
               onChange={(v) => onUpdate(i, { amount: v })}
             />
@@ -146,14 +154,16 @@ export function MultiLineEditor({
       >
         Add line
       </Button>
-      <Card withBorder>
-        <Group justify="space-between">
-          <SectionHeader compact>Total</SectionHeader>
-          <Text ff="monospace" fw={500} size="sm">
-            {total.toFixed(2)}
-          </Text>
-        </Group>
-      </Card>
+      {!amountOptional && (
+        <Card withBorder>
+          <Group justify="space-between">
+            <SectionHeader compact>Total</SectionHeader>
+            <Text ff="monospace" fw={500} size="sm">
+              {total.toFixed(2)}
+            </Text>
+          </Group>
+        </Card>
+      )}
     </Stack>
   );
 }

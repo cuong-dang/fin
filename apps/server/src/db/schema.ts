@@ -40,16 +40,6 @@ export const recurringFrequencyEnum = pgEnum("recurring_frequency", [
   "yearly",
 ]);
 
-// Disambiguates principal vs interest vs fee within a recurring-plan
-// payment. Used on both `recurring_plan_default_lines` (the categorization
-// template a payment transaction copies from) and `transaction_lines`
-// (the actual lines on a single payment).
-export const recurringPlanRoleEnum = pgEnum("recurring_plan_role", [
-  "principal",
-  "interest",
-  "fee",
-]);
-
 export const categoryKindEnum = pgEnum("category_kind", ["income", "expense"]);
 
 // `loan` is reserved — only `checking_savings` and `credit_card` are wired
@@ -157,6 +147,15 @@ export const accounts = pgTable(
       (): AnyPgColumn => accounts.id,
       { onDelete: "restrict" },
     ),
+    // Set iff `type='loan'`. Pairs the loan account 1:1 with the
+    // recurring_plans row that holds the schedule (amount_per_period,
+    // total_periods, principal, frequency, default pay-from). RESTRICT —
+    // both rows are soft-deletable; the FK guards against accidental
+    // hard-deletes.
+    recurringPlanId: uuid("recurring_plan_id").references(
+      (): AnyPgColumn => recurringPlans.id,
+      { onDelete: "restrict" },
+    ),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -261,20 +260,19 @@ export const recurringPlans = pgTable("recurring_plans", {
   groupId: uuid("group_id")
     .notNull()
     .references(() => groups.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
+  // No `name`: a recurring plan is paired 1:1 with a loan account, so
+  // displays use the account's name. Adds a single source of truth.
   // Scheduled per-period charge per the loan terms (e.g., $1,800 mortgage
   // payment → 180000). Informational / projection-only — the actual amount
   // paid each period comes from the transaction's lines and may differ
   // (BNPL last-payment rounding, mortgage escrow shifts, etc.).
   amountPerPeriod: bigint("amount_per_period", { mode: "bigint" }).notNull(),
   currency: char("currency", { length: 3 }).notNull(),
-  // null = open-ended (e.g., line of credit).
-  totalPeriods: integer("total_periods"),
-  // Original loan principal in `currency`. Immutable once set — analytics
-  // derive remaining principal as `principalAmount − SUM(line.amount WHERE
-  // role='principal' AND tx.recurring_plan_id = X)`. Null is allowed for
-  // open-ended plans where there is no fixed initial principal.
-  principalAmount: bigint("principal_amount", { mode: "bigint" }),
+  // No `total_periods` either: derivable as ceil(|startingBalance| /
+  // amountPerPeriod) at start of tracking if we ever need it. The
+  // sidebar shows just `~N left` from the current balance.
+  // No `principal_amount`: redundant with the loan account's starting
+  // balance under the "all params are at start-of-tracking" convention.
   frequency: recurringFrequencyEnum("frequency").notNull(),
   firstPaymentDate: date("first_payment_date").notNull(),
   // Default source account auto-fills the source on a new charge transaction.
@@ -296,11 +294,11 @@ export const recurringPlans = pgTable("recurring_plans", {
 });
 
 // Default categorization template for a recurring plan. Mirrors
-// `subscription_default_lines` plus `recurring_plan_role` (principal /
-// interest / fee). Amount is *nullable* on purpose: for amortizing loans
-// the principal/interest split changes per period, so the template
-// records categorization but leaves amounts to be entered at transaction
-// time. Set the amount only when it's actually fixed (e.g., flat BNPL).
+// `subscription_default_lines`. Amount is *nullable* on purpose: for
+// amortizing loans the principal/interest split changes per period, so
+// the template records categorization but leaves amounts to be entered
+// at transaction time. Set the amount only when it's actually fixed
+// (e.g., flat BNPL).
 export const recurringPlanDefaultLines = pgTable(
   "recurring_plan_default_lines",
   {
@@ -314,7 +312,6 @@ export const recurringPlanDefaultLines = pgTable(
     subcategoryId: uuid("subcategory_id").references(() => subcategories.id, {
       onDelete: "restrict",
     }),
-    role: recurringPlanRoleEnum("role").notNull(),
     // Positive minor units in `currency`. Null = "varies per period" — the
     // user fills it in on the actual payment transaction.
     amount: bigint("amount", { mode: "bigint" }),
@@ -450,12 +447,14 @@ export const transactions = pgTable(
     date: date("date", { mode: "string" }),
     type: transactionTypeEnum("type").notNull(),
     description: text("description"),
-    // RESTRICT — we soft-delete recurring plans, so the FK never needs to
-    // cascade or null. The constraint guards against accidental hard-deletes.
-    recurringPlanId: uuid("recurring_plan_id").references(
-      () => recurringPlans.id,
-      { onDelete: "restrict" },
-    ),
+    // No `recurring_plan_id` here on purpose: a loan payment is a transfer
+    // with a leg on the loan account, and the loan account already carries
+    // `recurring_plan_id`. The plan is reachable via tx → leg → account →
+    // plan, so a direct FK on transactions would just duplicate the link.
+    // Subscriptions, by contrast, are stored as expenses with no leg on a
+    // sub-side account, so the explicit `subscription_id` below is the only
+    // way to identify a sub charge.
+    //
     // Set when this transaction is a charge for a subscription. RESTRICT —
     // we soft-delete subscriptions; past transactions retain their link.
     subscriptionId: uuid("subscription_id").references(() => subscriptions.id, {
@@ -522,12 +521,9 @@ export const transactionLines = pgTable(
     subcategoryId: uuid("subcategory_id").references(() => subcategories.id, {
       onDelete: "restrict",
     }),
-    // For lines in a recurring-plan payment, disambiguates principal /
-    // interest / fee. Null when the line isn't part of a loan or
-    // subscription split. The plan link itself lives on the parent
-    // transaction's `recurring_plan_id`.
-    recurringPlanRole: recurringPlanRoleEnum("recurring_plan_role"),
     // Positive minor units in `currency`. Sign is implied by transaction type.
+    // For loan payments (transfers with lines), each line categorizes a
+    // portion of the payment as a non-principal cost (interest, fees).
     amount: bigint("amount", { mode: "bigint" }).notNull(),
     currency: char("currency", { length: 3 }).notNull(),
     description: text("description"),

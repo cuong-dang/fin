@@ -12,6 +12,7 @@ import { schema } from "../db";
 import { db } from "../db";
 import { findOwned, ownedActive } from "../lib/authz";
 import { parseMoney } from "../lib/money";
+import { insertRecurringPlan } from "../lib/recurring-plans-write";
 import { nextSortKey } from "../lib/transactions-order";
 
 export const accountRoutes: FastifyPluginAsync = async (app) => {
@@ -22,9 +23,67 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
   const presentBalanceSql = sql<string>`COALESCE(SUM(${schema.transactionLegs.amount}) FILTER (WHERE ${schema.transactions.date} IS NOT NULL), 0)`;
   const availableBalanceSql = sql<string>`COALESCE(SUM(${schema.transactionLegs.amount}), 0)`;
 
+  // Slim plan summary fields for the sidebar's "~N of M left" calc and
+  // the Payment > Loan flow's source pre-fill. Bigints cast to text for
+  // JSON safety. Selected via LEFT JOIN so non-loan accounts get nulls.
+  const planSummary = {
+    planId: schema.recurringPlans.id,
+    planAmountPerPeriod: sql<
+      string | null
+    >`${schema.recurringPlans.amountPerPeriod}::text`.as(
+      "plan_amount_per_period",
+    ),
+    planFrequency: schema.recurringPlans.frequency,
+    planDefaultAccountId: schema.recurringPlans.defaultAccountId,
+  };
+
+  type AccountRow = {
+    id: string;
+    accountGroupId: string;
+    name: string;
+    currency: string;
+    type: "checking_savings" | "credit_card" | "loan";
+    creditLimit: string | null;
+    defaultPayFromAccountId: string | null;
+    presentBalance: string;
+    availableBalance: string;
+    planId: string | null;
+    planAmountPerPeriod: string | null;
+    planFrequency:
+      | "weekly"
+      | "biweekly"
+      | "monthly"
+      | "quarterly"
+      | "yearly"
+      | null;
+    planDefaultAccountId: string | null;
+  };
+
+  function rowToResponse(row: AccountRow) {
+    const {
+      planId,
+      planAmountPerPeriod,
+      planFrequency,
+      planDefaultAccountId,
+      ...rest
+    } = row;
+    return {
+      ...rest,
+      recurringPlan:
+        planId && planAmountPerPeriod && planFrequency
+          ? {
+              id: planId,
+              amountPerPeriod: planAmountPerPeriod,
+              frequency: planFrequency,
+              defaultAccountId: planDefaultAccountId,
+            }
+          : null,
+    };
+  }
+
   /** List active accounts with present + available balance. */
   app.get("/", async (req) => {
-    return db
+    const rows = await db
       .select({
         id: schema.accounts.id,
         accountGroupId: schema.accounts.accountGroupId,
@@ -37,6 +96,7 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
         defaultPayFromAccountId: schema.accounts.defaultPayFromAccountId,
         presentBalance: presentBalanceSql.as("present_balance"),
         availableBalance: availableBalanceSql.as("available_balance"),
+        ...planSummary,
       })
       .from(schema.accounts)
       .leftJoin(
@@ -47,9 +107,14 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
         schema.transactions,
         eq(schema.transactions.id, schema.transactionLegs.transactionId),
       )
+      .leftJoin(
+        schema.recurringPlans,
+        eq(schema.recurringPlans.id, schema.accounts.recurringPlanId),
+      )
       .where(ownedActive(schema.accounts, req.auth.groupId))
-      .groupBy(schema.accounts.id)
+      .groupBy(schema.accounts.id, schema.recurringPlans.id)
       .orderBy(schema.accounts.name);
+    return rows.map(rowToResponse);
   });
 
   /** Fetch a single account (with balances). Used by the edit page. */
@@ -70,6 +135,7 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
         defaultPayFromAccountId: schema.accounts.defaultPayFromAccountId,
         presentBalance: presentBalanceSql.as("present_balance"),
         availableBalance: availableBalanceSql.as("available_balance"),
+        ...planSummary,
       })
       .from(schema.accounts)
       .leftJoin(
@@ -80,9 +146,13 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
         schema.transactions,
         eq(schema.transactions.id, schema.transactionLegs.transactionId),
       )
+      .leftJoin(
+        schema.recurringPlans,
+        eq(schema.recurringPlans.id, schema.accounts.recurringPlanId),
+      )
       .where(eq(schema.accounts.id, id))
-      .groupBy(schema.accounts.id);
-    return row;
+      .groupBy(schema.accounts.id, schema.recurringPlans.id);
+    return rowToResponse(row);
   });
 
   app.post("/", async (req, reply) => {
@@ -112,6 +182,26 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
     );
     if (ccFields === null) return;
 
+    // Loan: pre-validate plan's pay-from (must be checking_savings) before
+    // opening the write tx. The plan row itself is created inside the tx.
+    if (body.type === "loan" && body.recurringPlan.defaultAccountId) {
+      const payFrom = await findOwned(
+        schema.accounts,
+        body.recurringPlan.defaultAccountId,
+        req.auth.groupId,
+      );
+      if (!payFrom) {
+        return reply
+          .code(400)
+          .send({ error: "Default pay-from account not found" });
+      }
+      if (payFrom.type !== "checking_savings") {
+        return reply.code(400).send({
+          error: "Default pay-from must be a checking/savings account",
+        });
+      }
+    }
+
     const result = await db.transaction(async (tx) => {
       let accountGroupId = body.accountGroupId;
       if (body.newGroupName) {
@@ -121,6 +211,18 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
           .returning({ id: schema.accountGroups.id });
         accountGroupId = row.id;
       }
+
+      // For loan accounts, create the plan first so the account row can
+      // reference it via accounts.recurring_plan_id.
+      const recurringPlanId =
+        body.type === "loan"
+          ? await insertRecurringPlan(
+              tx,
+              body.recurringPlan,
+              body.currency,
+              req.auth.groupId,
+            )
+          : null;
 
       const [accountRow] = await tx
         .insert(schema.accounts)
@@ -132,6 +234,7 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
           type: body.type,
           creditLimit: ccFields.creditLimit,
           defaultPayFromAccountId: ccFields.defaultPayFromAccountId,
+          recurringPlanId,
         })
         .returning({
           id: schema.accounts.id,

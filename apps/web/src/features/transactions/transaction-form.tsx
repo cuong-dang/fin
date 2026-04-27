@@ -32,9 +32,10 @@ import { formatMoneyPlain } from "@/lib/money";
 type TxType = "income" | "expense" | "transfer" | "payment";
 
 // "Payment" is a UX portal that ultimately submits as a typed transaction:
-// CC payments → transfer (checking → CC). Subscription charges → expense
-// with subscriptionId. Loan support comes later. The picker shows all
-// three planned sources so the design intent is visible today.
+//   - Credit card payment → transfer (checking → CC)
+//   - Loan payment → transfer (checking/CC → loan), with optional lines
+//     categorizing interest/fee portions
+//   - Subscription charge → expense with subscriptionId
 type PaymentKind = "creditCard" | "loan" | "subscription";
 
 const PAYMENT_KIND_OPTIONS: {
@@ -43,7 +44,7 @@ const PAYMENT_KIND_OPTIONS: {
   disabled?: boolean;
 }[] = [
   { value: "creditCard", label: "Credit card" },
-  { value: "loan", label: "Loan", disabled: true },
+  { value: "loan", label: "Loan" },
   { value: "subscription", label: "Subscription" },
 ];
 
@@ -140,6 +141,22 @@ export function TransactionForm({
     }
   }
 
+  // Loan payment: pick a loan account to pay; the source pre-fills from
+  // the plan's defaultAccountId (if set). Submit shape is a transfer with
+  // optional lines for interest/fee categorization (the destination leg
+  // gets the principal portion = amount − Σ lines).
+  function applyLoan(loanId: string) {
+    setDestinationAccountId(loanId);
+    if (!loanId) {
+      setAccountId("");
+      return;
+    }
+    const loan = accounts.find((a) => a.id === loanId);
+    if (loan?.recurringPlan?.defaultAccountId) {
+      setAccountId(loan.recurringPlan.defaultAccountId);
+    }
+  }
+
   function applySubscription(newId: string) {
     setSubscriptionId(newId);
     if (!newId) {
@@ -172,16 +189,20 @@ export function TransactionForm({
       ? []
       : categories.filter((c) => c.kind === categoryKindForType);
   // Source-account filter:
-  //   - Transfer: checking/savings only on both sides (CC is hidden here;
-  //     CC payments go through Payment > Credit card instead).
-  //   - Payment > Credit card: the source must be checking/savings.
+  //   - Transfer: checking/savings only on both sides (CC and loan hidden;
+  //     those flows surface through Payment > Credit card / Loan).
+  //   - Payment > Credit card: source must be checking/savings.
+  //   - Payment > Loan: source can be checking/savings or credit_card
+  //     (paying a loan with a card is a real flow). Loan-as-source is
+  //     never valid.
   //   - Other (expense/income): all account types — a CC charge is an
   //     expense from the CC, a refund/credit is income to it.
-  const restrictToChecking =
-    type === "transfer" || (type === "payment" && paymentKind === "creditCard");
-  const sourceAccountPool = restrictToChecking
-    ? accounts.filter((a) => a.type === "checking_savings")
-    : accounts;
+  const sourceAccountPool =
+    type === "transfer" || (type === "payment" && paymentKind === "creditCard")
+      ? accounts.filter((a) => a.type === "checking_savings")
+      : type === "payment" && paymentKind === "loan"
+        ? accounts.filter((a) => a.type !== "loan")
+        : accounts;
   const sourceAccounts = sourceAccountPool.filter(
     (a) => a.id !== destinationAccountId,
   );
@@ -189,6 +210,7 @@ export function TransactionForm({
     .filter((a) => a.type === "checking_savings")
     .filter((a) => a.id !== accountId);
   const ccAccounts = accounts.filter((a) => a.type === "credit_card");
+  const loanAccounts = accounts.filter((a) => a.type === "loan");
   const allTagNames = tags.map((t) => t.name);
 
   function handleTypeChange(newType: TxType) {
@@ -206,9 +228,10 @@ export function TransactionForm({
   function handlePaymentKindChange(newKind: PaymentKind) {
     setPaymentKind(newKind);
     // Switching kinds invalidates the prefilled state (each kind owns its
-    // own entity + amount/lines). Clear everything kind-specific.
+    // own entity + amount/lines). Clear everything kind-specific. For
+    // Loan, lines start empty (fees are the exception, not the rule).
     setSubscriptionId("");
-    setLines([emptyLine()]);
+    setLines(newKind === "loan" ? [] : [emptyLine()]);
     setDestinationAccountId("");
     setTransferAmount("");
     setAccountId("");
@@ -263,6 +286,8 @@ export function TransactionForm({
     if (type === "payment") {
       // "Payment" is a UI portal that submits as a typed transaction:
       //   creditCard → transfer (checking → CC)
+      //   loan → transfer (checking/CC → loan), with optional fee/interest
+      //     lines categorizing the non-principal portion
       //   subscription → expense + subscriptionId (sub charge)
       if (paymentKind === "creditCard") {
         onSubmit({
@@ -271,6 +296,17 @@ export function TransactionForm({
           amount: transferAmount,
           accountId,
           destinationAccountId,
+        });
+        return;
+      }
+      if (paymentKind === "loan") {
+        onSubmit({
+          type: "transfer",
+          ...commonBase,
+          amount: transferAmount,
+          accountId,
+          destinationAccountId,
+          lines: lines.length > 0 ? lines.map(lineToBody) : undefined,
         });
         return;
       }
@@ -305,13 +341,14 @@ export function TransactionForm({
     );
   }
 
-  // Payment tab requires picking the entity (CC account or subscription)
-  // before anything else makes sense. Hide the rest of the form until
-  // one is selected, and surface a "create one first" affordance when
-  // there are none of that kind.
+  // Payment tab requires picking the entity (CC account, loan account, or
+  // subscription) before anything else makes sense. Hide the rest of the
+  // form until one is selected, and surface a "create one first"
+  // affordance when there are none of that kind.
   const paymentEntityMissing =
     type === "payment" &&
     ((paymentKind === "creditCard" && !destinationAccountId) ||
+      (paymentKind === "loan" && !destinationAccountId) ||
       (paymentKind === "subscription" && !subscriptionId));
 
   return (
@@ -333,6 +370,13 @@ export function TransactionForm({
                 onChange={applyCreditCard}
               />
             )}
+            {paymentKind === "loan" && (
+              <PaymentLoanPicker
+                destinationAccountId={destinationAccountId}
+                loanAccounts={loanAccounts}
+                onChange={applyLoan}
+              />
+            )}
             {paymentKind === "subscription" && (
               <PaymentSubscriptionPicker
                 subOptions={subOptions}
@@ -345,8 +389,26 @@ export function TransactionForm({
         )}
 
         {!paymentEntityMissing &&
-          (type === "transfer" ||
-          (type === "payment" && paymentKind === "creditCard") ? (
+          (type === "payment" && paymentKind === "loan" ? (
+            <>
+              <MoneyField
+                description="Total payment incl. principal, interest, fees."
+                label="Amount"
+                min={0}
+                value={transferAmount}
+                onChange={setTransferAmount}
+              />
+              <MultiLineEditor
+                allTags={allTagNames}
+                categories={relevantCategories}
+                lines={lines}
+                onAdd={addLine}
+                onRemove={removeLine}
+                onUpdate={updateLine}
+              />
+            </>
+          ) : type === "transfer" ||
+            (type === "payment" && paymentKind === "creditCard") ? (
             <MoneyField
               label="Amount"
               min={0}
@@ -400,7 +462,8 @@ export function TransactionForm({
               ]}
               label={
                 type === "transfer" ||
-                (type === "payment" && paymentKind === "creditCard")
+                (type === "payment" &&
+                  (paymentKind === "creditCard" || paymentKind === "loan"))
                   ? "From account"
                   : "Account"
               }
@@ -486,6 +549,50 @@ function PaymentCreditCardPicker({
       ]}
       description="Source account pre-fills from the card's default pay-from."
       label="Credit card"
+      required
+      value={destinationAccountId}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  );
+}
+
+function PaymentLoanPicker({
+  loanAccounts,
+  destinationAccountId,
+  onChange,
+}: {
+  loanAccounts: Account[];
+  destinationAccountId: string;
+  onChange: (id: string) => void;
+}) {
+  if (loanAccounts.length === 0) {
+    return (
+      <Stack>
+        <Text c="dimmed" size="sm">
+          No loan accounts yet.
+        </Text>
+        <Button
+          component={Link}
+          to="/accounts/new"
+          variant="subtle"
+          w="fit-content"
+        >
+          Create loan account
+        </Button>
+      </Stack>
+    );
+  }
+  return (
+    <NativeSelect
+      data={[
+        { value: "", label: "Select a loan…", disabled: true },
+        ...loanAccounts.map((a) => ({
+          value: a.id,
+          label: `${a.name} (${a.currency})`,
+        })),
+      ]}
+      description="Source pre-fills from the plan's default pay-from. Add fee/interest lines to categorize the non-principal portion."
+      label="Loan"
       required
       value={destinationAccountId}
       onChange={(e) => onChange(e.target.value)}

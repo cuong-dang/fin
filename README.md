@@ -27,13 +27,6 @@ to maintain in a year.
 
 What's shipped and works end-to-end today:
 
-- **Accurate transaction model with legs & lines.** Double-entry-style:
-  every transaction has _legs_ (signed account movements) separate from
-  _lines_ (categorization). This is what supports income, expense,
-  transfer, and balance-adjustment transactions uniformly — no
-  special-casing per type — and keeps account balances and category
-  rollups internally consistent.
-
 - **Multi-line splits in one transaction.** A single shopping receipt can
   be one tx with multiple lines, each with its own category, subcategory,
   and tags (e.g., "$87 at Costco" → $50 Groceries / $25 Household / $12

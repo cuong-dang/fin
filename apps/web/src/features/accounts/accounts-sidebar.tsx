@@ -1,4 +1,8 @@
-import type { Account, AccountGroup } from "@fin/schemas";
+import type {
+  Account,
+  AccountGroup,
+  RecurringFrequency,
+} from "@fin/schemas";
 import {
   ActionIcon,
   Anchor,
@@ -166,24 +170,37 @@ function AccountItem({
   const available = BigInt(account.availableBalance);
   const hasPending = present !== available;
   const isCc = account.type === "credit_card" && account.creditLimit;
+  const isLoan = account.type === "loan" && account.recurringPlan;
 
-  // Compose the label column ourselves so the credit-limit bar renders
-  // inline beneath the name. NavLink's `children` slot is for nested
-  // sub-NavLinks (collapsible), which isn't what we want here.
-  // limitRemaining derives directly from creditLimit + availableBalance
-  // (sum of all legs incl. pending) — no need for a server-side field.
-  const label = isCc ? (
-    <Stack>
-      <Text size="sm">{account.name}</Text>
-      <CreditLimitBar
-        creditLimit={BigInt(account.creditLimit!)}
-        currency={account.currency}
-        limitRemaining={BigInt(account.creditLimit!) + available}
-      />
-    </Stack>
-  ) : (
-    account.name
-  );
+  // Compose the label column ourselves so the credit-limit bar / loan
+  // remaining-payments hint render inline beneath the name. NavLink's
+  // `children` slot is for nested sub-NavLinks (collapsible), which isn't
+  // what we want here.
+  let label: React.ReactNode = account.name;
+  if (isCc) {
+    label = (
+      <Stack>
+        <Text size="sm">{account.name}</Text>
+        <CreditLimitBar
+          creditLimit={BigInt(account.creditLimit!)}
+          currency={account.currency}
+          limitRemaining={BigInt(account.creditLimit!) + available}
+        />
+      </Stack>
+    );
+  } else if (isLoan) {
+    label = (
+      <Stack>
+        <Text size="sm">{account.name}</Text>
+        <LoanRemainingHint
+          amountPerPeriod={BigInt(account.recurringPlan!.amountPerPeriod)}
+          balance={available}
+          currency={account.currency}
+          frequency={account.recurringPlan!.frequency}
+        />
+      </Stack>
+    );
+  }
 
   return (
     <NavLink
@@ -204,6 +221,49 @@ function AccountItem({
       }
       to={`/?account=${account.id}`}
     />
+  );
+}
+
+const FREQUENCY_SUFFIX: Record<RecurringFrequency, string> = {
+  weekly: "/wk",
+  biweekly: "/2wk",
+  monthly: "/mo",
+  quarterly: "/qtr",
+  yearly: "/yr",
+};
+
+function LoanRemainingHint({
+  balance,
+  amountPerPeriod,
+  currency,
+  frequency,
+}: {
+  /** Sum of all legs on the loan account (negative when there's debt). */
+  balance: bigint;
+  amountPerPeriod: bigint;
+  currency: string;
+  frequency: RecurringFrequency;
+}) {
+  // Loan balance convention: negative = debt remaining, 0 = paid off,
+  // positive = overpaid (rare). The "remaining payments" approximation
+  // ignores amortization (early payments are mostly interest) — fine for
+  // a sidebar hint, prefixed with `~` to signal the approximation.
+  if (balance >= 0n) {
+    return (
+      <Text c="dimmed" ff="monospace" size="xs">
+        Paid off
+      </Text>
+    );
+  }
+  if (amountPerPeriod <= 0n) return null;
+  const debt = -balance;
+  // ceil(debt / amountPerPeriod) using bigint arithmetic.
+  const remaining = (debt + amountPerPeriod - 1n) / amountPerPeriod;
+  return (
+    <Text c="dimmed" ff="monospace" size="xs">
+      ~{Number(remaining)} left · {formatMoney(amountPerPeriod, currency)}
+      {FREQUENCY_SUFFIX[frequency]}
+    </Text>
   );
 }
 

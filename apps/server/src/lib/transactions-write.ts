@@ -17,10 +17,18 @@ type SourceAccount = { currency: string; type: string };
  * given id. Income/expense supports multi-line splits: leg amount is the
  * sum of line amounts; each line resolves/creates its own category and
  * subcategory inline and links any provided tags via the junction.
- * Transfers validate destination + currency match. Source must be a
- * checking/savings account; destination may be checking/savings or a
- * credit_card (the latter is how CC payments are recorded — surfaced via
- * the Payment tab in the UI; the Transfer tab itself filters CC out).
+ *
+ * Transfers:
+ *   - Source: any non-loan account (checking/savings or credit_card).
+ *     "From a loan" doesn't make sense.
+ *   - Destination: any account type (checking/savings, credit_card, loan).
+ *     Loan destination is how loan payments land; CC destination is how
+ *     CC payments land. The Transfer tab filters both sides to checking/
+ *     savings — those flows surface through Payment > Loan / Credit card.
+ *   - Optional `lines` (loan payments only): categorize the non-principal
+ *     portion (interest, fees). Destination leg = `amount − Σ line.amount`
+ *     (principal portion); source leg = `−amount` (full cash out). For
+ *     pure transfers (no lines) the legs sum to 0.
  */
 export async function insertLegsAndLines(
   tx: Tx,
@@ -80,8 +88,8 @@ export async function insertLegsAndLines(
   if (parsed.accountId === parsed.destinationAccountId) {
     throw new Error("Source and destination accounts must differ");
   }
-  if (sourceAccount.type !== "checking_savings") {
-    throw new Error("Source account must be a checking/savings account");
+  if (sourceAccount.type === "loan") {
+    throw new Error("Source account cannot be a loan");
   }
   const destAccount = await findOwned(
     schema.accounts,
@@ -89,28 +97,60 @@ export async function insertLegsAndLines(
     workspaceGroupId,
   );
   if (!destAccount) throw new Error("Destination account not found");
-  if (
-    destAccount.type !== "checking_savings" &&
-    destAccount.type !== "credit_card"
-  ) {
-    throw new Error(
-      "Destination must be a checking/savings or credit-card account",
-    );
-  }
   if (destAccount.currency !== sourceAccount.currency) {
     throw new Error(
       "FX transfers not yet supported — accounts must share a currency",
     );
   }
+
+  // Optional lines: only meaningful when the destination is a loan
+  // (lender deducts interest/fees from each payment). Lines categorize
+  // the non-principal portion; destination leg gets the principal.
+  const lines = parsed.lines ?? [];
+  if (lines.length > 0 && destAccount.type !== "loan") {
+    throw new Error("Lines on a transfer are only allowed for loan payments");
+  }
+  const lineMinors = lines.map((l) =>
+    parseMoney(l.amount, sourceAccount.currency),
+  );
+  if (lineMinors.some((m) => m <= 0n)) {
+    throw new Error("Each line amount must be positive");
+  }
+  const linesSum = lineMinors.reduce((s, m) => s + m, 0n);
+  if (linesSum > amountMinor) {
+    throw new Error("Sum of lines cannot exceed payment amount");
+  }
+  const principalPortion = amountMinor - linesSum;
+
   await tx.insert(schema.transactionLegs).values([
     { transactionId, accountId: parsed.accountId, amount: -amountMinor },
     {
       transactionId,
       accountId: parsed.destinationAccountId,
-      amount: amountMinor,
+      amount: principalPortion,
     },
   ]);
-  // Plain transfer: no lines, no tags.
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const { categoryId, subcategoryId } = await resolveCategory(
+      tx,
+      line,
+      "expense",
+      workspaceGroupId,
+    );
+    const [lineRow] = await tx
+      .insert(schema.transactionLines)
+      .values({
+        transactionId,
+        categoryId,
+        subcategoryId,
+        amount: lineMinors[i],
+        currency: sourceAccount.currency,
+      })
+      .returning({ id: schema.transactionLines.id });
+    await linkTagsToLine(tx, lineRow.id, line.tagNames, workspaceGroupId);
+  }
 }
 
 /**

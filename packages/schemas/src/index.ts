@@ -3,6 +3,7 @@ export * from "./accounts";
 export * from "./auth";
 export * from "./categories";
 export * from "./common";
+export * from "./recurring-plans";
 export * from "./subscriptions";
 export * from "./tags";
 export * from "./transactions";

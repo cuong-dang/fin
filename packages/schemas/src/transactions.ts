@@ -49,12 +49,19 @@ const expenseFields = commonFields
   })
   .strict();
 
+// Transfers may carry optional lines that categorize a portion of the
+// payment as non-principal cost (interest, fees) — used for loan payments
+// where the lender deducts interest/fees from each payment. The
+// destination leg gets `amount − Σ line.amount` (principal portion);
+// lines categorize the rest. Pure transfers (checking → checking) leave
+// `lines` undefined.
 const transferFields = commonFields
   .extend({
     type: z.literal("transfer"),
     amount: moneyString,
     accountId: z.uuid(),
     destinationAccountId: z.uuid(),
+    lines: z.array(transactionLineBody).optional(),
   })
   .strict();
 
