@@ -277,7 +277,7 @@ export function AccountNewRoute() {
               type === "credit_card"
                 ? "Outstanding balance you currently owe (enter as a negative number)."
                 : type === "loan"
-                  ? "Current debt (enter as a negative number). Defaults to 0 if you're starting tracking from today and recording payments going forward."
+                  ? "Leave at 0 if you'd like to record the financed purchase as a separate expense from this loan account — that way the spending lands in a category and the loan balance goes negative automatically. Otherwise, enter the current debt as a negative number."
                   : undefined
             }
             label="Starting balance (optional)"

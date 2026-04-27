@@ -1,8 +1,4 @@
-import type {
-  Account,
-  AccountGroup,
-  RecurringFrequency,
-} from "@fin/schemas";
+import type { Account, AccountGroup, RecurringFrequency } from "@fin/schemas";
 import {
   ActionIcon,
   Anchor,

@@ -1,21 +1,31 @@
 import { z } from "zod";
 
 import { dateString, moneyString } from "./common";
-import { recurringPlanBody } from "./recurring-plans";
+import {
+  recurringPlanBody,
+  type RecurringPlanDefaultLine,
+} from "./recurring-plans";
 import type { RecurringFrequency } from "./subscriptions";
 
 /**
- * Slim recurring-plan summary embedded on the loan account row. Holds
- * what the sidebar (`~N of M left`) and the Payment > Loan flow
- * (pre-fill source from `defaultAccountId`) need. The full plan
- * (default lines + tags + description) is fetched separately when an
- * editor for plans lands.
+ * Recurring-plan fields embedded on the loan account row. Two consumers,
+ * each using a subset of these fields:
+ *
+ * - Sidebar payments-remaining indicator: `amountPerPeriod` + `frequency`.
+ * - Payment > Loan pre-fill: `amountPerPeriod` (amount), `defaultAccountId`
+ *   (source), `defaultLines` (line templates).
+ *
+ * Bundling avoids an extra round-trip when the user picks a loan in the
+ * payment picker. `description` and `firstPaymentDate` aren't surfaced
+ * here — they'd come from a dedicated `GET /api/recurring-plans/:id` when
+ * a plan editor lands.
  */
 export type AccountRecurringPlan = {
   id: string;
   amountPerPeriod: string; // stringified bigint
   frequency: RecurringFrequency;
   defaultAccountId: string | null;
+  defaultLines: RecurringPlanDefaultLine[];
 };
 
 const nameField = z.string().trim().min(1).max(100);

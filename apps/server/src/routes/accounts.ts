@@ -2,15 +2,17 @@ import {
   type CreateAccountBody,
   createAccountBody,
   idParam,
+  type RecurringPlanDefaultLine,
   type UpdateAccountBody,
   updateAccountBody,
 } from "@fin/schemas";
-import { and, eq, isNotNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import type { FastifyPluginAsync, FastifyReply } from "fastify";
 
 import { schema } from "../db";
 import { db } from "../db";
 import { findOwned, ownedActive } from "../lib/authz";
+import { groupBy } from "../lib/collections";
 import { parseMoney } from "../lib/money";
 import { insertRecurringPlan } from "../lib/recurring-plans-write";
 import { nextSortKey } from "../lib/transactions-order";
@@ -59,7 +61,10 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
     planDefaultAccountId: string | null;
   };
 
-  function rowToResponse(row: AccountRow) {
+  function rowToResponse(
+    row: AccountRow,
+    linesByPlan: Map<string, RecurringPlanDefaultLine[]>,
+  ) {
     const {
       planId,
       planAmountPerPeriod,
@@ -76,6 +81,7 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
               amountPerPeriod: planAmountPerPeriod,
               frequency: planFrequency,
               defaultAccountId: planDefaultAccountId,
+              defaultLines: linesByPlan.get(planId) ?? [],
             }
           : null,
     };
@@ -114,7 +120,11 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
       .where(ownedActive(schema.accounts, req.auth.groupId))
       .groupBy(schema.accounts.id, schema.recurringPlans.id)
       .orderBy(schema.accounts.name);
-    return rows.map(rowToResponse);
+    const planIds = rows
+      .map((r) => r.planId)
+      .filter((id): id is string => id !== null);
+    const linesByPlan = await fetchPlanDefaultLines(planIds);
+    return rows.map((r) => rowToResponse(r, linesByPlan));
   });
 
   /** Fetch a single account (with balances). Used by the edit page. */
@@ -152,7 +162,10 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
       )
       .where(eq(schema.accounts.id, id))
       .groupBy(schema.accounts.id, schema.recurringPlans.id);
-    return rowToResponse(row);
+    const linesByPlan = row.planId
+      ? await fetchPlanDefaultLines([row.planId])
+      : new Map<string, RecurringPlanDefaultLine[]>();
+    return rowToResponse(row, linesByPlan);
   });
 
   app.post("/", async (req, reply) => {
@@ -461,4 +474,85 @@ async function resolveCcFields(
     creditLimit: limitMinor,
     defaultPayFromAccountId: body.defaultPayFromAccountId ?? null,
   };
+}
+
+// Hydrates default lines (with categories, subcategories, and tags) for
+// the given plan ids. Mirrors the subscription default-line fetch:
+// inner-join the category, left-join the subcategory, then a second pass
+// for the M2M tag rows. Plan default-line amounts are nullable (loan
+// principal/interest splits vary per period), so the response carries
+// `amount: string | null`.
+async function fetchPlanDefaultLines(
+  planIds: string[],
+): Promise<Map<string, RecurringPlanDefaultLine[]>> {
+  if (planIds.length === 0) return new Map();
+  const lineRows = await db
+    .select({
+      id: schema.recurringPlanDefaultLines.id,
+      planId: schema.recurringPlanDefaultLines.recurringPlanId,
+      amount: schema.recurringPlanDefaultLines.amount,
+      currency: schema.recurringPlanDefaultLines.currency,
+      categoryId: schema.recurringPlanDefaultLines.categoryId,
+      categoryName: schema.categories.name,
+      subcategoryId: schema.recurringPlanDefaultLines.subcategoryId,
+      subcategoryName: schema.subcategories.name,
+      description: schema.recurringPlanDefaultLines.description,
+    })
+    .from(schema.recurringPlanDefaultLines)
+    .innerJoin(
+      schema.categories,
+      eq(schema.categories.id, schema.recurringPlanDefaultLines.categoryId),
+    )
+    .leftJoin(
+      schema.subcategories,
+      eq(
+        schema.subcategories.id,
+        schema.recurringPlanDefaultLines.subcategoryId,
+      ),
+    )
+    .where(inArray(schema.recurringPlanDefaultLines.recurringPlanId, planIds));
+
+  const tagRows = lineRows.length
+    ? await db
+        .select({
+          lineId: schema.recurringPlanDefaultLineTags.lineId,
+          tagId: schema.tags.id,
+          tagName: schema.tags.name,
+        })
+        .from(schema.recurringPlanDefaultLineTags)
+        .innerJoin(
+          schema.tags,
+          eq(schema.tags.id, schema.recurringPlanDefaultLineTags.tagId),
+        )
+        .where(
+          inArray(
+            schema.recurringPlanDefaultLineTags.lineId,
+            lineRows.map((l) => l.id),
+          ),
+        )
+        .orderBy(schema.tags.name)
+    : [];
+  const tagsByLine = groupBy(tagRows, (t) => t.lineId);
+
+  const out = new Map<string, RecurringPlanDefaultLine[]>();
+  for (const l of lineRows) {
+    const line: RecurringPlanDefaultLine = {
+      id: l.id,
+      amount: l.amount === null ? null : l.amount.toString(),
+      currency: l.currency,
+      categoryId: l.categoryId,
+      categoryName: l.categoryName,
+      subcategoryId: l.subcategoryId,
+      subcategoryName: l.subcategoryName,
+      description: l.description,
+      tags: (tagsByLine.get(l.id) ?? []).map((t) => ({
+        id: t.tagId,
+        name: t.tagName,
+      })),
+    };
+    const list = out.get(l.planId);
+    if (list) list.push(line);
+    else out.set(l.planId, [line]);
+  }
+  return out;
 }

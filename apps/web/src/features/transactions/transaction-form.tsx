@@ -142,15 +142,19 @@ export function TransactionForm({
   }
 
   // Loan payment: pick a loan account to pay; the source pre-fills from
-  // the plan's defaultAccountId (if set), and the amount pre-fills from
-  // the plan's amountPerPeriod. Submit shape is a transfer with optional
-  // lines for interest/fee categorization (the destination leg gets the
-  // principal portion = amount − Σ lines).
+  // the plan's defaultAccountId (if set), the amount pre-fills from
+  // amountPerPeriod, and any default lines (fee/interest categorization
+  // templates) come in pre-populated. Submit shape is a transfer with
+  // optional lines (destination leg gets the principal portion =
+  // amount − Σ lines). Plan default-line amounts may be null — those
+  // arrive as empty strings so the user fills them in (or removes the
+  // line) before submit.
   function applyLoan(loanId: string) {
     setDestinationAccountId(loanId);
     if (!loanId) {
       setAccountId("");
       setTransferAmount("");
+      setLines([]);
       return;
     }
     const loan = accounts.find((a) => a.id === loanId);
@@ -163,6 +167,18 @@ export function TransactionForm({
           BigInt(loan.recurringPlan.amountPerPeriod),
           loan.currency,
         ),
+      );
+      setLines(
+        loan.recurringPlan.defaultLines.map((l) => ({
+          amount: l.amount
+            ? formatMoneyPlain(BigInt(l.amount), l.currency)
+            : "",
+          categoryId: l.categoryId,
+          newCategoryName: "",
+          subcategoryId: l.subcategoryId ?? "",
+          newSubcategoryName: "",
+          tagNames: l.tags.map((t) => t.name),
+        })),
       );
     }
   }
