@@ -1,5 +1,5 @@
 {
-  "id": "52e0e6ee-e3bd-4a67-8bf9-6ef9cd2ef730",
+  "id": "8ece0ef6-98c5-49ab-ade4-4c5b1ecfe873",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -148,6 +148,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "recurring_plan_id": {
+          "name": "recurring_plan_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -226,6 +232,19 @@
           "tableTo": "accounts",
           "columnsFrom": [
             "default_pay_from_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "accounts_recurring_plan_id_recurring_plans_id_fk": {
+          "name": "accounts_recurring_plan_id_recurring_plans_id_fk",
+          "tableFrom": "accounts",
+          "tableTo": "recurring_plans",
+          "columnsFrom": [
+            "recurring_plan_id"
           ],
           "columnsTo": [
             "id"
@@ -562,13 +581,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "role": {
-          "name": "role",
-          "type": "recurring_plan_role",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
         "amount": {
           "name": "amount",
           "type": "bigint",
@@ -684,12 +696,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
         "amount_per_period": {
           "name": "amount_per_period",
           "type": "bigint",
@@ -701,18 +707,6 @@
           "type": "char(3)",
           "primaryKey": false,
           "notNull": true
-        },
-        "total_periods": {
-          "name": "total_periods",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "principal_amount": {
-          "name": "principal_amount",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": false
         },
         "frequency": {
           "name": "frequency",
@@ -1493,13 +1487,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "recurring_plan_role": {
-          "name": "recurring_plan_role",
-          "type": "recurring_plan_role",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": false
-        },
         "amount": {
           "name": "amount",
           "type": "bigint",
@@ -1640,12 +1627,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "recurring_plan_id": {
-          "name": "recurring_plan_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "subscription_id": {
           "name": "subscription_id",
           "type": "uuid",
@@ -1750,19 +1731,6 @@
           "tableTo": "users",
           "columnsFrom": [
             "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "transactions_recurring_plan_id_recurring_plans_id_fk": {
-          "name": "transactions_recurring_plan_id_recurring_plans_id_fk",
-          "tableFrom": "transactions",
-          "tableTo": "recurring_plans",
-          "columnsFrom": [
-            "recurring_plan_id"
           ],
           "columnsTo": [
             "id"
@@ -1885,15 +1853,6 @@
         "weekly",
         "quarterly",
         "yearly"
-      ]
-    },
-    "public.recurring_plan_role": {
-      "name": "recurring_plan_role",
-      "schema": "public",
-      "values": [
-        "principal",
-        "interest",
-        "fee"
       ]
     },
     "public.transaction_type": {

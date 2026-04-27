@@ -5,36 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1777176846646,
-      "tag": "0000_jittery_clint_barton",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1777253844200,
-      "tag": "0001_bouncy_mephisto",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1777254208566,
-      "tag": "0002_open_tomorrow_man",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1777258740372,
-      "tag": "0003_gray_exodus",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1777259080671,
-      "tag": "0004_puzzling_aaron_stack",
+      "when": 1777322309599,
+      "tag": "0000_noisy_micromacro",
       "breakpoints": true
     }
   ]

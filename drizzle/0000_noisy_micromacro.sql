@@ -2,7 +2,6 @@ CREATE TYPE "public"."account_type" AS ENUM('checking_savings', 'credit_card', '
 CREATE TYPE "public"."category_kind" AS ENUM('income', 'expense');--> statement-breakpoint
 CREATE TYPE "public"."member_role" AS ENUM('owner', 'member');--> statement-breakpoint
 CREATE TYPE "public"."recurring_frequency" AS ENUM('monthly', 'biweekly', 'weekly', 'quarterly', 'yearly');--> statement-breakpoint
-CREATE TYPE "public"."recurring_plan_role" AS ENUM('principal', 'interest', 'fee');--> statement-breakpoint
 CREATE TYPE "public"."transaction_type" AS ENUM('income', 'expense', 'transfer', 'adjustment');--> statement-breakpoint
 CREATE TABLE "account_groups" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
@@ -22,6 +21,7 @@ CREATE TABLE "accounts" (
 	"type" "account_type" DEFAULT 'checking_savings' NOT NULL,
 	"credit_limit" bigint,
 	"default_pay_from_account_id" uuid,
+	"recurring_plan_id" uuid,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"deleted_at" timestamp with time zone
@@ -63,7 +63,6 @@ CREATE TABLE "recurring_plan_default_lines" (
 	"recurring_plan_id" uuid NOT NULL,
 	"category_id" uuid NOT NULL,
 	"subcategory_id" uuid,
-	"role" "recurring_plan_role" NOT NULL,
 	"amount" bigint,
 	"currency" char(3) NOT NULL,
 	"description" text
@@ -72,11 +71,8 @@ CREATE TABLE "recurring_plan_default_lines" (
 CREATE TABLE "recurring_plans" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"group_id" uuid NOT NULL,
-	"name" text NOT NULL,
 	"amount_per_period" bigint NOT NULL,
 	"currency" char(3) NOT NULL,
-	"total_periods" integer,
-	"principal_amount" bigint,
 	"frequency" "recurring_frequency" NOT NULL,
 	"first_payment_date" date NOT NULL,
 	"default_account_id" uuid,
@@ -153,7 +149,6 @@ CREATE TABLE "transaction_lines" (
 	"transaction_id" uuid NOT NULL,
 	"category_id" uuid NOT NULL,
 	"subcategory_id" uuid,
-	"recurring_plan_role" "recurring_plan_role",
 	"amount" bigint NOT NULL,
 	"currency" char(3) NOT NULL,
 	"description" text
@@ -166,7 +161,6 @@ CREATE TABLE "transactions" (
 	"date" date,
 	"type" "transaction_type" NOT NULL,
 	"description" text,
-	"recurring_plan_id" uuid,
 	"subscription_id" uuid,
 	"fx_rate" numeric(24, 12),
 	"sort_key" integer,
@@ -188,6 +182,7 @@ ALTER TABLE "account_groups" ADD CONSTRAINT "account_groups_group_id_groups_id_f
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_group_id_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."groups"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_account_group_id_account_groups_id_fk" FOREIGN KEY ("account_group_id") REFERENCES "public"."account_groups"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_default_pay_from_account_id_accounts_id_fk" FOREIGN KEY ("default_pay_from_account_id") REFERENCES "public"."accounts"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "accounts" ADD CONSTRAINT "accounts_recurring_plan_id_recurring_plans_id_fk" FOREIGN KEY ("recurring_plan_id") REFERENCES "public"."recurring_plans"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "categories" ADD CONSTRAINT "categories_group_id_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."groups"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "group_members" ADD CONSTRAINT "group_members_group_id_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."groups"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "group_members" ADD CONSTRAINT "group_members_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -216,7 +211,6 @@ ALTER TABLE "transaction_lines" ADD CONSTRAINT "transaction_lines_category_id_ca
 ALTER TABLE "transaction_lines" ADD CONSTRAINT "transaction_lines_subcategory_id_subcategories_id_fk" FOREIGN KEY ("subcategory_id") REFERENCES "public"."subcategories"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "transactions" ADD CONSTRAINT "transactions_group_id_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."groups"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "transactions" ADD CONSTRAINT "transactions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "transactions" ADD CONSTRAINT "transactions_recurring_plan_id_recurring_plans_id_fk" FOREIGN KEY ("recurring_plan_id") REFERENCES "public"."recurring_plans"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "transactions" ADD CONSTRAINT "transactions_subscription_id_subscriptions_id_fk" FOREIGN KEY ("subscription_id") REFERENCES "public"."subscriptions"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "account_groups_group_name_unique" ON "account_groups" USING btree ("group_id","name") WHERE "account_groups"."deleted_at" IS NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "accounts_group_name_unique" ON "accounts" USING btree ("group_id","name") WHERE "accounts"."deleted_at" IS NULL;--> statement-breakpoint
