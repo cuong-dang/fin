@@ -12,6 +12,7 @@ async function fetchLegs(txIds: string[]) {
       accountId: schema.transactionLegs.accountId,
       accountName: schema.accounts.name,
       accountCurrency: schema.accounts.currency,
+      accountType: schema.accounts.type,
       amount: schema.transactionLegs.amount,
     })
     .from(schema.transactionLegs)
@@ -135,6 +136,7 @@ export function enrichTx(
       accountId: l.accountId,
       accountName: l.accountName,
       accountCurrency: l.accountCurrency,
+      accountType: l.accountType,
       amount: l.amount.toString(),
     })),
     lines: (lines ?? []).map((l) => ({

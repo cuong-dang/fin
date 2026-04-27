@@ -428,6 +428,19 @@ export function TransactionForm({
                 allTags={allTagNames}
                 categories={relevantCategories}
                 lines={lines}
+                summary={{
+                  label: "Principal",
+                  value: (
+                    (Number(transferAmount) || 0) -
+                    lines.reduce(
+                      (s, l) =>
+                        Number.isFinite(Number(l.amount))
+                          ? s + Number(l.amount)
+                          : s,
+                      0,
+                    )
+                  ).toFixed(2),
+                }}
                 onAdd={addLine}
                 onRemove={removeLine}
                 onUpdate={updateLine}

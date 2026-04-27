@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import type { AccountType } from "./accounts";
 import { dateString, moneyString } from "./common";
 import { tagName } from "./tags";
 
@@ -116,6 +117,9 @@ export type TxLeg = {
   accountId: string;
   accountName: string;
   accountCurrency: string;
+  // Lets the row display tell apart pure transfers from CC / loan
+  // payments without a second account lookup.
+  accountType: AccountType;
   amount: string; // stringified bigint (JSON can't carry bigint natively)
 };
 

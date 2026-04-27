@@ -77,6 +77,11 @@ export function SingleLineEditor({
  * (amortizing loans), so the template records categorization but leaves the
  * amount blank. When set, individual amounts aren't required and the
  * running-total card is hidden (a sum of "may-be-blank" values is misleading).
+ *
+ * `summary` overrides the bottom summary card. The default is
+ * `{ label: "Total", value: <Σ lines> }`. Loan-payment forms pass
+ * `{ label: "Principal", value: <Amount − Σ lines> }` because in that
+ * context the lines are a partial categorization, not the full payment.
  */
 export function MultiLineEditor({
   lines,
@@ -86,6 +91,7 @@ export function MultiLineEditor({
   onAdd,
   onRemove,
   amountOptional = false,
+  summary,
 }: {
   lines: CategoryLineFormValues[];
   categories: CategoryWithSubs[];
@@ -94,11 +100,13 @@ export function MultiLineEditor({
   onAdd: () => void;
   onRemove: (index: number) => void;
   amountOptional?: boolean;
+  summary?: { label: string; value: string };
 }) {
   const total = lines.reduce((s, l) => {
     const n = Number(l.amount);
     return Number.isFinite(n) ? s + n : s;
   }, 0);
+  const summaryRow = summary ?? { label: "Total", value: total.toFixed(2) };
   return (
     <Stack>
       {lines.map((line, i) => (
@@ -157,9 +165,9 @@ export function MultiLineEditor({
       {!amountOptional && (
         <Card withBorder>
           <Group justify="space-between">
-            <SectionHeader compact>Total</SectionHeader>
+            <SectionHeader compact>{summaryRow.label}</SectionHeader>
             <Text ff="monospace" fw={500} size="sm">
-              {total.toFixed(2)}
+              {summaryRow.value}
             </Text>
           </Group>
         </Card>

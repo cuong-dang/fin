@@ -14,7 +14,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { EnrichedTransaction, TxLine } from "@fin/schemas";
+import type { EnrichedTransaction, TxLeg, TxLine } from "@fin/schemas";
 import {
   ActionIcon,
   Alert,
@@ -253,7 +253,11 @@ function SortableRow({
     isDragging,
   } = useSortable({ id: tx.id });
   const [expanded, setExpanded] = useState(false);
-  const isMultiLine = tx.lines.length > 1;
+  // Loan payment = transfer + categorization lines for the fee/interest
+  // portion. The expansion shows the principal row (Source → Destination)
+  // alongside the line breakdown so principal + lines = total cash out.
+  const isLoanPayment = tx.type === "transfer" && tx.lines.length > 0;
+  const expandable = tx.lines.length > 1 || isLoanPayment;
   return (
     <Box
       ref={setNodeRef}
@@ -274,7 +278,7 @@ function SortableRow({
         >
           <GripVertical size={14} />
         </UnstyledButton>
-        {isMultiLine && (
+        {expandable && (
           <UnstyledButton
             aria-label={expanded ? "Collapse lines" : "Expand lines"}
             c="dimmed"
@@ -296,8 +300,27 @@ function SortableRow({
             showRunningBalance
             tx={tx}
           />
-          {isMultiLine && expanded && (
+          {expandable && expanded && (
             <Stack>
+              {isLoanPayment &&
+                (() => {
+                  const inLeg = tx.legs.find((l) => BigInt(l.amount) > 0n);
+                  const outLeg = tx.legs.find((l) => BigInt(l.amount) < 0n);
+                  if (!inLeg || !outLeg) return null;
+                  return (
+                    <Group key="principal" justify="space-between">
+                      <Text c="dimmed" size="xs">
+                        {outLeg.accountName} → {inLeg.accountName}
+                      </Text>
+                      <Text c="dimmed" ff="monospace" size="xs">
+                        {formatMoney(
+                          BigInt(inLeg.amount),
+                          inLeg.accountCurrency,
+                        )}
+                      </Text>
+                    </Group>
+                  );
+                })()}
               {tx.lines.map((line, i) => (
                 <Group key={i} justify="space-between">
                   <Text c="dimmed" size="xs">
@@ -395,10 +418,22 @@ function displayShape(
       if (!outLeg || !inLeg) {
         throw new Error(`Invariant: transfer ${tx.id} missing in/out leg`);
       }
+      // Use |outLeg| (cash leaving the source) so loan payments display the
+      // total cash motion ($99) rather than just the principal portion that
+      // landed at the destination ($89). For pure transfers (no lines)
+      // |outLeg| === inLeg, so this is a no-op in the common case.
+      //
+      // Payments to a debt account (CC / loan): the destination is the
+      // "subject" (handled by primaryLabel as "{name} payment"), so meta
+      // only needs to show the source. For pure transfers, show the full
+      // source → destination flow.
+      const isPayment = isDebtPayment(inLeg);
       return {
-        amount: BigInt(inLeg.amount),
-        currency: inLeg.accountCurrency,
-        accountLabel: `${outLeg.accountName} → ${inLeg.accountName}`,
+        amount: -BigInt(outLeg.amount),
+        currency: outLeg.accountCurrency,
+        accountLabel: isPayment
+          ? outLeg.accountName
+          : `${outLeg.accountName} → ${inLeg.accountName}`,
       };
     }
     case "adjustment": {
@@ -414,11 +449,24 @@ function displayShape(
 
 function primaryLabel(tx: EnrichedTransaction): string {
   if (tx.description) return tx.description;
+  if (tx.type === "transfer") {
+    // Payments to a debt account (CC / loan) read more naturally as
+    // "{destination} payment" than as a generic transfer. The line
+    // breakdown (e.g., interest) is shown in the row's expansion.
+    const inLeg = tx.legs.find((l) => BigInt(l.amount) > 0n);
+    if (inLeg && isDebtPayment(inLeg)) return `${inLeg.accountName} payment`;
+    return "Transfer";
+  }
   if (tx.lines.length > 1) return `${tx.lines.length} categories`;
   if (tx.lines[0]) return categoryLabel(tx.lines[0]);
-  if (tx.type === "transfer") return "Transfer";
   if (tx.type === "adjustment") return "Balance adjustment";
   return "";
+}
+
+// A transfer whose destination is a debt account is a settlement payment
+// (paying down a CC or a loan), not a plain account-to-account transfer.
+function isDebtPayment(inLeg: TxLeg): boolean {
+  return inLeg.accountType === "credit_card" || inLeg.accountType === "loan";
 }
 
 function categoryLabel(line: TxLine): string {
@@ -442,7 +490,9 @@ function rowContent(
   const primary = primaryLabel(tx);
   const descriptionIsPrimary = tx.description !== null && tx.description !== "";
   const metaParts: string[] = [];
-  if (descriptionIsPrimary && tx.lines.length === 1) {
+  // For transfers (incl. CC / loan payments), any line breakdown is shown
+  // in the row's expansion — repeating it inline would duplicate.
+  if (descriptionIsPrimary && tx.lines.length === 1 && tx.type !== "transfer") {
     metaParts.push(categoryLabel(tx.lines[0]));
   }
   if (accountLabel) metaParts.push(accountLabel);
