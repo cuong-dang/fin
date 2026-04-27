@@ -110,13 +110,15 @@ function Form({
             newBalance: balance !== initialBalance ? balance : undefined,
             adjustmentDate: localDateKey(new Date()),
           };
-          if (isCc) {
+          if (account.type === "credit_card") {
             mutation.mutate({
               type: "credit_card",
               ...common,
               creditLimit,
               defaultPayFromAccountId: defaultPayFromAccountId || undefined,
             });
+          } else if (account.type === "loan") {
+            mutation.mutate({ type: "loan", ...common });
           } else {
             mutation.mutate({ type: "checking_savings", ...common });
           }
@@ -135,7 +137,13 @@ function Form({
           <TextInput
             disabled
             label="Type"
-            value={isCc ? "Credit card" : "Checking / savings"}
+            value={
+              account.type === "credit_card"
+                ? "Credit card"
+                : account.type === "loan"
+                  ? "Loan"
+                  : "Checking / savings"
+            }
           />
           <GroupSelector
             groups={groups}

@@ -142,18 +142,28 @@ export function TransactionForm({
   }
 
   // Loan payment: pick a loan account to pay; the source pre-fills from
-  // the plan's defaultAccountId (if set). Submit shape is a transfer with
-  // optional lines for interest/fee categorization (the destination leg
-  // gets the principal portion = amount − Σ lines).
+  // the plan's defaultAccountId (if set), and the amount pre-fills from
+  // the plan's amountPerPeriod. Submit shape is a transfer with optional
+  // lines for interest/fee categorization (the destination leg gets the
+  // principal portion = amount − Σ lines).
   function applyLoan(loanId: string) {
     setDestinationAccountId(loanId);
     if (!loanId) {
       setAccountId("");
+      setTransferAmount("");
       return;
     }
     const loan = accounts.find((a) => a.id === loanId);
     if (loan?.recurringPlan?.defaultAccountId) {
       setAccountId(loan.recurringPlan.defaultAccountId);
+    }
+    if (loan?.recurringPlan) {
+      setTransferAmount(
+        formatMoneyPlain(
+          BigInt(loan.recurringPlan.amountPerPeriod),
+          loan.currency,
+        ),
+      );
     }
   }
 
