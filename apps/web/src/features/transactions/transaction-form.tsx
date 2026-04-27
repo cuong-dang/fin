@@ -31,21 +31,20 @@ import { formatMoneyPlain } from "@/lib/money";
 
 type TxType = "income" | "expense" | "transfer" | "payment";
 
-// "Payment" is a UX portal that ultimately submits as a typed transaction
-// (today: expense + subscriptionId for sub charges; later: a hybrid type
-// for loan and credit-card payments). The kind picker shows all three
-// planned sources so the design intent is visible today; only the
-// implemented one is enabled.
-type PaymentKind = "subscription" | "loan" | "creditCard";
+// "Payment" is a UX portal that ultimately submits as a typed transaction:
+// CC payments → transfer (checking → CC). Subscription charges → expense
+// with subscriptionId. Loan support comes later. The picker shows all
+// three planned sources so the design intent is visible today.
+type PaymentKind = "creditCard" | "loan" | "subscription";
 
 const PAYMENT_KIND_OPTIONS: {
   value: PaymentKind;
   label: string;
   disabled?: boolean;
 }[] = [
-  { value: "subscription", label: "Subscription" },
+  { value: "creditCard", label: "Credit card" },
   { value: "loan", label: "Loan", disabled: true },
-  { value: "creditCard", label: "Credit card", disabled: true },
+  { value: "subscription", label: "Subscription" },
 ];
 
 type LineFormValues = CategoryLineFormValues;
@@ -68,7 +67,7 @@ const emptyLine = (): LineFormValues => ({
   newCategoryName: "",
   subcategoryId: "",
   newSubcategoryName: "",
-  tags: [],
+  tagNames: [],
 });
 
 export function TransactionForm({
@@ -117,15 +116,29 @@ export function TransactionForm({
   const [isPending, setIsPending] = useState(defaults.pending);
   const [description, setDescription] = useState(defaults.description);
   const [subscriptionId, setSubscriptionId] = useState(defaults.subscriptionId);
-  // Only "subscription" is enabled today; future loan/CC kinds keep
-  // their entity ids in sibling state when added.
-  const [paymentKind, setPaymentKind] = useState<PaymentKind>("subscription");
+  // CC and Subscription are enabled today; Loan is reserved.
+  const [paymentKind, setPaymentKind] = useState<PaymentKind>("creditCard");
 
   // Active subs + the currently linked one (even if cancelled), so editing
   // a payment that points at a since-cancelled sub still resolves.
   const subOptions = subscriptions.filter(
     (s) => s.cancelledAt === null || s.id === subscriptionId,
   );
+
+  // CC payment: pick a CC account to pay; the source account pre-fills
+  // from the CC's defaultPayFromAccountId (if set). Submit shape underneath
+  // is a transfer (checking_savings → credit_card), validated server-side.
+  function applyCreditCard(ccId: string) {
+    setDestinationAccountId(ccId);
+    if (!ccId) {
+      setAccountId("");
+      return;
+    }
+    const cc = accounts.find((a) => a.id === ccId);
+    if (cc?.defaultPayFromAccountId) {
+      setAccountId(cc.defaultPayFromAccountId);
+    }
+  }
 
   function applySubscription(newId: string) {
     setSubscriptionId(newId);
@@ -143,7 +156,7 @@ export function TransactionForm({
         newCategoryName: "",
         subcategoryId: l.subcategoryId ?? "",
         newSubcategoryName: "",
-        tags: l.tags.map((t) => t.name),
+        tagNames: l.tags.map((t) => t.name),
       })),
     );
     if (sub.defaultAccountId) setAccountId(sub.defaultAccountId);
@@ -158,19 +171,24 @@ export function TransactionForm({
     categoryKindForType === null
       ? []
       : categories.filter((c) => c.kind === categoryKindForType);
-  // Transfers move money between checking/savings accounts only. Other
-  // tabs (expense/income) accept all account types — a CC charge is an
-  // expense from the CC, a refund/credit is income to it.
-  const transferAccountPool =
-    type === "transfer"
-      ? accounts.filter((a) => a.type === "checking_savings")
-      : accounts;
-  const sourceAccounts = transferAccountPool.filter(
+  // Source-account filter:
+  //   - Transfer: checking/savings only on both sides (CC is hidden here;
+  //     CC payments go through Payment > Credit card instead).
+  //   - Payment > Credit card: the source must be checking/savings.
+  //   - Other (expense/income): all account types — a CC charge is an
+  //     expense from the CC, a refund/credit is income to it.
+  const restrictToChecking =
+    type === "transfer" || (type === "payment" && paymentKind === "creditCard");
+  const sourceAccountPool = restrictToChecking
+    ? accounts.filter((a) => a.type === "checking_savings")
+    : accounts;
+  const sourceAccounts = sourceAccountPool.filter(
     (a) => a.id !== destinationAccountId,
   );
-  const destinationAccounts = transferAccountPool.filter(
-    (a) => a.id !== accountId,
-  );
+  const destinationAccounts = accounts
+    .filter((a) => a.type === "checking_savings")
+    .filter((a) => a.id !== accountId);
+  const ccAccounts = accounts.filter((a) => a.type === "credit_card");
   const allTagNames = tags.map((t) => t.name);
 
   function handleTypeChange(newType: TxType) {
@@ -180,16 +198,20 @@ export function TransactionForm({
     // applies to the Payment tab.
     setLines([emptyLine()]);
     setSubscriptionId("");
-    setPaymentKind("subscription");
+    setDestinationAccountId("");
+    setTransferAmount("");
+    setPaymentKind("creditCard");
   }
 
   function handlePaymentKindChange(newKind: PaymentKind) {
     setPaymentKind(newKind);
-    // Switching kinds invalidates the prefilled state (each kind has its
-    // own entity + template). For now only `subscription` is enabled, so
-    // we just clear the sub-specific state.
+    // Switching kinds invalidates the prefilled state (each kind owns its
+    // own entity + amount/lines). Clear everything kind-specific.
     setSubscriptionId("");
     setLines([emptyLine()]);
+    setDestinationAccountId("");
+    setTransferAmount("");
+    setAccountId("");
   }
 
   function handleAccountChange(newId: string) {
@@ -239,9 +261,19 @@ export function TransactionForm({
     }
 
     if (type === "payment") {
-      // "Payment" is a UI portal; sub charges are persisted as expenses
-      // with `subscriptionId` set. Future loan / CC payments will get
-      // their own type with a hybrid leg shape.
+      // "Payment" is a UI portal that submits as a typed transaction:
+      //   creditCard → transfer (checking → CC)
+      //   subscription → expense + subscriptionId (sub charge)
+      if (paymentKind === "creditCard") {
+        onSubmit({
+          type: "transfer",
+          ...commonBase,
+          amount: transferAmount,
+          accountId,
+          destinationAccountId,
+        });
+        return;
+      }
       onSubmit({
         type: "expense",
         ...commonBase,
@@ -273,12 +305,14 @@ export function TransactionForm({
     );
   }
 
-  // Payment tab requires a source entity (today: a subscription) before
-  // anything else makes sense. Hide the rest of the form until one is
-  // picked, and surface a "create one first" affordance when there are
-  // no subs at all. Future kinds will plug in via this same gate.
+  // Payment tab requires picking the entity (CC account or subscription)
+  // before anything else makes sense. Hide the rest of the form until
+  // one is selected, and surface a "create one first" affordance when
+  // there are none of that kind.
   const paymentEntityMissing =
-    type === "payment" && paymentKind === "subscription" && !subscriptionId;
+    type === "payment" &&
+    ((paymentKind === "creditCard" && !destinationAccountId) ||
+      (paymentKind === "subscription" && !subscriptionId));
 
   return (
     <form onSubmit={handleSubmit}>
@@ -292,6 +326,13 @@ export function TransactionForm({
               value={paymentKind}
               onChange={(v) => handlePaymentKindChange(v as PaymentKind)}
             />
+            {paymentKind === "creditCard" && (
+              <PaymentCreditCardPicker
+                ccAccounts={ccAccounts}
+                destinationAccountId={destinationAccountId}
+                onChange={applyCreditCard}
+              />
+            )}
             {paymentKind === "subscription" && (
               <PaymentSubscriptionPicker
                 subOptions={subOptions}
@@ -300,18 +341,12 @@ export function TransactionForm({
                 onChange={applySubscription}
               />
             )}
-            {/*
-              Future: loan + credit-card pickers go here, branching on
-              `paymentKind`. Each will fetch its own list (recurring plans
-              for loans; credit-card-type accounts for CC), have its own
-              `apply<Kind>` prefill, and the gate above gets the matching
-              "<kind>EntityMissing" check.
-            */}
           </Stack>
         )}
 
         {!paymentEntityMissing &&
-          (type === "transfer" ? (
+          (type === "transfer" ||
+          (type === "payment" && paymentKind === "creditCard") ? (
             <MoneyField
               label="Amount"
               min={0}
@@ -363,7 +398,12 @@ export function TransactionForm({
                   label: `${a.name} (${a.currency})`,
                 })),
               ]}
-              label={type === "transfer" ? "From account" : "Account"}
+              label={
+                type === "transfer" ||
+                (type === "payment" && paymentKind === "creditCard")
+                  ? "From account"
+                  : "Account"
+              }
               required
               value={accountId}
               onChange={(e) => handleAccountChange(e.target.value)}
@@ -406,6 +446,50 @@ export function TransactionForm({
         )}
       </Stack>
     </form>
+  );
+}
+
+function PaymentCreditCardPicker({
+  ccAccounts,
+  destinationAccountId,
+  onChange,
+}: {
+  ccAccounts: Account[];
+  destinationAccountId: string;
+  onChange: (id: string) => void;
+}) {
+  if (ccAccounts.length === 0) {
+    return (
+      <Stack>
+        <Text c="dimmed" size="sm">
+          No credit-card accounts yet.
+        </Text>
+        <Button
+          component={Link}
+          to="/accounts/new"
+          variant="subtle"
+          w="fit-content"
+        >
+          Create credit-card account
+        </Button>
+      </Stack>
+    );
+  }
+  return (
+    <NativeSelect
+      data={[
+        { value: "", label: "Select a credit card…", disabled: true },
+        ...ccAccounts.map((a) => ({
+          value: a.id,
+          label: `${a.name} (${a.currency})`,
+        })),
+      ]}
+      description="Source account pre-fills from the card's default pay-from."
+      label="Credit card"
+      required
+      value={destinationAccountId}
+      onChange={(e) => onChange(e.target.value)}
+    />
   );
 }
 

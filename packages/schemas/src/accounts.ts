@@ -27,18 +27,22 @@ const baseCreate = z.object({
   adjustmentDate: dateString.optional(),
 });
 
-const checkingSavingsCreate = baseCreate.extend({
-  type: z.literal("checking_savings").default("checking_savings"),
-});
+const checkingSavingsCreate = baseCreate
+  .extend({
+    type: z.literal("checking_savings").default("checking_savings"),
+  })
+  .strict();
 
 // `creditLimit` is required (drives the sidebar progress bar).
 // `defaultPayFromAccountId` is optional and validated server-side to point
 // at a checking_savings account.
-const creditCardCreate = baseCreate.extend({
-  type: z.literal("credit_card"),
-  creditLimit: moneyString,
-  defaultPayFromAccountId: z.uuid().optional(),
-});
+const creditCardCreate = baseCreate
+  .extend({
+    type: z.literal("credit_card"),
+    creditLimit: moneyString,
+    defaultPayFromAccountId: z.uuid().optional(),
+  })
+  .strict();
 
 /**
  * Create request. Exactly one of accountGroupId or newGroupName must be
@@ -61,15 +65,19 @@ const baseUpdate = z.object({
   adjustmentDate: dateString.optional(),
 });
 
-const checkingSavingsUpdate = baseUpdate.extend({
-  type: z.literal("checking_savings"),
-});
+const checkingSavingsUpdate = baseUpdate
+  .extend({
+    type: z.literal("checking_savings"),
+  })
+  .strict();
 
-const creditCardUpdate = baseUpdate.extend({
-  type: z.literal("credit_card"),
-  creditLimit: moneyString,
-  defaultPayFromAccountId: z.uuid().optional(),
-});
+const creditCardUpdate = baseUpdate
+  .extend({
+    type: z.literal("credit_card"),
+    creditLimit: moneyString,
+    defaultPayFromAccountId: z.uuid().optional(),
+  })
+  .strict();
 
 export const updateAccountBody = z.discriminatedUnion("type", [
   checkingSavingsUpdate,

@@ -1,7 +1,7 @@
 import type { CategoryWithSubs } from "@fin/schemas";
 import { NativeSelect, TextInput } from "@mantine/core";
 
-export const CREATE_NEW = "__new__";
+const CREATE_NEW = "__new__";
 
 /**
  * Category + subcategory picker with inline "Create new…" escape hatches.
@@ -115,7 +115,7 @@ export type CategoryLineFormValues = {
   newCategoryName: string;
   subcategoryId: string; // may be CREATE_NEW
   newSubcategoryName: string;
-  tags: string[];
+  tagNames: string[];
 };
 
 /**
@@ -125,13 +125,13 @@ export type CategoryLineFormValues = {
  * server-side. Mirrors `transactionLineBody` and
  * `subscriptionDefaultLineBody`.
  */
-export type CategoryLineBody = {
+type CategoryLineBody = {
   amount: string;
   categoryId?: string;
   newCategoryName?: string;
   subcategoryId?: string;
   newSubcategoryName?: string;
-  tags?: string[];
+  tagNames?: string[];
 };
 
 /**
@@ -153,6 +153,6 @@ export function packCategoryLine(l: CategoryLineFormValues): CategoryLineBody {
       : l.subcategoryId === CREATE_NEW
         ? l.newSubcategoryName
         : undefined,
-    tags: l.tags.length > 0 ? l.tags : undefined,
+    tagNames: l.tagNames.length > 0 ? l.tagNames : undefined,
   };
 }

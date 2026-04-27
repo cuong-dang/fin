@@ -11,7 +11,11 @@ import { useState } from "react";
  * since we render our own horizontal suggestions. `acceptValueOnBlur={false}`
  * stops Mantine from auto-committing the typed-but-uncommitted search when
  * focus shifts to a suggestion pill — otherwise typing "es" then clicking
- * "essential" would commit both.
+ * "essential" would commit both. We then re-implement the "commit on blur"
+ * ourselves at the Stack level: if focus leaves the whole field (e.g., user
+ * clicked Save without pressing space), the typed search is committed as a
+ * new tag. Suggestion pills are children of the Stack, so clicking one
+ * doesn't trigger this path.
  */
 export function TagsField({
   label,
@@ -33,12 +37,15 @@ export function TagsField({
 
   return (
     <Stack
-      gap={0}
       onBlur={(e) => {
         // Keep focused while focus moves to a child (e.g., a suggestion pill).
-        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-          setFocused(false);
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        setFocused(false);
+        const pending = search.trim();
+        if (pending && !value.includes(pending)) {
+          onChange([...value, pending]);
         }
+        setSearch("");
       }}
       onFocus={() => setFocused(true)}
     >

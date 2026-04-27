@@ -9,14 +9,16 @@ import { tagName } from "./tags";
 // transaction always has at least one line; multi-line means the user split
 // the amount across multiple categories. Leg amount = sum of line amounts.
 // Each line can carry zero or more tags; tags are upserted by name.
-export const transactionLineBody = z.object({
-  amount: moneyString,
-  categoryId: z.uuid().optional(),
-  newCategoryName: z.string().trim().min(1).max(100).optional(),
-  subcategoryId: z.uuid().optional(),
-  newSubcategoryName: z.string().trim().min(1).max(100).optional(),
-  tagNames: z.array(tagName).max(20).optional(),
-});
+export const transactionLineBody = z
+  .object({
+    amount: moneyString,
+    categoryId: z.uuid().optional(),
+    newCategoryName: z.string().trim().min(1).max(100).optional(),
+    subcategoryId: z.uuid().optional(),
+    newSubcategoryName: z.string().trim().min(1).max(100).optional(),
+    tagNames: z.array(tagName).max(20).optional(),
+  })
+  .strict();
 export type TransactionLineBody = z.infer<typeof transactionLineBody>;
 
 const commonFields = z.object({
@@ -25,30 +27,36 @@ const commonFields = z.object({
   description: z.string().trim().min(1).max(500).optional(),
 });
 
-const incomeFields = commonFields.extend({
-  type: z.literal("income"),
-  accountId: z.uuid(),
-  lines: z.array(transactionLineBody).min(1),
-});
+const incomeFields = commonFields
+  .extend({
+    type: z.literal("income"),
+    accountId: z.uuid(),
+    lines: z.array(transactionLineBody).min(1),
+  })
+  .strict();
 
 // Expense optionally carries a subscription link — sub charges are stored
 // as expenses (no balance-reducing leg, no principal); the `subscriptionId`
 // just marks the source. The "Payment" tab in the form is a UX portal that
 // produces this shape with `subscriptionId` set. Loan/credit-card payments
 // will get their own type when they land (hybrid transfer + expense lines).
-const expenseFields = commonFields.extend({
-  type: z.literal("expense"),
-  accountId: z.uuid(),
-  subscriptionId: z.uuid().optional(),
-  lines: z.array(transactionLineBody).min(1),
-});
+const expenseFields = commonFields
+  .extend({
+    type: z.literal("expense"),
+    accountId: z.uuid(),
+    subscriptionId: z.uuid().optional(),
+    lines: z.array(transactionLineBody).min(1),
+  })
+  .strict();
 
-const transferFields = commonFields.extend({
-  type: z.literal("transfer"),
-  amount: moneyString,
-  accountId: z.uuid(),
-  destinationAccountId: z.uuid(),
-});
+const transferFields = commonFields
+  .extend({
+    type: z.literal("transfer"),
+    amount: moneyString,
+    accountId: z.uuid(),
+    destinationAccountId: z.uuid(),
+  })
+  .strict();
 
 export const transactionBody = z.discriminatedUnion("type", [
   incomeFields,
@@ -59,34 +67,40 @@ export type TransactionBody = z.infer<typeof transactionBody>;
 
 // ─── Adjustment edit (only date/description/signed amount) ────────────────
 
-export const adjustmentUpdateBody = z.object({
-  date: dateString,
-  amount: moneyString,
-  description: z.string().trim().min(1).max(500).optional(),
-});
+export const adjustmentUpdateBody = z
+  .object({
+    date: dateString,
+    amount: moneyString,
+    description: z.string().trim().min(1).max(500).optional(),
+  })
+  .strict();
 export type AdjustmentUpdateBody = z.infer<typeof adjustmentUpdateBody>;
 
 // ─── Mark pending → processed ─────────────────────────────────────────────
 
-export const processTransactionBody = z.object({
-  // Client must supply the user's local date. Server never fabricates one.
-  date: dateString,
-});
+export const processTransactionBody = z
+  .object({
+    // Client must supply the user's local date. Server never fabricates one.
+    date: dateString,
+  })
+  .strict();
 export type ProcessTransactionBody = z.infer<typeof processTransactionBody>;
 
 // ─── Reorder (same-day or cross-day) ──────────────────────────────────────
 
-export const reorderTransactionsBody = z.object({
-  // Target date: movingId ends up on this date.
-  date: dateString,
-  // The single transaction being dragged. Must appear in `ids`.
-  movingId: z.uuid(),
-  // Desired newest-first order for a subset of body.date's transactions,
-  // including movingId. Non-movingId entries must be transactions already
-  // on body.date and appear in their existing relative order — the server
-  // assumes "at most one transaction moves per request."
-  ids: z.array(z.uuid()).min(1),
-});
+export const reorderTransactionsBody = z
+  .object({
+    // Target date: movingId ends up on this date.
+    date: dateString,
+    // The single transaction being dragged. Must appear in `ids`.
+    movingId: z.uuid(),
+    // Desired newest-first order for a subset of body.date's transactions,
+    // including movingId. Non-movingId entries must be transactions already
+    // on body.date and appear in their existing relative order — the server
+    // assumes "at most one transaction moves per request."
+    ids: z.array(z.uuid()).min(1),
+  })
+  .strict();
 export type ReorderTransactionsBody = z.infer<typeof reorderTransactionsBody>;
 
 // ─── Response shapes ──────────────────────────────────────────────────────

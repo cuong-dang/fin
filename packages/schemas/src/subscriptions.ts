@@ -22,19 +22,25 @@ const currencyField = z
 // per-period charge. Mirrors `transactionLineBody` so a charge transaction
 // can copy lines verbatim — including the inline-create category/subcategory
 // path so users don't have to hop to /settings to set up a new sub.
-export const subscriptionDefaultLineBody = z.object({
-  amount: moneyString,
-  categoryId: z.uuid().optional(),
-  newCategoryName: z.string().trim().min(1).max(100).optional(),
-  subcategoryId: z.uuid().optional(),
-  newSubcategoryName: z.string().trim().min(1).max(100).optional(),
-  tagNames: z.array(tagName).max(20).optional(),
-});
+export const subscriptionDefaultLineBody = z
+  .object({
+    amount: moneyString,
+    categoryId: z.uuid().optional(),
+    newCategoryName: z.string().trim().min(1).max(100).optional(),
+    subcategoryId: z.uuid().optional(),
+    newSubcategoryName: z.string().trim().min(1).max(100).optional(),
+    tagNames: z.array(tagName).max(20).optional(),
+  })
+  .strict();
 export type SubscriptionDefaultLineBody = z.infer<
   typeof subscriptionDefaultLineBody
 >;
 
-export const createSubscriptionBody = z.object({
+// Both create and update accept the same fields today: update rewrites all
+// fields + lines, just like the transaction PATCH. Defined as two distinct
+// schemas (rather than aliasing one to the other) so each can evolve
+// independently if/when the shapes diverge.
+const subscriptionFields = {
   name: z.string().trim().min(1).max(100),
   currency: currencyField,
   frequency: recurringFrequency,
@@ -42,11 +48,12 @@ export const createSubscriptionBody = z.object({
   defaultAccountId: z.uuid().optional(),
   description: z.string().trim().min(1).max(500).optional(),
   defaultLines: z.array(subscriptionDefaultLineBody).min(1),
-});
+};
+
+export const createSubscriptionBody = z.object(subscriptionFields).strict();
 export type CreateSubscriptionBody = z.infer<typeof createSubscriptionBody>;
 
-// Update rewrites all fields + lines, same as the transaction PATCH.
-export const updateSubscriptionBody = createSubscriptionBody;
+export const updateSubscriptionBody = z.object(subscriptionFields).strict();
 export type UpdateSubscriptionBody = z.infer<typeof updateSubscriptionBody>;
 
 // ─── Response shapes ──────────────────────────────────────────────────────

@@ -302,7 +302,7 @@ function deriveInitial(tx: EnrichedTransaction): InitialTxValues {
       newCategoryName: "",
       subcategoryId: line.subcategoryId ?? "",
       newSubcategoryName: "",
-      tags: line.tags.map((t) => t.name),
+      tagNames: line.tags.map((t) => t.name),
     })),
     accountId: leg.accountId,
   };

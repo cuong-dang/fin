@@ -52,8 +52,8 @@ export function SingleLineEditor({
       <TagsField
         allTags={allTags}
         label="Tags (optional)"
-        value={line.tags}
-        onChange={(v) => onUpdate({ tags: v })}
+        value={line.tagNames}
+        onChange={(v) => onUpdate({ tagNames: v })}
       />
       <Button
         leftSection={<Plus size={14} />}
@@ -131,8 +131,8 @@ export function MultiLineEditor({
             <TagsField
               allTags={allTags}
               label="Tags (optional)"
-              value={line.tags}
-              onChange={(v) => onUpdate(i, { tags: v })}
+              value={line.tagNames}
+              onChange={(v) => onUpdate(i, { tagNames: v })}
             />
           </Stack>
         </Card>

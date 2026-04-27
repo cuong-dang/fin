@@ -17,8 +17,10 @@ type SourceAccount = { currency: string; type: string };
  * given id. Income/expense supports multi-line splits: leg amount is the
  * sum of line amounts; each line resolves/creates its own category and
  * subcategory inline and links any provided tags via the junction.
- * Transfers validate destination + currency match and reject credit-card
- * accounts on either side — CC payments will land in the Payment tab.
+ * Transfers validate destination + currency match. Source must be a
+ * checking/savings account; destination may be checking/savings or a
+ * credit_card (the latter is how CC payments are recorded — surfaced via
+ * the Payment tab in the UI; the Transfer tab itself filters CC out).
  */
 export async function insertLegsAndLines(
   tx: Tx,
@@ -79,7 +81,7 @@ export async function insertLegsAndLines(
     throw new Error("Source and destination accounts must differ");
   }
   if (sourceAccount.type !== "checking_savings") {
-    throw new Error("Transfers are only between checking/savings accounts");
+    throw new Error("Source account must be a checking/savings account");
   }
   const destAccount = await findOwned(
     schema.accounts,
@@ -87,8 +89,13 @@ export async function insertLegsAndLines(
     workspaceGroupId,
   );
   if (!destAccount) throw new Error("Destination account not found");
-  if (destAccount.type !== "checking_savings") {
-    throw new Error("Transfers are only between checking/savings accounts");
+  if (
+    destAccount.type !== "checking_savings" &&
+    destAccount.type !== "credit_card"
+  ) {
+    throw new Error(
+      "Destination must be a checking/savings or credit-card account",
+    );
   }
   if (destAccount.currency !== sourceAccount.currency) {
     throw new Error(

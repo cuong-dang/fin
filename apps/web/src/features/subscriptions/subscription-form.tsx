@@ -49,7 +49,7 @@ const emptyLine = (): LineFormValues => ({
   newCategoryName: "",
   subcategoryId: "",
   newSubcategoryName: "",
-  tags: [],
+  tagNames: [],
 });
 
 export function SubscriptionForm({

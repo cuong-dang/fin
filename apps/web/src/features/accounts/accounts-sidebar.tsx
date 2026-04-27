@@ -191,11 +191,11 @@ function AccountItem({
       component={Link}
       label={label}
       rightSection={
-        <Stack>
+        <Stack align="flex-end">
           <Text c="dimmed" ff="monospace" size="sm">
             {formatMoney(present, account.currency)}
           </Text>
-          {hasPending && (
+          {hasPending && !isCc && (
             <Text c="dimmed" ff="monospace" size="sm">
               avail {formatMoney(available, account.currency)}
             </Text>
@@ -222,7 +222,7 @@ function CreditLimitBar({
     creditLimit > 0n ? Number((clamped * 100n) / creditLimit) : 0;
   // Green when most of the limit is free; shifts red as it depletes.
   const color =
-    pctRemaining >= 90 ? "teal" : pctRemaining >= 70 ? "yellow" : "red";
+    pctRemaining >= 75 ? "teal" : pctRemaining >= 50 ? "yellow" : "red";
 
   return (
     <Stack>

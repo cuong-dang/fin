@@ -200,7 +200,7 @@ function deriveInitial(sub: Subscription): InitialSubValues {
       newCategoryName: "",
       subcategoryId: l.subcategoryId ?? "",
       newSubcategoryName: "",
-      tags: l.tags.map((t) => t.name),
+      tagNames: l.tags.map((t) => t.name),
     })),
   };
 }
