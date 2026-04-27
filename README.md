@@ -49,6 +49,15 @@ What's shipped and works end-to-end today:
   for off-pattern bills. Past charges link back to their sub (rendered as
   `↻ Netflix` on the tx row) for "how much per month on subs?" analytics.
 
+- **Credit-card accounts with limit tracking.** Accounts have a `type`
+  (`checking_savings` / `credit_card` / `loan`-reserved). Credit cards
+  carry a credit limit and an optional default pay-from account. The
+  sidebar shows a live "remaining limit" progress bar that includes
+  pending charges, color-shifting from green → red as it depletes.
+  Paying a card via the **Payment** tab is a transfer underneath
+  (checking → CC) with the source pre-filled from the card's default,
+  keeping accounting honest while the UX stays simple.
+
 ## What's distinctive about the data model
 
 A few things that might matter if you're reading the source:
@@ -213,6 +222,6 @@ POST             /api/subscriptions/:id/cancel
 
 - [x] feature: Tags
 - [x] feature: Subscription
-- [ ] feature: Credit card account type
+- [x] feature: Credit card account type
 - [ ] feature: Loan/Installment
 - [ ] nicety: Auto-select filtered account when adding new transactions
