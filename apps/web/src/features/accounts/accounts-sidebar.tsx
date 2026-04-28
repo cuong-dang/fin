@@ -129,7 +129,7 @@ function GroupSection({
 }) {
   const subtotal = groupSubtotal(accounts);
   return (
-    <Stack>
+    <Stack gap={0}>
       <Group justify="space-between">
         <SectionHeader>{group.name}</SectionHeader>
         {subtotal && (
@@ -175,7 +175,7 @@ function AccountItem({
   let label: React.ReactNode = account.name;
   if (isCc) {
     label = (
-      <Stack>
+      <Stack gap={0}>
         <Text size="sm">{account.name}</Text>
         <CreditLimitBar
           creditLimit={BigInt(account.creditLimit!)}
@@ -186,7 +186,7 @@ function AccountItem({
     );
   } else if (isLoan) {
     label = (
-      <Stack>
+      <Stack gap={0}>
         <Text size="sm">{account.name}</Text>
         <LoanRemainingHint
           amountPerPeriod={BigInt(account.recurringPlan!.amountPerPeriod)}
