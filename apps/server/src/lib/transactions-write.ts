@@ -18,17 +18,13 @@ type SourceAccount = { currency: string; type: string };
  * sum of line amounts; each line resolves/creates its own category and
  * subcategory inline and links any provided tags via the junction.
  *
- * Transfers:
- *   - Source: any non-loan account (checking/savings or credit_card).
- *     "From a loan" doesn't make sense.
- *   - Destination: any account type (checking/savings, credit_card, loan).
- *     Loan destination is how loan payments land; CC destination is how
- *     CC payments land. The Transfer tab filters both sides to checking/
- *     savings — those flows surface through Payment > Loan / Credit card.
- *   - Optional `lines` (loan payments only): categorize the non-principal
- *     portion (interest, fees). Destination leg = `amount − Σ line.amount`
- *     (principal portion); source leg = `−amount` (full cash out). For
- *     pure transfers (no lines) the legs sum to 0.
+ * Transfer rules enforced here (UI gating is separate):
+ *   - Source must not be a loan account.
+ *   - Source and destination must share a currency (no FX yet).
+ *   - Optional `lines` are only valid when the destination is a loan —
+ *     they categorize the non-principal portion of the payment (interest,
+ *     fees). Source leg is `−amount`; destination leg is `amount − Σ lines`
+ *     (the principal portion that reduces the loan balance).
  */
 export async function insertLegsAndLines(
   tx: Tx,

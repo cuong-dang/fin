@@ -237,9 +237,10 @@ async function fetchDefaultLines(
     .orderBy(schema.tags.name);
   const tagsByLine = groupBy(tagRows, (t) => t.lineId);
 
-  const out = new Map<string, SubscriptionDefaultLine[]>();
-  for (const l of lineRows) {
-    const line: SubscriptionDefaultLine = {
+  return groupBy(
+    lineRows,
+    (l) => l.subscriptionId,
+    (l) => ({
       id: l.id,
       amount: l.amount.toString(),
       currency: l.currency,
@@ -252,12 +253,8 @@ async function fetchDefaultLines(
         id: t.tagId,
         name: t.tagName,
       })),
-    };
-    const list = out.get(l.subscriptionId);
-    if (list) list.push(line);
-    else out.set(l.subscriptionId, [line]);
-  }
-  return out;
+    }),
+  );
 }
 
 async function insertDefaultLines(

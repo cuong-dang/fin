@@ -96,6 +96,12 @@ export function AccountNewRoute() {
   const checkingAccounts = accounts.filter(
     (a: Account) => a.type === "checking_savings",
   );
+  // Loan default pay-from: any non-loan account (checking/savings or CC).
+  // Paying a loan with a card is a real flow; only loan-as-pay-from is
+  // disallowed.
+  const loanPayFromAccounts = accounts.filter(
+    (a: Account) => a.type !== "loan",
+  );
   const expenseCategories = categories.filter((c) => c.kind === "expense");
   const allTagNames = tags.map((t) => t.name);
   const hasGroups = groups.length > 0;
@@ -243,7 +249,7 @@ export function AccountNewRoute() {
               <NativeSelect
                 data={[
                   { value: "", label: "— No default —" },
-                  ...checkingAccounts.map((a) => ({
+                  ...loanPayFromAccounts.map((a) => ({
                     value: a.id,
                     label: `${a.name} (${a.currency})`,
                   })),

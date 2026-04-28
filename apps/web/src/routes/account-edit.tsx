@@ -177,6 +177,10 @@ function Form({
   const checkingAccounts = allAccounts.filter(
     (a) => a.type === "checking_savings" && a.id !== account.id,
   );
+  // Loan default pay-from: any non-loan account (checking/savings or CC).
+  const loanPayFromAccounts = allAccounts.filter(
+    (a) => a.type !== "loan" && a.id !== account.id,
+  );
   const expenseCategories = categories.filter((c) => c.kind === "expense");
   const allTagNames = tags.map((t) => t.name);
 
@@ -314,7 +318,7 @@ function Form({
               <NativeSelect
                 data={[
                   { value: "", label: "— No default —" },
-                  ...checkingAccounts.map((a) => ({
+                  ...loanPayFromAccounts.map((a) => ({
                     value: a.id,
                     label: `${a.name} (${a.currency})`,
                   })),

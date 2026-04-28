@@ -262,23 +262,12 @@ export const recurringPlans = pgTable("recurring_plans", {
     .references(() => groups.id, { onDelete: "cascade" }),
   // No `name`: a recurring plan is paired 1:1 with a loan account, so
   // displays use the account's name. Adds a single source of truth.
-  // Scheduled per-period charge per the loan terms (e.g., $1,800 mortgage
-  // payment → 180000). Informational / projection-only — the actual amount
-  // paid each period comes from the transaction's lines and may differ
-  // (BNPL last-payment rounding, mortgage escrow shifts, etc.).
   amountPerPeriod: bigint("amount_per_period", { mode: "bigint" }).notNull(),
   currency: char("currency", { length: 3 }).notNull(),
-  // No `total_periods` either: derivable as ceil(|startingBalance| /
-  // amountPerPeriod) at start of tracking if we ever need it. The
-  // sidebar shows just `~N left` from the current balance.
-  // No `principal_amount`: redundant with the loan account's starting
-  // balance under the "all params are at start-of-tracking" convention.
+  // No `total_periods`: derivable as ceil(|currentBalance| / amountPerPeriod).
   frequency: recurringFrequencyEnum("frequency").notNull(),
   firstPaymentDate: date("first_payment_date").notNull(),
   // Default source account auto-fills the source on a new charge transaction.
-  // Nullable: user may not have settled on a default; the picker still lets
-  // them choose per-charge. RESTRICT (not SET NULL) since we soft-delete
-  // accounts — the FK exists to guard against accidental hard-deletes.
   defaultAccountId: uuid("default_account_id").references(() => accounts.id, {
     onDelete: "restrict",
   }),

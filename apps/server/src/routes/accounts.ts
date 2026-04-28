@@ -28,9 +28,9 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
   const presentBalanceSql = sql<string>`COALESCE(SUM(${schema.transactionLegs.amount}) FILTER (WHERE ${schema.transactions.date} IS NOT NULL), 0)`;
   const availableBalanceSql = sql<string>`COALESCE(SUM(${schema.transactionLegs.amount}), 0)`;
 
-  // Slim plan summary fields for the sidebar's "~N of M left" calc and
-  // the Payment > Loan flow's source pre-fill. Bigints cast to text for
-  // JSON safety. Selected via LEFT JOIN so non-loan accounts get nulls.
+  // Plan fields embedded on the loan account row (default lines fetched
+  // separately below and merged in `rowToResponse`). Bigints cast to text
+  // for JSON safety. LEFT JOIN so non-loan accounts get nulls.
   const planSummary = {
     planId: schema.recurringPlans.id,
     planAmountPerPeriod: sql<
@@ -219,9 +219,9 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
           .code(400)
           .send({ error: "Default pay-from account not found" });
       }
-      if (payFrom.type !== "checking_savings") {
+      if (payFrom.type === "loan") {
         return reply.code(400).send({
-          error: "Default pay-from must be a checking/savings account",
+          error: "Default pay-from cannot be a loan account",
         });
       }
     }
@@ -347,9 +347,9 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
           .code(400)
           .send({ error: "Default pay-from account not found" });
       }
-      if (payFrom.type !== "checking_savings") {
+      if (payFrom.type === "loan") {
         return reply.code(400).send({
-          error: "Default pay-from must be a checking/savings account",
+          error: "Default pay-from cannot be a loan account",
         });
       }
     }
@@ -583,9 +583,10 @@ async function fetchPlanDefaultLines(
     : [];
   const tagsByLine = groupBy(tagRows, (t) => t.lineId);
 
-  const out = new Map<string, RecurringPlanDefaultLine[]>();
-  for (const l of lineRows) {
-    const line: RecurringPlanDefaultLine = {
+  return groupBy(
+    lineRows,
+    (l) => l.planId,
+    (l) => ({
       id: l.id,
       amount: l.amount === null ? null : l.amount.toString(),
       currency: l.currency,
@@ -598,10 +599,6 @@ async function fetchPlanDefaultLines(
         id: t.tagId,
         name: t.tagName,
       })),
-    };
-    const list = out.get(l.planId);
-    if (list) list.push(line);
-    else out.set(l.planId, [line]);
-  }
-  return out;
+    }),
+  );
 }

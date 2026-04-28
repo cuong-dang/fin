@@ -8,17 +8,11 @@ import {
 import type { RecurringFrequency } from "./subscriptions";
 
 /**
- * Recurring-plan fields embedded on the loan account row. Three consumers,
- * each using a subset of these fields:
- *
- * - Sidebar payments-remaining indicator: `amountPerPeriod` + `frequency`.
- * - Payment > Loan pre-fill: `amountPerPeriod` (amount), `defaultAccountId`
- *   (source), `defaultLines` (line templates).
- * - Edit form: all fields, so the user doesn't have to re-enter sticky
- *   ones like `firstPaymentDate` on every save.
- *
- * Bundling avoids round-trips. The plan has no `name` of its own — the
- * paired account's `name` covers display.
+ * Full recurring-plan payload embedded on the loan account row. Bundled
+ * with the account so the sidebar (payments-remaining), the Payment > Loan
+ * pre-fill, and the Edit form can all read what they need without a
+ * second round-trip. The plan has no `name` of its own — the paired
+ * account's `name` covers display.
  */
 export type AccountRecurringPlan = {
   id: string;
