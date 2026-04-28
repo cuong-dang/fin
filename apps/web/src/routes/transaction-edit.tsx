@@ -14,7 +14,7 @@ import {
 } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 
 import { MoneyField } from "@/components/money-field";
 import { PageShell } from "@/components/page-shell";
@@ -104,11 +104,15 @@ export function TransactionEditRoute() {
     />
   );
 
+  // Save / Cancel / Back / Delete all return to wherever the user
+  // came from instead of dumping them at the root. `navigate(-1)`
+  // pops one history entry.
+  const goBack = () => navigate(-1);
   function go() {
     qc.invalidateQueries({ queryKey: ["transactions"] });
     qc.invalidateQueries({ queryKey: ["accounts"] });
     qc.invalidateQueries({ queryKey: ["categories"] });
-    navigate("/");
+    goBack();
   }
 
   function FullEdit(props: {
@@ -132,7 +136,11 @@ export function TransactionEditRoute() {
     const initial = deriveInitial(props.tx);
 
     return (
-      <PageShell back="/" subtitle={props.tx.type} title="Edit transaction">
+      <PageShell
+        back={goBack}
+        subtitle={props.tx.type}
+        title="Edit transaction"
+      >
         <TransactionForm
           accounts={props.accounts}
           categories={props.categories}
@@ -142,6 +150,7 @@ export function TransactionEditRoute() {
           submitLabel="Save"
           subscriptions={props.subscriptions}
           tags={props.tags}
+          onCancel={goBack}
           onSubmit={(body) => mutation.mutate(body)}
         />
         <DangerZone
@@ -184,7 +193,7 @@ export function TransactionEditRoute() {
 
     return (
       <PageShell
-        back="/"
+        back={goBack}
         subtitle="Balance adjustment"
         title="Edit transaction"
       >
@@ -216,7 +225,7 @@ export function TransactionEditRoute() {
               <Button loading={mutation.isPending} type="submit">
                 Save
               </Button>
-              <Button component={Link} to="/" variant="subtle">
+              <Button variant="subtle" onClick={goBack}>
                 Cancel
               </Button>
             </Group>

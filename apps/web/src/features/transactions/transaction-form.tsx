@@ -79,6 +79,7 @@ export function TransactionForm({
   submitLabel,
   initialValues,
   onSubmit,
+  onCancel,
   pending,
   error,
 }: {
@@ -89,6 +90,7 @@ export function TransactionForm({
   submitLabel: string;
   initialValues?: InitialTxValues;
   onSubmit: (body: TransactionBody) => void;
+  onCancel: () => void;
   pending: boolean;
   error: string | null;
 }) {
@@ -538,7 +540,7 @@ export function TransactionForm({
               <Button loading={pending} type="submit">
                 {submitLabel}
               </Button>
-              <Button component={Link} to="/" variant="subtle">
+              <Button variant="subtle" onClick={onCancel}>
                 Cancel
               </Button>
             </Group>

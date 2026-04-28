@@ -1,7 +1,6 @@
 import type { Account, AccountGroup, RecurringFrequency } from "@fin/schemas";
 import {
   ActionIcon,
-  Anchor,
   Divider,
   Group,
   NavLink,
@@ -11,44 +10,49 @@ import {
   Text,
 } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Settings, SlidersHorizontal } from "lucide-react";
-import { Link, useSearchParams } from "react-router";
+import { Pencil, Plus } from "lucide-react";
+import { Link, useLocation, useSearchParams } from "react-router";
 
 import { SectionHeader } from "@/components/section-header";
 import { groupBy } from "@/lib/collections";
-import { listAccountGroups, listAccounts, me } from "@/lib/endpoints";
+import { listAccountGroups, listAccounts } from "@/lib/endpoints";
 import { formatMoney } from "@/lib/money";
 
-import { SignOutButton } from "./sign-out-button";
-
+/**
+ * Accounts panel rendered inside the AppLayout's navbar. Account links
+ * always navigate to /transactions filtered by that account; "All
+ * transactions" clears the filter. Active state only lights up when
+ * we're on /transactions — other pages (Charts, etc.) leave all rows
+ * inactive even though clicking them still works.
+ */
 export function AccountsSidebar() {
   const [params] = useSearchParams();
-  const selectedAccountId = params.get("account") ?? undefined;
+  const { pathname } = useLocation();
+  const onTransactions = pathname === "/transactions";
+  const selectedAccountId = onTransactions
+    ? (params.get("account") ?? undefined)
+    : undefined;
   const groupsQ = useQuery({
     queryKey: ["account-groups"],
     queryFn: listAccountGroups,
   });
   const accountsQ = useQuery({ queryKey: ["accounts"], queryFn: listAccounts });
-  const meQ = useQuery({ queryKey: ["me"], queryFn: me });
 
   const groups = groupsQ.data ?? [];
   const accounts = accountsQ.data ?? [];
   const byGroup = groupBy(accounts, (a) => a.accountGroupId);
 
   return (
-    /* Title + settings/new */
-    <Stack gap={0} h="100%">
+    <Stack flex={1} gap={0}>
       <Group justify="space-between">
-        <Anchor component={Link} fw={600} to="/" underline="never">
-          fin
-        </Anchor>
-        <Group>
+        <SectionHeader compact>Accounts</SectionHeader>
+        <Group gap={0}>
           <ActionIcon
             aria-label="Manage accounts"
             component={Link}
             to="/accounts"
           >
-            <Settings size={14} />
+            <Pencil size={14} />
           </ActionIcon>
           <ActionIcon
             aria-label="New account"
@@ -59,16 +63,13 @@ export function AccountsSidebar() {
           </ActionIcon>
         </Group>
       </Group>
-
       <Divider />
-
-      {/* Group + account list */}
       <ScrollArea flex={1}>
         <NavLink
-          active={!selectedAccountId}
+          active={onTransactions && !selectedAccountId}
           component={Link}
-          label="All accounts"
-          to="/"
+          label="All transactions"
+          to="/transactions"
         />
         {groups.length === 0 ? (
           <Text c="dimmed">No accounts yet.</Text>
@@ -83,25 +84,6 @@ export function AccountsSidebar() {
           ))
         )}
       </ScrollArea>
-
-      <Divider />
-
-      <Group justify="space-between">
-        <Stack gap={0}>
-          <Text fw={500} size="xs">
-            {meQ.data?.user.name}
-          </Text>
-          <Text c="dimmed" size="xs">
-            {meQ.data?.user.email}
-          </Text>
-        </Stack>
-        <Group>
-          <ActionIcon aria-label="Settings" component={Link} to="/settings">
-            <SlidersHorizontal size={14} />
-          </ActionIcon>
-          <SignOutButton />
-        </Group>
-      </Group>
     </Stack>
   );
 }
@@ -211,7 +193,7 @@ function AccountItem({
           )}
         </Stack>
       }
-      to={`/?account=${account.id}`}
+      to={`/transactions?account=${account.id}`}
     />
   );
 }

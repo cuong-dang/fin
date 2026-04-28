@@ -29,13 +29,18 @@ export function TransactionNewRoute() {
     queryFn: listSubscriptions,
   });
 
+  // Add / Cancel / Back all return to wherever the user came from
+  // (charts, transactions list, an account page, etc.) instead of
+  // dumping them at the root. `navigate(-1)` pops one history entry.
+  const goBack = () => navigate(-1);
+
   const mutation = useMutation({
     mutationFn: createTransaction,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["accounts"] });
       qc.invalidateQueries({ queryKey: ["categories"] });
-      navigate("/");
+      goBack();
     },
   });
 
@@ -49,15 +54,16 @@ export function TransactionNewRoute() {
   }
 
   return (
-    <PageShell back="/" title="New transaction">
+    <PageShell back={goBack} title="New transaction">
       <TransactionForm
         accounts={accountsQ.data ?? []}
         categories={categoriesQ.data ?? []}
         error={mutation.error ? (mutation.error as Error).message : null}
         pending={mutation.isPending}
-        submitLabel="Add"
+        submitLabel="Save"
         subscriptions={subsQ.data ?? []}
         tags={tagsQ.data ?? []}
+        onCancel={goBack}
         onSubmit={(body) => mutation.mutate(body)}
       />
     </PageShell>

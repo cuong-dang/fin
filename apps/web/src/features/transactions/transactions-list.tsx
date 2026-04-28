@@ -191,7 +191,9 @@ export function TransactionsList({
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <>
-      <SectionHeader compact>{title}</SectionHeader>
+      <SectionHeader compact px>
+        {title}
+      </SectionHeader>
       <Divider />
       <Stack gap="xs" pb="xs">
         {children}
@@ -368,7 +370,7 @@ function RowBody({
           {metaParts.join(" · ")}
         </Text>
       </Box>
-      <Stack>
+      <Stack align="flex-end">
         <Text c={amountColor(tx, amount)} ff="monospace" fw={500}>
           {formatMoney(amount, currency)}
         </Text>

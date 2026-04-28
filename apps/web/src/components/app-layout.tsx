@@ -1,0 +1,190 @@
+import {
+  ActionIcon,
+  Anchor,
+  AppShell,
+  Avatar,
+  Burger,
+  Group,
+  Menu,
+  Stack,
+  Text,
+  Title,
+} from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
+import { useQuery } from "@tanstack/react-query";
+import { LogOut, Plus, Settings } from "lucide-react";
+import { useEffect } from "react";
+import {
+  Link,
+  NavLink as RouterNavLink,
+  Outlet,
+  useLocation,
+  useNavigate,
+} from "react-router";
+
+import { AccountsSidebar } from "@/features/accounts/accounts-sidebar";
+import { clearAuth } from "@/lib/auth";
+import { me } from "@/lib/endpoints";
+
+const PAGES: { to: string; label: string }[] = [
+  { to: "/charts", label: "Charts" },
+  { to: "/transactions", label: "Transactions" },
+];
+
+/**
+ * Multi-page chrome wrapper. Hosts the header (brand + page title + user
+ * menu), the navbar (page nav + accounts panel), the Outlet for the
+ * current page, and a floating "+" FAB linking to /transactions/new.
+ *
+ * Form routes (account / transaction / subscription edit etc.) sit
+ * outside this layout so they get a focused, chrome-less view via
+ * PageShell + BackLink.
+ */
+export function AppLayoutRoute() {
+  const location = useLocation();
+  const [opened, { toggle, close }] = useDisclosure(false);
+  const pageLabel =
+    PAGES.find((p) => location.pathname.startsWith(p.to))?.label ?? "fin";
+
+  // Close the drawer after navigating on mobile so tapping a nav link
+  // doesn't leave the drawer covering the page. We watch `location.key`
+  // (changes on every navigation) instead of `pathname` so query-only
+  // changes — e.g., clicking an account row that updates `?account=…`
+  // — also dismiss the drawer. No-op on desktop where the navbar is
+  // permanent (close() short-circuits when already closed).
+  useEffect(() => {
+    close();
+  }, [location.key, close]);
+
+  return (
+    <AppShell
+      header={{ height: 50 }}
+      navbar={{
+        width: 320,
+        breakpoint: "sm",
+        collapsed: { mobile: !opened },
+      }}
+    >
+      <AppShell.Header>
+        <Group h="100%" justify="space-between" px="md">
+          <Group>
+            <Burger
+              hiddenFrom="sm"
+              opened={opened}
+              size="sm"
+              onClick={toggle}
+            />
+            <Anchor component={Link} fw={600} to="/charts" underline="never">
+              fin
+            </Anchor>
+            <Title c="dimmed" fw={500} order={4}>
+              {pageLabel}
+            </Title>
+          </Group>
+          <UserMenu />
+        </Group>
+      </AppShell.Header>
+      <AppShell.Navbar>
+        <Stack>
+          <Stack gap={2}>
+            {PAGES.map((p) => (
+              <PageNavLink key={p.to} label={p.label} to={p.to} />
+            ))}
+          </Stack>
+          <AccountsSidebar />
+        </Stack>
+      </AppShell.Navbar>
+      <AppShell.Main>
+        <Outlet />
+      </AppShell.Main>
+      <ActionIcon
+        aria-label="New transaction"
+        component={Link}
+        radius="xl"
+        size={56}
+        style={{ position: "fixed", bottom: 24, right: 24, zIndex: 100 }}
+        to="/transactions/new"
+        variant="filled"
+      >
+        <Plus size={24} />
+      </ActionIcon>
+    </AppShell>
+  );
+}
+
+/** React Router's NavLink wired up to look like a Mantine nav row. */
+function PageNavLink({ to, label }: { to: string; label: string }) {
+  return (
+    <RouterNavLink
+      style={({ isActive }) => ({
+        display: "block",
+        padding: "8px 12px",
+        borderRadius: 4,
+        textDecoration: "none",
+        color: "inherit",
+        background: isActive ? "var(--mantine-color-default-hover)" : undefined,
+        fontWeight: isActive ? 600 : 400,
+      })}
+      to={to}
+    >
+      {label}
+    </RouterNavLink>
+  );
+}
+
+function UserMenu() {
+  const navigate = useNavigate();
+  const meQ = useQuery({ queryKey: ["me"], queryFn: me });
+  const name = meQ.data?.user.name ?? "";
+  const email = meQ.data?.user.email ?? "";
+  const initials =
+    name
+      .split(/\s+/)
+      .map((p) => p[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "?";
+
+  return (
+    <Menu position="bottom-end" shadow="md" width={240}>
+      <Menu.Target>
+        <ActionIcon aria-label="Account menu" radius="xl" size="md">
+          <Avatar color="initials" name={initials} radius="xl" size={28}>
+            {initials}
+          </Avatar>
+        </ActionIcon>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Label>
+          <Stack gap={0}>
+            <Text fw={500} size="sm">
+              {name}
+            </Text>
+            <Text c="dimmed" size="xs">
+              {email}
+            </Text>
+          </Stack>
+        </Menu.Label>
+        <Menu.Divider />
+        <Menu.Item
+          component={Link}
+          leftSection={<Settings size={14} />}
+          to="/settings"
+        >
+          Settings
+        </Menu.Item>
+        <Menu.Item
+          color="red"
+          leftSection={<LogOut size={14} />}
+          onClick={() => {
+            clearAuth();
+            navigate("/signin", { replace: true });
+          }}
+        >
+          Sign out
+        </Menu.Item>
+      </Menu.Dropdown>
+    </Menu>
+  );
+}

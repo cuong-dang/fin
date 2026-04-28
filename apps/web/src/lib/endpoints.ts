@@ -2,6 +2,9 @@ import type {
   Account,
   AccountGroup,
   AdjustmentUpdateBody,
+  AnalyticsChartResponse,
+  CashFlowQuery,
+  CategorySpendingQuery,
   CategoryWithSubs,
   CreateAccountBody,
   CreateCategoryBody,
@@ -151,3 +154,28 @@ export const cancelSubscription = (id: string) =>
 
 export const deleteSubscription = (id: string) =>
   api<void>(`/api/subscriptions/${id}`, { method: "DELETE" });
+
+// ─── Analytics ────────────────────────────────────────────────────────────
+
+export const getCategorySpending = (q: CategorySpendingQuery) => {
+  const qs = new URLSearchParams({
+    granularity: q.granularity,
+    start: q.start,
+    end: q.end,
+    currency: q.currency,
+  });
+  if (q.categoryId) qs.set("categoryId", q.categoryId);
+  return api<AnalyticsChartResponse>(`/api/analytics/category-spending?${qs}`);
+};
+
+export const getCashFlow = (q: CashFlowQuery) => {
+  const qs = new URLSearchParams({
+    granularity: q.granularity,
+    start: q.start,
+    end: q.end,
+    currency: q.currency,
+    dimension: q.dimension,
+  });
+  if (q.categoryId) qs.set("categoryId", q.categoryId);
+  return api<AnalyticsChartResponse>(`/api/analytics/cash-flow?${qs}`);
+};

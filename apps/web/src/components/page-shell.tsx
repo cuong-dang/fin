@@ -15,7 +15,9 @@ export function PageShell({
   right,
   children,
 }: {
-  back: string;
+  /** Either a destination URL (string) or a callback (typically
+   *  `() => navigate(-1)` to go back in history). */
+  back: string | (() => void);
   title: string;
   subtitle?: ReactNode;
   right?: ReactNode;
@@ -24,7 +26,11 @@ export function PageShell({
   return (
     <Container>
       <Stack>
-        <BackLink to={back} />
+        {typeof back === "string" ? (
+          <BackLink to={back} />
+        ) : (
+          <BackLink onClick={back} />
+        )}
         <Stack>
           <Group justify="space-between">
             <Title order={2}>{title}</Title>
