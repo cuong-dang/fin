@@ -78,7 +78,7 @@ export function EditableName({
 
   return (
     <Group justify="space-between">
-      <Text size="sm">{name}</Text>
+      <Text>{name}</Text>
       <Group>
         <ActionIcon
           aria-label={`Edit ${label}`}

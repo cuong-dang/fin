@@ -239,10 +239,8 @@ function DangerZone({ onDelete }: { onDelete: () => void }) {
     <Box mt="xl">
       <Divider mb="xs" />
       <Stack>
-        <Text fw={600} size="sm">
-          Danger zone
-        </Text>
-        <Text c="dimmed" size="sm">
+        <Text fw={600}>Danger zone</Text>
+        <Text c="dimmed">
           Deleting removes this transaction along with its legs and lines.
         </Text>
         <Button color="red" variant="light" w="fit-content" onClick={onDelete}>

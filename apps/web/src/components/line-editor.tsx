@@ -166,7 +166,7 @@ export function MultiLineEditor({
         <Card>
           <Group justify="space-between">
             <SectionHeader compact>{summaryRow.label}</SectionHeader>
-            <Text ff="monospace" fw={500} size="sm">
+            <Text ff="monospace" fw={500}>
               {summaryRow.value}
             </Text>
           </Group>

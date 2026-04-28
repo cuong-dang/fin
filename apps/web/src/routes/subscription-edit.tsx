@@ -155,10 +155,8 @@ function DangerZone({
     <Box mt="xl">
       <Divider mb="xs" />
       <Stack>
-        <Text fw={600} size="sm">
-          Danger zone
-        </Text>
-        <Text c="dimmed" size="sm">
+        <Text fw={600}>Danger zone</Text>
+        <Text c="dimmed">
           Cancelling stops future projections; past charges stay linked.
           Deleting unlinks past charges and removes the subscription entirely.
         </Text>

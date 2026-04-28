@@ -29,9 +29,7 @@ export function SettingsSubscriptionsRoute() {
       title="Subscriptions"
     >
       {all.length === 0 ? (
-        <Text c="dimmed" size="sm">
-          No subscriptions yet.
-        </Text>
+        <Text c="dimmed">No subscriptions yet.</Text>
       ) : (
         <Stack>
           {active.length > 0 && (
@@ -67,15 +65,13 @@ function Row({ sub }: { sub: Subscription }) {
         underline="never"
       >
         <Group>
-          <Text fw={500} size="sm">
-            {sub.name}
-          </Text>
+          <Text fw={500}>{sub.name}</Text>
           <Badge color="black" variant="light">
             {sub.frequency}
           </Badge>
         </Group>
       </Anchor>
-      <Text c="dimmed" ff="monospace" size="sm">
+      <Text c="dimmed" ff="monospace">
         {formatMoney(total, sub.currency)}
       </Text>
     </Group>

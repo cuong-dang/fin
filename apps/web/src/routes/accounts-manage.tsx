@@ -48,9 +48,7 @@ export function AccountsManageRoute() {
       title="Manage accounts"
     >
       {groups.length === 0 ? (
-        <Text c="dimmed" size="sm">
-          No accounts yet.
-        </Text>
+        <Text c="dimmed">No accounts yet.</Text>
       ) : (
         <Stack>
           {groups.map((g) => (
@@ -102,9 +100,7 @@ function GroupSection({
       <Divider />
 
       {accounts.length === 0 ? (
-        <Text c="dimmed" size="sm">
-          No accounts yet.
-        </Text>
+        <Text c="dimmed">No accounts yet.</Text>
       ) : (
         <Stack>
           {accounts.map((a) => (
@@ -128,7 +124,7 @@ function AccountRowItem({ account }: { account: Account }) {
 
   return (
     <Group justify="space-between">
-      <Text size="sm">
+      <Text>
         <b>{account.name}</b>{" "}
         <Text c="dimmed" component="span">
           {account.currency}

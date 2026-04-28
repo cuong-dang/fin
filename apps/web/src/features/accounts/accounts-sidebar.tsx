@@ -71,9 +71,7 @@ export function AccountsSidebar() {
           to="/"
         />
         {groups.length === 0 ? (
-          <Text c="dimmed" size="sm">
-            No accounts yet.
-          </Text>
+          <Text c="dimmed">No accounts yet.</Text>
         ) : (
           groups.map((g) => (
             <GroupSection
@@ -133,15 +131,13 @@ function GroupSection({
       <Group justify="space-between">
         <SectionHeader>{group.name}</SectionHeader>
         {subtotal && (
-          <Text c="dimmed" ff="monospace" size="sm">
+          <Text c="dimmed" ff="monospace">
             {formatMoney(subtotal.amount, subtotal.currency)}
           </Text>
         )}
       </Group>
       {accounts.length === 0 ? (
-        <Text c="dimmed" size="sm">
-          No accounts yet.
-        </Text>
+        <Text c="dimmed">No accounts yet.</Text>
       ) : (
         accounts.map((a) => (
           <AccountItem
@@ -176,7 +172,7 @@ function AccountItem({
   if (isCc) {
     label = (
       <Stack gap={0}>
-        <Text size="sm">{account.name}</Text>
+        <Text>{account.name}</Text>
         <CreditLimitBar
           creditLimit={BigInt(account.creditLimit!)}
           currency={account.currency}
@@ -187,7 +183,7 @@ function AccountItem({
   } else if (isLoan) {
     label = (
       <Stack gap={0}>
-        <Text size="sm">{account.name}</Text>
+        <Text>{account.name}</Text>
         <LoanRemainingHint
           amountPerPeriod={BigInt(account.recurringPlan!.amountPerPeriod)}
           balance={available}
@@ -205,11 +201,11 @@ function AccountItem({
       label={label}
       rightSection={
         <Stack align="flex-end">
-          <Text c="dimmed" ff="monospace" size="sm">
+          <Text c="dimmed" ff="monospace">
             {formatMoney(present, account.currency)}
           </Text>
           {hasPending && !isCc && (
-            <Text c="dimmed" ff="monospace" size="sm">
+            <Text c="dimmed" ff="monospace">
               avail {formatMoney(available, account.currency)}
             </Text>
           )}

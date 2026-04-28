@@ -150,7 +150,7 @@ export function TransactionsList({
 
   if (pending.length === 0 && localByDay.size === 0) {
     return (
-      <Text c="dimmed" size="sm" ta="center">
+      <Text c="dimmed" ta="center">
         No transactions yet.
       </Text>
     );
@@ -359,15 +359,13 @@ function RowBody({
   return (
     <Group>
       <Box flex={1}>
-        <Text fw={500} size="sm">
-          {primary}
-        </Text>
+        <Text fw={500}>{primary}</Text>
         <Text c="dimmed" size="xs">
           {metaParts.join(" · ")}
         </Text>
       </Box>
       <Stack>
-        <Text c={amountColor(tx, amount)} ff="monospace" fw={500} size="sm">
+        <Text c={amountColor(tx, amount)} ff="monospace" fw={500}>
           {formatMoney(amount, currency)}
         </Text>
         {showRunningBalance && tx.balanceAfter !== undefined && (

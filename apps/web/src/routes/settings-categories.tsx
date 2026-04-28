@@ -62,9 +62,7 @@ function KindSection({
         onSubmit={(name) => createCategory({ kind, name })}
       />
       {cats.length === 0 ? (
-        <Text c="dimmed" size="sm">
-          No {kind} categories.
-        </Text>
+        <Text c="dimmed">No {kind} categories.</Text>
       ) : (
         <Stack>
           {cats.map((c) => (
@@ -123,9 +121,7 @@ function TagsSection({ tags }: { tags: Tag[] }) {
         onSubmit={(name) => createTag({ name })}
       />
       {tags.length === 0 ? (
-        <Text c="dimmed" size="sm">
-          No tags.
-        </Text>
+        <Text c="dimmed">No tags.</Text>
       ) : (
         <Card>
           <Stack>

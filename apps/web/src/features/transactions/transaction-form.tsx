@@ -357,9 +357,7 @@ export function TransactionForm({
   if (accounts.length === 0) {
     return (
       <Stack>
-        <Text c="dimmed" size="sm">
-          You need to create an account first.
-        </Text>
+        <Text c="dimmed">You need to create an account first.</Text>
         <Button component={Link} to="/accounts/new" w="fit-content">
           Create account
         </Button>
@@ -563,9 +561,7 @@ function PaymentCreditCardPicker({
   if (ccAccounts.length === 0) {
     return (
       <Stack>
-        <Text c="dimmed" size="sm">
-          No credit-card accounts yet.
-        </Text>
+        <Text c="dimmed">No credit-card accounts yet.</Text>
         <Button
           component={Link}
           to="/accounts/new"
@@ -607,9 +603,7 @@ function PaymentLoanPicker({
   if (loanAccounts.length === 0) {
     return (
       <Stack>
-        <Text c="dimmed" size="sm">
-          No loan accounts yet.
-        </Text>
+        <Text c="dimmed">No loan accounts yet.</Text>
         <Button
           component={Link}
           to="/accounts/new"
@@ -653,9 +647,7 @@ function PaymentSubscriptionPicker({
   if (totalSubs === 0) {
     return (
       <Stack>
-        <Text c="dimmed" size="sm">
-          No subscriptions yet.
-        </Text>
+        <Text c="dimmed">No subscriptions yet.</Text>
         <Button
           component={Link}
           to="/subscriptions/new"

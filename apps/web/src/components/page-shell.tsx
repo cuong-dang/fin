@@ -30,11 +30,7 @@ export function PageShell({
             <Title order={2}>{title}</Title>
             {right}
           </Group>
-          {subtitle && (
-            <Text c="dimmed" size="sm">
-              {subtitle}
-            </Text>
-          )}
+          {subtitle && <Text c="dimmed">{subtitle}</Text>}
         </Stack>
         {children}
       </Stack>
