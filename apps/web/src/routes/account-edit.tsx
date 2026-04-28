@@ -5,14 +5,7 @@ import type {
   RecurringFrequency,
   Tag,
 } from "@fin/schemas";
-import {
-  Alert,
-  Button,
-  Group,
-  NativeSelect,
-  Stack,
-  TextInput,
-} from "@mantine/core";
+import { Alert, Button, Group, Stack, TextInput } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
@@ -21,9 +14,12 @@ import {
   type CategoryLineFormValues,
   packCategoryLine,
 } from "@/components/category-selector";
-import { MultiLineEditor } from "@/components/line-editor";
 import { MoneyField } from "@/components/money-field";
 import { PageShell } from "@/components/page-shell";
+import {
+  CcFields,
+  LoanPlanFields,
+} from "@/features/accounts/account-form-fields";
 import { CREATE_NEW, GroupSelector } from "@/features/accounts/group-selector";
 import { localDateKey } from "@/lib/dates";
 import {
@@ -37,23 +33,6 @@ import {
 import { formatMoney, formatMoneyPlain } from "@/lib/money";
 
 import { NotFoundRoute } from "./not-found";
-
-const FREQUENCY_OPTIONS: { value: RecurringFrequency; label: string }[] = [
-  { value: "weekly", label: "Weekly" },
-  { value: "biweekly", label: "Biweekly" },
-  { value: "monthly", label: "Monthly" },
-  { value: "quarterly", label: "Quarterly" },
-  { value: "yearly", label: "Yearly" },
-];
-
-const emptyLine = (): CategoryLineFormValues => ({
-  amount: "",
-  categoryId: "",
-  newCategoryName: "",
-  subcategoryId: "",
-  newSubcategoryName: "",
-  tagNames: [],
-});
 
 export function AccountEditRoute() {
   const { id } = useParams<{ id: string }>();
@@ -181,14 +160,6 @@ function Form({
   const loanPayFromAccounts = allAccounts.filter(
     (a) => a.type !== "loan" && a.id !== account.id,
   );
-  const expenseCategories = categories.filter((c) => c.kind === "expense");
-  const allTagNames = tags.map((t) => t.name);
-
-  function updatePlanLine(i: number, patch: Partial<CategoryLineFormValues>) {
-    setPlanLines((prev) =>
-      prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)),
-    );
-  }
 
   const mutation = useMutation({
     mutationFn: (body: Parameters<typeof updateAccount>[1]) =>
@@ -270,82 +241,32 @@ function Form({
             onValueChange={setGroupId}
           />
           {isCc && (
-            <>
-              <MoneyField
-                label="Credit limit"
-                min={0}
-                value={creditLimit}
-                onChange={setCreditLimit}
-              />
-              <NativeSelect
-                data={[
-                  { value: "", label: "— No default —" },
-                  ...checkingAccounts.map((a) => ({
-                    value: a.id,
-                    label: `${a.name} (${a.currency})`,
-                  })),
-                ]}
-                description="Pre-fills the source account when paying this card."
-                label="Default pay-from account (optional)"
-                value={defaultPayFromAccountId}
-                onChange={(e) => setDefaultPayFromAccountId(e.target.value)}
-              />
-            </>
+            <CcFields
+              creditLimit={creditLimit}
+              defaultPayFromAccountId={defaultPayFromAccountId}
+              payFromAccounts={checkingAccounts}
+              setCreditLimit={setCreditLimit}
+              setDefaultPayFromAccountId={setDefaultPayFromAccountId}
+            />
           )}
           {isLoan && (
-            <>
-              <MoneyField
-                label="Amount per period"
-                min={0}
-                value={planAmountPerPeriod}
-                onChange={setPlanAmountPerPeriod}
-              />
-              <NativeSelect
-                data={FREQUENCY_OPTIONS}
-                label="Frequency"
-                value={planFrequency}
-                onChange={(e) =>
-                  setPlanFrequency(e.target.value as RecurringFrequency)
-                }
-              />
-              <TextInput
-                label="First payment date"
-                required
-                type="date"
-                value={planFirstPaymentDate}
-                onChange={(e) => setPlanFirstPaymentDate(e.target.value)}
-              />
-              <NativeSelect
-                data={[
-                  { value: "", label: "— No default —" },
-                  ...loanPayFromAccounts.map((a) => ({
-                    value: a.id,
-                    label: `${a.name} (${a.currency})`,
-                  })),
-                ]}
-                description="Pre-fills the source when paying this loan."
-                label="Default pay-from account (optional)"
-                value={planPayFromId}
-                onChange={(e) => setPlanPayFromId(e.target.value)}
-              />
-              <TextInput
-                label="Description (optional)"
-                maxLength={500}
-                value={planDescription}
-                onChange={(e) => setPlanDescription(e.target.value)}
-              />
-              <MultiLineEditor
-                allTags={allTagNames}
-                amountOptional
-                categories={expenseCategories}
-                lines={planLines}
-                onAdd={() => setPlanLines((prev) => [...prev, emptyLine()])}
-                onRemove={(i) =>
-                  setPlanLines((prev) => prev.filter((_, idx) => idx !== i))
-                }
-                onUpdate={updatePlanLine}
-              />
-            </>
+            <LoanPlanFields
+              amountPerPeriod={planAmountPerPeriod}
+              categories={categories}
+              description={planDescription}
+              firstPaymentDate={planFirstPaymentDate}
+              frequency={planFrequency}
+              lines={planLines}
+              payFromAccounts={loanPayFromAccounts}
+              payFromId={planPayFromId}
+              setAmountPerPeriod={setPlanAmountPerPeriod}
+              setDescription={setPlanDescription}
+              setFirstPaymentDate={setPlanFirstPaymentDate}
+              setFrequency={setPlanFrequency}
+              setLines={setPlanLines}
+              setPayFromId={setPlanPayFromId}
+              tags={tags}
+            />
           )}
           <MoneyField
             description={`Current: ${formatMoney(BigInt(account.presentBalance), account.currency)}. Changing this records an adjustment transaction for the delta.`}

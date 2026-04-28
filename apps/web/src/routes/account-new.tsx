@@ -16,9 +16,12 @@ import {
   type CategoryLineFormValues,
   packCategoryLine,
 } from "@/components/category-selector";
-import { MultiLineEditor } from "@/components/line-editor";
 import { MoneyField } from "@/components/money-field";
 import { PageShell } from "@/components/page-shell";
+import {
+  CcFields,
+  LoanPlanFields,
+} from "@/features/accounts/account-form-fields";
 import { CREATE_NEW, GroupSelector } from "@/features/accounts/group-selector";
 import { COMMON_CURRENCIES } from "@/lib/currencies";
 import { localDateKey } from "@/lib/dates";
@@ -29,23 +32,6 @@ import {
   listCategories,
   listTags,
 } from "@/lib/endpoints";
-
-const FREQUENCY_OPTIONS: { value: RecurringFrequency; label: string }[] = [
-  { value: "weekly", label: "Weekly" },
-  { value: "biweekly", label: "Biweekly" },
-  { value: "monthly", label: "Monthly" },
-  { value: "quarterly", label: "Quarterly" },
-  { value: "yearly", label: "Yearly" },
-];
-
-const emptyLine = (): CategoryLineFormValues => ({
-  amount: "",
-  categoryId: "",
-  newCategoryName: "",
-  subcategoryId: "",
-  newSubcategoryName: "",
-  tagNames: [],
-});
 
 export function AccountNewRoute() {
   const navigate = useNavigate();
@@ -91,8 +77,6 @@ export function AccountNewRoute() {
 
   const groups = groupsQ.data ?? [];
   const accounts = accountsQ.data ?? [];
-  const categories = categoriesQ.data ?? [];
-  const tags = tagsQ.data ?? [];
   const checkingAccounts = accounts.filter(
     (a: Account) => a.type === "checking_savings",
   );
@@ -102,15 +86,7 @@ export function AccountNewRoute() {
   const loanPayFromAccounts = accounts.filter(
     (a: Account) => a.type !== "loan",
   );
-  const expenseCategories = categories.filter((c) => c.kind === "expense");
-  const allTagNames = tags.map((t) => t.name);
   const hasGroups = groups.length > 0;
-
-  function updatePlanLine(i: number, patch: Partial<CategoryLineFormValues>) {
-    setPlanLines((prev) =>
-      prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)),
-    );
-  }
 
   return (
     <PageShell back="/" title="New account">
@@ -201,82 +177,32 @@ export function AccountNewRoute() {
             />
           )}
           {type === "credit_card" && (
-            <>
-              <MoneyField
-                label="Credit limit"
-                min={0}
-                value={creditLimit}
-                onChange={setCreditLimit}
-              />
-              <NativeSelect
-                data={[
-                  { value: "", label: "— No default —" },
-                  ...checkingAccounts.map((a) => ({
-                    value: a.id,
-                    label: `${a.name} (${a.currency})`,
-                  })),
-                ]}
-                description="Pre-fills the source account when paying this card."
-                label="Default pay-from account (optional)"
-                value={defaultPayFromAccountId}
-                onChange={(e) => setDefaultPayFromAccountId(e.target.value)}
-              />
-            </>
+            <CcFields
+              creditLimit={creditLimit}
+              defaultPayFromAccountId={defaultPayFromAccountId}
+              payFromAccounts={checkingAccounts}
+              setCreditLimit={setCreditLimit}
+              setDefaultPayFromAccountId={setDefaultPayFromAccountId}
+            />
           )}
           {type === "loan" && (
-            <>
-              <MoneyField
-                label="Amount per period"
-                min={0}
-                value={amountPerPeriod}
-                onChange={setAmountPerPeriod}
-              />
-              <NativeSelect
-                data={FREQUENCY_OPTIONS}
-                label="Frequency"
-                value={frequency}
-                onChange={(e) =>
-                  setFrequency(e.target.value as RecurringFrequency)
-                }
-              />
-              <TextInput
-                label="First payment date"
-                required
-                type="date"
-                value={firstPaymentDate}
-                onChange={(e) => setFirstPaymentDate(e.target.value)}
-              />
-              <NativeSelect
-                data={[
-                  { value: "", label: "— No default —" },
-                  ...loanPayFromAccounts.map((a) => ({
-                    value: a.id,
-                    label: `${a.name} (${a.currency})`,
-                  })),
-                ]}
-                description="Pre-fills the source when paying this loan."
-                label="Default pay-from account (optional)"
-                value={planPayFromId}
-                onChange={(e) => setPlanPayFromId(e.target.value)}
-              />
-              <TextInput
-                label="Description (optional)"
-                maxLength={500}
-                value={planDescription}
-                onChange={(e) => setPlanDescription(e.target.value)}
-              />
-              <MultiLineEditor
-                allTags={allTagNames}
-                amountOptional
-                categories={expenseCategories}
-                lines={planLines}
-                onAdd={() => setPlanLines((prev) => [...prev, emptyLine()])}
-                onRemove={(i) =>
-                  setPlanLines((prev) => prev.filter((_, idx) => idx !== i))
-                }
-                onUpdate={updatePlanLine}
-              />
-            </>
+            <LoanPlanFields
+              amountPerPeriod={amountPerPeriod}
+              categories={categoriesQ.data ?? []}
+              description={planDescription}
+              firstPaymentDate={firstPaymentDate}
+              frequency={frequency}
+              lines={planLines}
+              payFromAccounts={loanPayFromAccounts}
+              payFromId={planPayFromId}
+              setAmountPerPeriod={setAmountPerPeriod}
+              setDescription={setPlanDescription}
+              setFirstPaymentDate={setFirstPaymentDate}
+              setFrequency={setFrequency}
+              setLines={setPlanLines}
+              setPayFromId={setPlanPayFromId}
+              tags={tagsQ.data ?? []}
+            />
           )}
           <MoneyField
             description={

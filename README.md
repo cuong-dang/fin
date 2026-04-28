@@ -43,13 +43,29 @@ What's shipped and works end-to-end today:
   `↻ Netflix` on the tx row) for "how much per month on subs?" analytics.
 
 - **Credit-card accounts with limit tracking.** Accounts have a `type`
-  (`checking_savings` / `credit_card` / `loan`-reserved). Credit cards
-  carry a credit limit and an optional default pay-from account. The
-  sidebar shows a live "remaining limit" progress bar that includes
-  pending charges, color-shifting from green → red as it depletes.
-  Paying a card via the **Payment** tab is a transfer underneath
-  (checking → CC) with the source pre-filled from the card's default,
-  keeping accounting honest while the UX stays simple.
+  (`checking_savings` / `credit_card` / `loan`). Credit cards carry a
+  credit limit and an optional default pay-from account. The sidebar
+  shows a live "remaining limit" progress bar that includes pending
+  charges, color-shifting from green → red as it depletes. Paying a
+  card via the **Payment** tab is a transfer underneath (checking → CC)
+  with the source pre-filled from the card's default, keeping accounting
+  honest while the UX stays simple.
+
+- **Loan accounts with amortization templates.** Loan accounts (mortgage,
+  auto loan, BNPL) pair 1:1 with a recurring plan describing the
+  schedule — payment amount, cadence, first-payment date, default
+  pay-from, and a categorization template for fee/interest splits. The
+  sidebar shows an approximate payments-remaining count for each loan.
+  Recording a payment via **Payment > Loan** pre-fills source, amount,
+  and the line breakdown from the plan; the destination leg gets the
+  principal portion (`amount − Σ lines`), while the lines categorize
+  the fee/interest portion (so spending reports still see "$10 to
+  Interest" each month). Plan default-line amounts are _optional_ —
+  amortizing loans split principal vs interest differently every
+  period, so the template records categorization and the user fills
+  per-period amounts at payment time. The transaction-list row expands
+  to show "Source → Destination $principal" plus each line, and the
+  numbers always sum to the total cash motion.
 
 ## What's distinctive about the data model
 
@@ -77,12 +93,18 @@ A few things that might matter if you're reading the source:
   helper, no row is read or written without verifying it belongs to the
   caller's group.
 - **Soft-delete for reference entities, hard-delete for transactions.**
-  Accounts, categories, subcategories, tags, account groups, and
-  subscriptions all carry a `deleted_at` timestamp + an active-only
-  partial unique index, so historical transactions still resolve their
-  (now-deleted) entity names. Transactions themselves are hard-deleted
-  — nothing else references them, and balances re-derive automatically
-  from the remaining legs.
+  Accounts, categories, subcategories, tags, account groups,
+  subscriptions, and recurring plans all carry a `deleted_at` timestamp
+  alongside an active-only partial unique index, so historical
+  transactions still resolve their (now-deleted) entity names.
+  Transactions themselves are hard-deleted — nothing else references
+  them, and balances re-derive automatically from the remaining legs.
+- **Tags as a many-to-many on lines.** Each transaction line can carry
+  zero or more tags (junction table `transaction_line_tags`); the same
+  shape applies to subscription default lines and loan-plan default
+  lines so a payment generated from a template inherits its tags
+  automatically. Tags are upserted by name on write — the user types
+  free-form, the server resolves to an existing tag or creates one.
 
 ## Architecture
 
@@ -211,10 +233,9 @@ GET|PATCH|DELETE /api/subscriptions/:id
 POST             /api/subscriptions/:id/cancel
 ```
 
-### TODO
+## TODO
 
 - [x] feature: Tags
 - [x] feature: Subscription
 - [x] feature: Credit card account type
-- [ ] feature: Loan/Installment
-- [ ] nicety: Auto-select filtered account when adding new transactions
+- [x] feature: Loan/Installment

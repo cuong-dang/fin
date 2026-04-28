@@ -249,8 +249,13 @@ function LoanRemainingHint({
   }
   if (amountPerPeriod <= 0n) return null;
   const debt = -balance;
-  // ceil(debt / amountPerPeriod) using bigint arithmetic.
-  const remaining = (debt + amountPerPeriod - 1n) / amountPerPeriod;
+  // ceil(debt / amountPerPeriod), with a 1-cent tolerance: amortizing
+  // loans' final installment commonly absorbs sub-cent rounding, so a
+  // penny over a clean multiple is the same payment count, not one
+  // more (e.g. $10.01 with $10/mo = 1 left, not 2).
+  const remainder = debt % amountPerPeriod;
+  const base = debt / amountPerPeriod;
+  const remaining = remainder <= 1n ? (base === 0n ? 1n : base) : base + 1n;
   return (
     <Text c="dimmed" ff="monospace" size="xs">
       ~{Number(remaining)} left · {formatMoney(amountPerPeriod, currency)}

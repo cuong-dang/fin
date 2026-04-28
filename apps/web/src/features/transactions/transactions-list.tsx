@@ -308,7 +308,11 @@ function SortableRow({
                 (() => {
                   const inLeg = tx.legs.find((l) => BigInt(l.amount) > 0n);
                   const outLeg = tx.legs.find((l) => BigInt(l.amount) < 0n);
-                  if (!inLeg || !outLeg) return null;
+                  if (!inLeg || !outLeg) {
+                    throw new Error(
+                      `Invariant: transfer ${tx.id} missing in/out leg`,
+                    );
+                  }
                   return (
                     <Group key="principal" justify="space-between">
                       <Text c="dimmed" size="xs">
