@@ -110,7 +110,7 @@ export function MultiLineEditor({
   return (
     <Stack>
       {lines.map((line, i) => (
-        <Card key={i} padding="sm" withBorder>
+        <Card key={i}>
           <Stack>
             <Group justify="space-between">
               <SectionHeader compact>Line {i + 1}</SectionHeader>
@@ -163,7 +163,7 @@ export function MultiLineEditor({
         Add line
       </Button>
       {!amountOptional && (
-        <Card withBorder>
+        <Card>
           <Group justify="space-between">
             <SectionHeader compact>{summaryRow.label}</SectionHeader>
             <Text ff="monospace" fw={500} size="sm">

@@ -193,7 +193,9 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
     <>
       <SectionHeader compact>{title}</SectionHeader>
       <Divider />
-      {children}
+      <Stack gap="xs" pb="xs">
+        {children}
+      </Stack>
     </>
   );
 }

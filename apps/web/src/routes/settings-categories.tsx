@@ -78,7 +78,7 @@ function KindSection({
 
 function CategorySection({ category }: { category: CategoryWithSubs }) {
   return (
-    <Card padding="sm" withBorder>
+    <Card>
       <Stack>
         <EditableName
           confirmDeleteMessage={`Delete "${category.name}"? Its subcategories will be removed too. This cannot be undone.`}
@@ -127,7 +127,7 @@ function TagsSection({ tags }: { tags: Tag[] }) {
           No tags.
         </Text>
       ) : (
-        <Card padding="sm" withBorder>
+        <Card>
           <Stack>
             {tags.map((t) => (
               <EditableName
