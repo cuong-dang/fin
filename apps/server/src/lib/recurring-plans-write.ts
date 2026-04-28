@@ -1,4 +1,5 @@
 import type { RecurringPlanBody } from "@fin/schemas";
+import { eq } from "drizzle-orm";
 
 import { schema } from "../db";
 import { db } from "../db";
@@ -21,10 +22,7 @@ export async function insertRecurringPlan(
   currency: string,
   workspaceGroupId: string,
 ): Promise<string> {
-  const amountPerPeriodMinor = parseMoney(body.amountPerPeriod, currency);
-  if (amountPerPeriodMinor <= 0n) {
-    throw new Error("amountPerPeriod must be positive");
-  }
+  const amountPerPeriodMinor = parseAmountPerPeriod(body, currency);
 
   const [plan] = await tx
     .insert(schema.recurringPlans)
@@ -39,17 +37,78 @@ export async function insertRecurringPlan(
     })
     .returning({ id: schema.recurringPlans.id });
 
+  await insertPlanDefaultLines(
+    tx,
+    plan.id,
+    body.defaultLines,
+    currency,
+    workspaceGroupId,
+  );
+  return plan.id;
+}
+
+/**
+ * Update a recurring_plans row + rewrite its default lines (delete + re-insert).
+ * Mirrors the subscription update pattern: full replacement of the lines list,
+ * not a patch. The tag-junction rows cascade off the deleted lines.
+ */
+export async function updateRecurringPlan(
+  tx: Tx,
+  planId: string,
+  body: RecurringPlanBody,
+  currency: string,
+  workspaceGroupId: string,
+): Promise<void> {
+  const amountPerPeriodMinor = parseAmountPerPeriod(body, currency);
+
+  await tx
+    .update(schema.recurringPlans)
+    .set({
+      amountPerPeriod: amountPerPeriodMinor,
+      frequency: body.frequency,
+      firstPaymentDate: body.firstPaymentDate,
+      defaultAccountId: body.defaultAccountId ?? null,
+      description: body.description ?? null,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.recurringPlans.id, planId));
+
+  await tx
+    .delete(schema.recurringPlanDefaultLines)
+    .where(eq(schema.recurringPlanDefaultLines.recurringPlanId, planId));
+  await insertPlanDefaultLines(
+    tx,
+    planId,
+    body.defaultLines,
+    currency,
+    workspaceGroupId,
+  );
+}
+
+function parseAmountPerPeriod(body: RecurringPlanBody, currency: string) {
+  const minor = parseMoney(body.amountPerPeriod, currency);
+  if (minor <= 0n) throw new Error("amountPerPeriod must be positive");
+  return minor;
+}
+
+async function insertPlanDefaultLines(
+  tx: Tx,
+  planId: string,
+  lines: RecurringPlanBody["defaultLines"],
+  currency: string,
+  workspaceGroupId: string,
+): Promise<void> {
   // Default lines: amount may be omitted (varies per period). Categories
   // for new loan lines are always expense-side (interest/fees/etc).
-  const lineAmounts = body.defaultLines.map((l) =>
+  const lineAmounts = lines.map((l) =>
     l.amount ? parseMoney(l.amount, currency) : null,
   );
   if (lineAmounts.some((m) => m !== null && m <= 0n)) {
     throw new Error("Each default line amount must be positive when set");
   }
 
-  for (let i = 0; i < body.defaultLines.length; i++) {
-    const line = body.defaultLines[i];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     const { categoryId, subcategoryId } = await resolveCategory(
       tx,
       line,
@@ -59,7 +118,7 @@ export async function insertRecurringPlan(
     const [row] = await tx
       .insert(schema.recurringPlanDefaultLines)
       .values({
-        recurringPlanId: plan.id,
+        recurringPlanId: planId,
         categoryId,
         subcategoryId,
         amount: lineAmounts[i],
@@ -79,6 +138,4 @@ export async function insertRecurringPlan(
       );
     }
   }
-
-  return plan.id;
 }

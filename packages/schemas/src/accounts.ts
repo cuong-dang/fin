@@ -8,23 +8,25 @@ import {
 import type { RecurringFrequency } from "./subscriptions";
 
 /**
- * Recurring-plan fields embedded on the loan account row. Two consumers,
+ * Recurring-plan fields embedded on the loan account row. Three consumers,
  * each using a subset of these fields:
  *
  * - Sidebar payments-remaining indicator: `amountPerPeriod` + `frequency`.
  * - Payment > Loan pre-fill: `amountPerPeriod` (amount), `defaultAccountId`
  *   (source), `defaultLines` (line templates).
+ * - Edit form: all fields, so the user doesn't have to re-enter sticky
+ *   ones like `firstPaymentDate` on every save.
  *
- * Bundling avoids an extra round-trip when the user picks a loan in the
- * payment picker. `description` and `firstPaymentDate` aren't surfaced
- * here — they'd come from a dedicated `GET /api/recurring-plans/:id` when
- * a plan editor lands.
+ * Bundling avoids round-trips. The plan has no `name` of its own — the
+ * paired account's `name` covers display.
  */
 export type AccountRecurringPlan = {
   id: string;
   amountPerPeriod: string; // stringified bigint
   frequency: RecurringFrequency;
+  firstPaymentDate: string;
   defaultAccountId: string | null;
+  description: string | null;
   defaultLines: RecurringPlanDefaultLine[];
 };
 
@@ -115,12 +117,13 @@ const creditCardUpdate = baseUpdate
   })
   .strict();
 
-// Loan-account update (today): name + group + balance only. Plan terms
-// (principal, schedule, lines) edit through a separate plan endpoint
-// when that lands; for now they're sticky after creation.
+// Loan-account update: rewrites the paired recurring_plan along with the
+// account fields (mirrors subscription update — full replacement, not a
+// patch). Currency and type stay sticky.
 const loanUpdate = baseUpdate
   .extend({
     type: z.literal("loan"),
+    recurringPlan: recurringPlanBody,
   })
   .strict();
 

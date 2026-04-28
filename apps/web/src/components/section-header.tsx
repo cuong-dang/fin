@@ -13,7 +13,7 @@ export function SectionHeader({
   compact?: boolean;
 }) {
   return (
-    <Text c="dimmed" fw={700} size={compact ? "xs" : "sm"} tt="uppercase">
+    <Text c="dimmed" fw={600} size={compact ? "xs" : "sm"} tt="uppercase">
       {children}
     </Text>
   );

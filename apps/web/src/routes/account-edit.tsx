@@ -1,4 +1,10 @@
-import type { Account, AccountGroup } from "@fin/schemas";
+import type {
+  Account,
+  AccountGroup,
+  CategoryWithSubs,
+  RecurringFrequency,
+  Tag,
+} from "@fin/schemas";
 import {
   Alert,
   Button,
@@ -11,6 +17,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
+import {
+  type CategoryLineFormValues,
+  packCategoryLine,
+} from "@/components/category-selector";
+import { MultiLineEditor } from "@/components/line-editor";
 import { MoneyField } from "@/components/money-field";
 import { PageShell } from "@/components/page-shell";
 import { CREATE_NEW, GroupSelector } from "@/features/accounts/group-selector";
@@ -19,11 +30,30 @@ import {
   getAccount,
   listAccountGroups,
   listAccounts,
+  listCategories,
+  listTags,
   updateAccount,
 } from "@/lib/endpoints";
 import { formatMoney, formatMoneyPlain } from "@/lib/money";
 
 import { NotFoundRoute } from "./not-found";
+
+const FREQUENCY_OPTIONS: { value: RecurringFrequency; label: string }[] = [
+  { value: "weekly", label: "Weekly" },
+  { value: "biweekly", label: "Biweekly" },
+  { value: "monthly", label: "Monthly" },
+  { value: "quarterly", label: "Quarterly" },
+  { value: "yearly", label: "Yearly" },
+];
+
+const emptyLine = (): CategoryLineFormValues => ({
+  amount: "",
+  categoryId: "",
+  newCategoryName: "",
+  subcategoryId: "",
+  newSubcategoryName: "",
+  tagNames: [],
+});
 
 export function AccountEditRoute() {
   const { id } = useParams<{ id: string }>();
@@ -37,10 +67,27 @@ export function AccountEditRoute() {
     queryFn: listAccountGroups,
   });
   const accountsQ = useQuery({ queryKey: ["accounts"], queryFn: listAccounts });
+  const categoriesQ = useQuery({
+    queryKey: ["categories"],
+    queryFn: listCategories,
+  });
+  const tagsQ = useQuery({ queryKey: ["tags"], queryFn: listTags });
 
-  if (accountQ.isLoading || groupsQ.isLoading || accountsQ.isLoading)
+  if (
+    accountQ.isLoading ||
+    groupsQ.isLoading ||
+    accountsQ.isLoading ||
+    categoriesQ.isLoading ||
+    tagsQ.isLoading
+  )
     return null;
-  if (accountQ.error || groupsQ.error || accountsQ.error) {
+  if (
+    accountQ.error ||
+    groupsQ.error ||
+    accountsQ.error ||
+    categoriesQ.error ||
+    tagsQ.error
+  ) {
     return <Alert color="red">Failed to load account.</Alert>;
   }
   if (!accountQ.data) return <NotFoundRoute />;
@@ -48,7 +95,9 @@ export function AccountEditRoute() {
     <Form
       account={accountQ.data}
       allAccounts={accountsQ.data!}
+      categories={categoriesQ.data!}
       groups={groupsQ.data!}
+      tags={tagsQ.data!}
     />
   );
 }
@@ -57,10 +106,14 @@ function Form({
   account,
   allAccounts,
   groups,
+  categories,
+  tags,
 }: {
   account: Account;
   allAccounts: Account[];
   groups: AccountGroup[];
+  categories: CategoryWithSubs[];
+  tags: Tag[];
 }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -81,10 +134,57 @@ function Form({
     account.defaultPayFromAccountId ?? "",
   );
 
+  // Loan plan fields. Pre-fill from the embedded plan summary when the
+  // account is type=loan. All editable plan fields are bundled on the
+  // account response so this form doesn't need a second fetch.
+  const [planAmountPerPeriod, setPlanAmountPerPeriod] = useState(
+    account.recurringPlan
+      ? formatMoneyPlain(
+          BigInt(account.recurringPlan.amountPerPeriod),
+          account.currency,
+        )
+      : "",
+  );
+  const [planFrequency, setPlanFrequency] = useState<RecurringFrequency>(
+    account.recurringPlan?.frequency ?? "monthly",
+  );
+  const [planFirstPaymentDate, setPlanFirstPaymentDate] = useState(
+    account.recurringPlan?.firstPaymentDate ?? "",
+  );
+  const [planPayFromId, setPlanPayFromId] = useState(
+    account.recurringPlan?.defaultAccountId ?? "",
+  );
+  const [planDescription, setPlanDescription] = useState(
+    account.recurringPlan?.description ?? "",
+  );
+  const [planLines, setPlanLines] = useState<CategoryLineFormValues[]>(
+    account.recurringPlan
+      ? account.recurringPlan.defaultLines.map((l) => ({
+          amount: l.amount
+            ? formatMoneyPlain(BigInt(l.amount), l.currency)
+            : "",
+          categoryId: l.categoryId,
+          newCategoryName: "",
+          subcategoryId: l.subcategoryId ?? "",
+          newSubcategoryName: "",
+          tagNames: l.tags.map((t) => t.name),
+        }))
+      : [],
+  );
+
   const isCc = account.type === "credit_card";
+  const isLoan = account.type === "loan";
   const checkingAccounts = allAccounts.filter(
     (a) => a.type === "checking_savings" && a.id !== account.id,
   );
+  const expenseCategories = categories.filter((c) => c.kind === "expense");
+  const allTagNames = tags.map((t) => t.name);
+
+  function updatePlanLine(i: number, patch: Partial<CategoryLineFormValues>) {
+    setPlanLines((prev) =>
+      prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)),
+    );
+  }
 
   const mutation = useMutation({
     mutationFn: (body: Parameters<typeof updateAccount>[1]) =>
@@ -93,6 +193,8 @@ function Form({
       qc.invalidateQueries({ queryKey: ["accounts"] });
       qc.invalidateQueries({ queryKey: ["account", account.id] });
       qc.invalidateQueries({ queryKey: ["account-groups"] });
+      qc.invalidateQueries({ queryKey: ["categories"] });
+      qc.invalidateQueries({ queryKey: ["tags"] });
       navigate("/accounts");
     },
   });
@@ -118,7 +220,18 @@ function Form({
               defaultPayFromAccountId: defaultPayFromAccountId || undefined,
             });
           } else if (account.type === "loan") {
-            mutation.mutate({ type: "loan", ...common });
+            mutation.mutate({
+              type: "loan",
+              ...common,
+              recurringPlan: {
+                amountPerPeriod: planAmountPerPeriod,
+                frequency: planFrequency,
+                firstPaymentDate: planFirstPaymentDate,
+                defaultAccountId: planPayFromId || undefined,
+                description: planDescription || undefined,
+                defaultLines: planLines.map(packCategoryLine),
+              },
+            });
           } else {
             mutation.mutate({ type: "checking_savings", ...common });
           }
@@ -172,6 +285,61 @@ function Form({
                 label="Default pay-from account (optional)"
                 value={defaultPayFromAccountId}
                 onChange={(e) => setDefaultPayFromAccountId(e.target.value)}
+              />
+            </>
+          )}
+          {isLoan && (
+            <>
+              <MoneyField
+                label="Amount per period"
+                min={0}
+                value={planAmountPerPeriod}
+                onChange={setPlanAmountPerPeriod}
+              />
+              <NativeSelect
+                data={FREQUENCY_OPTIONS}
+                label="Frequency"
+                value={planFrequency}
+                onChange={(e) =>
+                  setPlanFrequency(e.target.value as RecurringFrequency)
+                }
+              />
+              <TextInput
+                label="First payment date"
+                required
+                type="date"
+                value={planFirstPaymentDate}
+                onChange={(e) => setPlanFirstPaymentDate(e.target.value)}
+              />
+              <NativeSelect
+                data={[
+                  { value: "", label: "— No default —" },
+                  ...checkingAccounts.map((a) => ({
+                    value: a.id,
+                    label: `${a.name} (${a.currency})`,
+                  })),
+                ]}
+                description="Pre-fills the source when paying this loan."
+                label="Default pay-from account (optional)"
+                value={planPayFromId}
+                onChange={(e) => setPlanPayFromId(e.target.value)}
+              />
+              <TextInput
+                label="Description (optional)"
+                maxLength={500}
+                value={planDescription}
+                onChange={(e) => setPlanDescription(e.target.value)}
+              />
+              <MultiLineEditor
+                allTags={allTagNames}
+                amountOptional
+                categories={expenseCategories}
+                lines={planLines}
+                onAdd={() => setPlanLines((prev) => [...prev, emptyLine()])}
+                onRemove={(i) =>
+                  setPlanLines((prev) => prev.filter((_, idx) => idx !== i))
+                }
+                onUpdate={updatePlanLine}
               />
             </>
           )}

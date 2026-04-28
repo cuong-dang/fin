@@ -39,7 +39,7 @@ export function AccountsSidebar() {
     /* Title + settings/new */
     <Stack gap={0} h="100%">
       <Group justify="space-between">
-        <Anchor component={Link} fw={700} to="/" underline="never">
+        <Anchor component={Link} fw={600} to="/" underline="never">
           fin
         </Anchor>
         <Group>

@@ -14,7 +14,10 @@ import { db } from "../db";
 import { findOwned, ownedActive } from "../lib/authz";
 import { groupBy } from "../lib/collections";
 import { parseMoney } from "../lib/money";
-import { insertRecurringPlan } from "../lib/recurring-plans-write";
+import {
+  insertRecurringPlan,
+  updateRecurringPlan,
+} from "../lib/recurring-plans-write";
 import { nextSortKey } from "../lib/transactions-order";
 
 export const accountRoutes: FastifyPluginAsync = async (app) => {
@@ -36,7 +39,9 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
       "plan_amount_per_period",
     ),
     planFrequency: schema.recurringPlans.frequency,
+    planFirstPaymentDate: schema.recurringPlans.firstPaymentDate,
     planDefaultAccountId: schema.recurringPlans.defaultAccountId,
+    planDescription: schema.recurringPlans.description,
   };
 
   type AccountRow = {
@@ -58,7 +63,9 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
       | "quarterly"
       | "yearly"
       | null;
+    planFirstPaymentDate: string | null;
     planDefaultAccountId: string | null;
+    planDescription: string | null;
   };
 
   function rowToResponse(
@@ -69,18 +76,22 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
       planId,
       planAmountPerPeriod,
       planFrequency,
+      planFirstPaymentDate,
       planDefaultAccountId,
+      planDescription,
       ...rest
     } = row;
     return {
       ...rest,
       recurringPlan:
-        planId && planAmountPerPeriod && planFrequency
+        planId && planAmountPerPeriod && planFrequency && planFirstPaymentDate
           ? {
               id: planId,
               amountPerPeriod: planAmountPerPeriod,
               frequency: planFrequency,
+              firstPaymentDate: planFirstPaymentDate,
               defaultAccountId: planDefaultAccountId,
+              description: planDescription,
               defaultLines: linesByPlan.get(planId) ?? [],
             }
           : null,
@@ -323,6 +334,26 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
     );
     if (ccFields === null) return;
 
+    // Loan: pre-validate plan's pay-from up front (mirrors POST). The plan
+    // row update happens inside the tx below.
+    if (body.type === "loan" && body.recurringPlan.defaultAccountId) {
+      const payFrom = await findOwned(
+        schema.accounts,
+        body.recurringPlan.defaultAccountId,
+        req.auth.groupId,
+      );
+      if (!payFrom) {
+        return reply
+          .code(400)
+          .send({ error: "Default pay-from account not found" });
+      }
+      if (payFrom.type !== "checking_savings") {
+        return reply.code(400).send({
+          error: "Default pay-from must be a checking/savings account",
+        });
+      }
+    }
+
     // Compute balance delta up front (bail on parse error before DB writes).
     let delta = 0n;
     if (body.newBalance !== undefined) {
@@ -372,6 +403,24 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
           updatedAt: new Date(),
         })
         .where(eq(schema.accounts.id, id));
+
+      // Loan: rewrite the paired plan + its default lines. The link
+      // (accounts.recurring_plan_id) doesn't change — we update the
+      // existing plan in place.
+      if (body.type === "loan") {
+        if (!account.recurringPlanId) {
+          throw new Error(
+            `Invariant: loan account ${id} missing recurring_plan_id`,
+          );
+        }
+        await updateRecurringPlan(
+          tx,
+          account.recurringPlanId,
+          body.recurringPlan,
+          account.currency,
+          req.auth.groupId,
+        );
+      }
 
       if (delta !== 0n) {
         const sortKey = await nextSortKey(

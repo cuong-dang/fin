@@ -155,7 +155,7 @@ function DangerZone({
     <Box mt="xl">
       <Divider mb="xs" />
       <Stack>
-        <Text fw={700} size="sm">
+        <Text fw={600} size="sm">
           Danger zone
         </Text>
         <Text c="dimmed" size="sm">
