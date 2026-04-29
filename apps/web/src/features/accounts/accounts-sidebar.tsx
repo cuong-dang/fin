@@ -77,7 +77,7 @@ export function AccountsSidebar() {
     // `min-height: auto` on flex children pins the Stack to content
     // height and the ScrollArea below has no bounded height to scroll.
     <Stack flex={1} gap={0} mih={0}>
-      <Group justify="space-between">
+      <Group justify="space-between" px="xs">
         <SectionHeader compact>Accounts</SectionHeader>
         <NetWorthSummary totals={netWorth} />
       </Group>
@@ -188,8 +188,8 @@ function GroupSection({
   return (
     <Stack gap={0}>
       <UnstyledButton onClick={onToggle}>
-        <Group justify="space-between">
-          <Group p={0} wrap="nowrap">
+        <Group justify="space-between" pr="xs">
+          <Group wrap="nowrap">
             {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
             <SectionHeader>{group.name}</SectionHeader>
           </Group>

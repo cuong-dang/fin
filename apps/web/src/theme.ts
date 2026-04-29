@@ -36,7 +36,6 @@ export const theme = createTheme({
     Group: Group.extend({
       defaultProps: {
         gap: "xs",
-        px: "xs",
       },
     }),
     Stack: Stack.extend({

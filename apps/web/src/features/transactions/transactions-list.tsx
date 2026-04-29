@@ -191,7 +191,9 @@ export function TransactionsList({
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <>
-      <SectionHeader compact>{title}</SectionHeader>
+      <Box px="xs">
+        <SectionHeader compact>{title}</SectionHeader>
+      </Box>
       <Divider />
       <Stack pb="xs">{children}</Stack>
     </>

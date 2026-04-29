@@ -52,6 +52,9 @@ type LineFormValues = CategoryLineFormValues;
 
 export type InitialTxValues = {
   type: TxType;
+  // Only consulted when type === "payment". Edit pre-fills it so the
+  // Payment tab opens on the right kind (creditCard / loan / subscription).
+  paymentKind?: PaymentKind;
   date: string;
   pending: boolean;
   description: string;
@@ -119,8 +122,9 @@ export function TransactionForm({
   const [isPending, setIsPending] = useState(defaults.pending);
   const [description, setDescription] = useState(defaults.description);
   const [subscriptionId, setSubscriptionId] = useState(defaults.subscriptionId);
-  // CC and Subscription are enabled today; Loan is reserved.
-  const [paymentKind, setPaymentKind] = useState<PaymentKind>("creditCard");
+  const [paymentKind, setPaymentKind] = useState<PaymentKind>(
+    defaults.paymentKind ?? "creditCard",
+  );
 
   // Active subs + the currently linked one (even if cancelled), so editing
   // a payment that points at a since-cancelled sub still resolves.

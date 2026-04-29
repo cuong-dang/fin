@@ -66,7 +66,7 @@ export function AppLayoutRoute() {
       }}
     >
       <AppShell.Header>
-        <Group h="100%" justify="space-between" px="md">
+        <Group h="100%" justify="space-between" px="xs">
           <Group>
             <Burger
               hiddenFrom="sm"

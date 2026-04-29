@@ -264,16 +264,37 @@ function DangerZone({ onDelete }: { onDelete: () => void }) {
 }
 
 function deriveInitial(tx: EnrichedTransaction): InitialTxValues {
-  // Sub-linked expenses land on the "Payment" UI tab; everything else
-  // tracks the underlying tx type. Adjustments are handled by a separate
-  // form upstream, so the fallback to "expense" is just defensive.
-  const formType: InitialTxValues["type"] = tx.subscriptionId
-    ? "payment"
-    : tx.type === "adjustment"
-      ? "expense"
-      : tx.type;
+  // Three things determine the form tab:
+  //   - sub-linked expense → Payment > Subscription
+  //   - transfer landing on a CC → Payment > Credit card
+  //   - transfer landing on a loan → Payment > Loan (lines carry interest/fees)
+  //   - everything else tracks tx.type
+  // Adjustments are handled upstream; the fallback to "expense" is just
+  // defensive.
+  let formType: InitialTxValues["type"];
+  let paymentKind: InitialTxValues["paymentKind"];
+  if (tx.subscriptionId) {
+    formType = "payment";
+    paymentKind = "subscription";
+  } else if (tx.type === "transfer") {
+    const inLeg = tx.legs.find((l) => BigInt(l.amount) > 0n);
+    if (inLeg?.accountType === "credit_card") {
+      formType = "payment";
+      paymentKind = "creditCard";
+    } else if (inLeg?.accountType === "loan") {
+      formType = "payment";
+      paymentKind = "loan";
+    } else {
+      formType = "transfer";
+    }
+  } else if (tx.type === "adjustment") {
+    formType = "expense";
+  } else {
+    formType = tx.type;
+  }
   const base: InitialTxValues = {
     type: formType,
+    paymentKind,
     date: tx.date ?? "",
     pending: tx.date === null,
     description: tx.description ?? "",
@@ -297,6 +318,16 @@ function deriveInitial(tx: EnrichedTransaction): InitialTxValues {
       ),
       accountId: outLeg.accountId,
       destinationAccountId: inLeg.accountId,
+      // Loan payments carry optional lines for interest/fee categorization.
+      // CC payments don't have lines today; tx.lines is empty for them.
+      lines: tx.lines.map((line) => ({
+        amount: formatMoneyPlainFromRaw(line.amount, line.currency),
+        categoryId: line.categoryId,
+        newCategoryName: "",
+        subcategoryId: line.subcategoryId ?? "",
+        newSubcategoryName: "",
+        tagNames: line.tags.map((t) => t.name),
+      })),
     };
   }
   const leg = tx.legs[0];
