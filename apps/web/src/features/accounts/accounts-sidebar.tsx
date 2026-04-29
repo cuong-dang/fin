@@ -43,7 +43,11 @@ export function AccountsSidebar() {
   const byGroup = groupBy(accounts, (a) => a.accountGroupId);
 
   return (
-    <Stack flex={1} gap={0}>
+    // `mih={0}` lets this Stack shrink below its intrinsic content
+    // height inside the navbar's flex column. Without it the default
+    // `min-height: auto` on flex children pins the Stack to content
+    // height and the ScrollArea below has no bounded height to scroll.
+    <Stack flex={1} gap={0} mih={0}>
       <Group justify="space-between">
         <SectionHeader compact>Accounts</SectionHeader>
         <Group gap={0}>

@@ -90,6 +90,20 @@ export function TransactionEditRoute() {
   if (txQ.error || !txQ.data) return <NotFoundRoute />;
   const tx = txQ.data;
 
+  // Save / Cancel / Back / Delete all return to wherever the user
+  // came from instead of dumping them at the root. `navigate(-1)`
+  // pops one history entry. Declared before the type-branch returns
+  // so the nested AdjustmentEdit / FullEdit closures can read them
+  // (declarations live in the same function scope; placing them after
+  // `return` would put them in the temporal dead zone at render time).
+  const goBack = () => navigate(-1);
+  function go() {
+    qc.invalidateQueries({ queryKey: ["transactions"] });
+    qc.invalidateQueries({ queryKey: ["accounts"] });
+    qc.invalidateQueries({ queryKey: ["categories"] });
+    goBack();
+  }
+
   if (tx.type === "adjustment") {
     return <AdjustmentEdit tx={tx} />;
   }
@@ -103,17 +117,6 @@ export function TransactionEditRoute() {
       tx={tx}
     />
   );
-
-  // Save / Cancel / Back / Delete all return to wherever the user
-  // came from instead of dumping them at the root. `navigate(-1)`
-  // pops one history entry.
-  const goBack = () => navigate(-1);
-  function go() {
-    qc.invalidateQueries({ queryKey: ["transactions"] });
-    qc.invalidateQueries({ queryKey: ["accounts"] });
-    qc.invalidateQueries({ queryKey: ["categories"] });
-    goBack();
-  }
 
   function FullEdit(props: {
     tx: EnrichedTransaction;

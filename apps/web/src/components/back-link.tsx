@@ -14,7 +14,6 @@ export function BackLink(props: BackLinkProps) {
       <Anchor
         c="dimmed"
         component="button"
-        size="sm"
         // Without this, <button>'s default `text-align: center` shows
         // through when the Stack parent stretches it to full width;
         // the Link variant renders as <a> which defaults to left.
@@ -27,7 +26,7 @@ export function BackLink(props: BackLinkProps) {
     );
   }
   return (
-    <Anchor c="dimmed" component={Link} size="sm" to={props.to}>
+    <Anchor c="dimmed" component={Link} to={props.to}>
       ← Back
     </Anchor>
   );

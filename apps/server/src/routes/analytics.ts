@@ -5,6 +5,7 @@ import {
   type ChartBucket,
   type ChartItem,
   type Granularity,
+  netWorthQuery,
 } from "@fin/schemas";
 import { aliasedTable, and, eq, gte, lte, ne, sql } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
@@ -558,6 +559,127 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
         .map(([id, name]) => ({ id, name }))
         .sort((a, b) => a.name.localeCompare(b.name));
     }
+
+    return {
+      currency,
+      items,
+      buckets: [...byPeriod.values()],
+    };
+  });
+
+  /**
+   * Net worth chart data. For each period in the window, returns the
+   * cumulative balance (running sum of leg amounts up to and including
+   * the end of that period), split into Assets (checking/savings) and
+   * Liabilities (credit_card + loan). Liabilities surface as negative
+   * values — Recharts' stacked area splits them below zero.
+   *
+   * Active accounts only. Excludes pending transactions (`date IS NULL`).
+   * Adjustments are *included* (real balance changes). Same-currency
+   * transfers / CC payments / loan payments naturally net to 0 because
+   * both legs land on the user's accounts.
+   *
+   * The query: a CTE pipeline that (1) labels each leg with its bucket,
+   * (2) generates every period in the window via `generate_series` so
+   * gaps render as flat segments, (3) computes an anchor balance per
+   * bucket from legs *before* the window, (4) sums per-period deltas,
+   * and (5) emits the running cumulative via a window function on top
+   * of the anchor.
+   */
+  app.get("/net-worth", async (req): Promise<AnalyticsChartResponse> => {
+    const { granularity, start, end, currency } = netWorthQuery.parse(
+      req.query,
+    );
+    const truncLit = sql.raw(`'${TRUNC_UNIT[granularity]}'`);
+    const fmtLit = sql.raw(`'${PERIOD_FORMAT[granularity]}'`);
+    const intervalLit = sql.raw(`'1 ${TRUNC_UNIT[granularity]}'::interval`);
+
+    const rows = await db.execute<{
+      period: string;
+      bucket: "assets" | "liabilities";
+      balance: string;
+    }>(sql`
+      WITH bucket_legs AS (
+        SELECT
+          legs.amount,
+          t.date,
+          CASE WHEN a.type = 'checking_savings' THEN 'assets' ELSE 'liabilities' END AS bucket
+        FROM ${schema.transactionLegs} legs
+        INNER JOIN ${schema.transactions} t ON t.id = legs.transaction_id
+        INNER JOIN ${schema.accounts} a ON a.id = legs.account_id
+        WHERE a.group_id = ${req.auth.groupId}
+          AND a.deleted_at IS NULL
+          AND a.currency = ${currency}
+          AND t.date IS NOT NULL
+      ),
+      first_leg AS (
+        SELECT MIN(date) AS d FROM bucket_legs
+      ),
+      periods AS (
+        -- Start no earlier than the user's first leg, even if the
+        -- requested window opens before they had any activity. Avoids
+        -- a long flat run of zero buckets at the head of the chart.
+        SELECT generate_series(
+          GREATEST(
+            date_trunc(${truncLit}, ${start}::date),
+            date_trunc(${truncLit}, (SELECT d FROM first_leg))
+          ),
+          date_trunc(${truncLit}, ${end}::date),
+          ${intervalLit}
+        )::date AS period
+      ),
+      buckets(bucket) AS (VALUES ('assets'), ('liabilities')),
+      grid AS (
+        SELECT p.period, b.bucket
+        FROM periods p CROSS JOIN buckets b
+      ),
+      anchors AS (
+        SELECT bucket, COALESCE(SUM(amount), 0) AS balance
+        FROM bucket_legs
+        WHERE date < ${start}::date
+        GROUP BY bucket
+      ),
+      period_deltas AS (
+        SELECT
+          date_trunc(${truncLit}, date)::date AS period,
+          bucket,
+          SUM(amount) AS delta
+        FROM bucket_legs
+        WHERE date >= ${start}::date AND date <= ${end}::date
+        GROUP BY 1, 2
+      )
+      SELECT
+        to_char(g.period, ${fmtLit}) AS period,
+        g.bucket,
+        (
+          COALESCE((SELECT balance FROM anchors a WHERE a.bucket = g.bucket), 0)
+          + COALESCE(SUM(d.delta) OVER (
+              PARTITION BY g.bucket ORDER BY g.period
+              ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+            ), 0)
+        )::text AS balance
+      FROM grid g
+      LEFT JOIN period_deltas d ON d.period = g.period AND d.bucket = g.bucket
+      ORDER BY g.period, g.bucket
+    `);
+
+    const decimals = currencyDecimals(currency);
+    const divisor = 10 ** decimals;
+
+    const byPeriod = new Map<string, ChartBucket>();
+    for (const r of rows) {
+      let bucket = byPeriod.get(r.period);
+      if (!bucket) {
+        bucket = { period: r.period };
+        byPeriod.set(r.period, bucket);
+      }
+      bucket[r.bucket] = Number(r.balance) / divisor;
+    }
+
+    const items: ChartItem[] = [
+      { id: "assets", name: "Assets" },
+      { id: "liabilities", name: "Liabilities" },
+    ];
 
     return {
       currency,

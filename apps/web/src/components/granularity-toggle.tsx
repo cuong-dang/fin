@@ -49,9 +49,18 @@ export function defaultRange(granularity: Granularity): {
     case "daily":
       start.setDate(start.getDate() - 30);
       break;
-    case "weekly":
+    case "weekly": {
+      // Snap to the ISO Monday on/before the calculated start so the
+      // first bucket is a full week. Server's `date_trunc('week', date)`
+      // would land on the Monday too — without snapping, the leftmost
+      // bucket would include only the partial-week range from the
+      // calendar-day start.
       start.setDate(start.getDate() - 12 * 7);
+      const day = start.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+      const offsetToMonday = day === 0 ? 6 : day - 1;
+      start.setDate(start.getDate() - offsetToMonday);
       break;
+    }
     case "monthly":
       start.setMonth(start.getMonth() - 12);
       break;

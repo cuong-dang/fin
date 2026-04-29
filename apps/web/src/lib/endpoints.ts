@@ -13,6 +13,7 @@ import type {
   CreateTagBody,
   EnrichedTransaction,
   Me,
+  NetWorthQuery,
   ProcessTransactionBody,
   ReorderTransactionsBody,
   Subscription,
@@ -178,4 +179,14 @@ export const getCashFlow = (q: CashFlowQuery) => {
   });
   if (q.categoryId) qs.set("categoryId", q.categoryId);
   return api<AnalyticsChartResponse>(`/api/analytics/cash-flow?${qs}`);
+};
+
+export const getNetWorth = (q: NetWorthQuery) => {
+  const qs = new URLSearchParams({
+    granularity: q.granularity,
+    start: q.start,
+    end: q.end,
+    currency: q.currency,
+  });
+  return api<AnalyticsChartResponse>(`/api/analytics/net-worth?${qs}`);
 };

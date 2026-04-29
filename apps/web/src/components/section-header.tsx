@@ -8,20 +8,12 @@ import type { ReactNode } from "react";
 export function SectionHeader({
   children,
   compact,
-  px,
 }: {
   children: ReactNode;
   compact?: boolean;
-  px?: boolean;
 }) {
   return (
-    <Text
-      c="dimmed"
-      fw={600}
-      px={px ? "xs" : 0}
-      size={compact ? "xs" : "sm"}
-      tt="uppercase"
-    >
+    <Text c="dimmed" fw={600} size={compact ? "xs" : "sm"} tt="uppercase">
       {children}
     </Text>
   );

@@ -85,7 +85,11 @@ export function AppLayoutRoute() {
         </Group>
       </AppShell.Header>
       <AppShell.Navbar>
-        <Stack>
+        {/* h="100%" lets AccountsSidebar's `flex={1}` ScrollArea
+            actually fill the remaining navbar height — without it the
+            outer Stack collapses to content height and the accounts
+            list overflows the viewport without scrolling. */}
+        <Stack h="100%">
           <Stack gap={2}>
             {PAGES.map((p) => (
               <PageNavLink key={p.to} label={p.label} to={p.to} />
@@ -158,9 +162,7 @@ function UserMenu() {
       <Menu.Dropdown>
         <Menu.Label>
           <Stack gap={0}>
-            <Text fw={500} size="sm">
-              {name}
-            </Text>
+            <Text fw={500}>{name}</Text>
             <Text c="dimmed" size="xs">
               {email}
             </Text>

@@ -29,14 +29,54 @@ const PALETTE = [
   "indigo.6",
 ];
 
+/** Tooltip `contentStyle` shared across every analytics chart. */
+export const CHART_TOOLTIP_STYLE = {
+  background: "var(--mantine-color-body)",
+  border: "1px solid var(--mantine-color-default-border)",
+  borderRadius: 4,
+};
+
+/** CartesianGrid stroke shared across every analytics chart. */
+export const CHART_GRID_STROKE =
+  "var(--chart-grid-color, var(--mantine-color-gray-3))";
+
+/**
+ * Grab the chart's x and y scale functions inside a Recharts chart
+ * context. Recharts types these loosely (`unknown`); the casts here
+ * encode the call shape we actually use. Returns `undefined` outside
+ * a chart context so callers can early-return safely.
+ */
+export function useChartScales() {
+  const xScale = useXAxisScale() as
+    | ((v: string, opts?: { position?: "start" | "middle" | "end" }) => number)
+    | undefined;
+  const yScale = useYAxisScale() as ((v: number) => number) | undefined;
+  return { xScale, yScale };
+}
+
+/**
+ * Pick a `textAnchor` that keeps a value label inside the chart at
+ * the row's edge: first point grows right, last grows left, middle
+ * points stay centered.
+ */
+export function edgeAnchor(
+  index: number,
+  length: number,
+): "start" | "middle" | "end" {
+  if (index === 0) return "start";
+  if (index === length - 1) return "end";
+  return "middle";
+}
+
 const safeKey = (i: number) => `c${i}`;
 
 /**
- * Stacked bar chart used by every analytics chart. Owns the bucket
- * remap to safe `c0`/`c1`/… keys (Mantine's chart legend mangles
- * dataKeys with dots, so we never pass user-provided strings as
- * dataKeys), the series build, the legend, the per-bar totals, and
- * the y-axis width. Caller passes already-fetched response data.
+ * Stacked bar chart used by category-spending and cash-flow's drill
+ * dimensions. Owns the bucket remap to safe `c0`/`c1`/… keys (Mantine's
+ * chart legend mangles dataKeys with dots, so we never pass user-
+ * provided strings as dataKeys), the series build, the legend, the
+ * per-bar totals, and the y-axis width. Caller passes already-fetched
+ * response data.
  *
  * `onDrill` is optional — when provided, legend chips with non-null
  * id render as clickable buttons. Charts that don't support drill
@@ -48,30 +88,30 @@ export function StackedBarChart({
   currency,
   onDrill,
   emptyMessage = "No data in this period.",
+  colors = PALETTE,
 }: {
   items: ChartItem[];
   buckets: ChartBucket[];
   currency: string;
   onDrill?: (item: ChartItem) => void;
   emptyMessage?: string;
+  /** Mantine color names per item; defaults to the shared PALETTE. */
+  colors?: string[];
 }) {
   // Hover state: which series (by safe key like "c0") is currently
   // highlighted via legend-chip hover. Drives bar dimming + per-segment
   // value labels. null = nothing highlighted (default render).
   const [hovered, setHovered] = useState<string | null>(null);
+  const theme = useMantineTheme();
 
   if (rawBuckets.length === 0) {
-    return (
-      <Text c="dimmed" size="sm">
-        {emptyMessage}
-      </Text>
-    );
+    return <Text c="dimmed">{emptyMessage}</Text>;
   }
   const itemKey = (item: ChartItem) => item.id ?? "__none__";
   const series = items.map((item, i) => ({
     name: safeKey(i),
     label: item.name,
-    color: PALETTE[i % PALETTE.length],
+    color: colors[i % colors.length],
   }));
   const buckets = rawBuckets.map((b) => {
     const out: Record<string, number | string> = { period: b.period };
@@ -87,18 +127,31 @@ export function StackedBarChart({
   const totals = buckets.map((b) =>
     items.reduce((s, _, i) => s + (Number(b[safeKey(i)]) || 0), 0),
   );
+
+  const legendItems = items.map((item, i) => ({
+    key: safeKey(i),
+    label: item.name,
+    color: getThemeColor(colors[i % colors.length], theme),
+    drillable: !!onDrill && item.id !== null,
+  }));
+  const handleDrill = onDrill
+    ? (key: string) => {
+        const idx = legendItems.findIndex((l) => l.key === key);
+        if (idx >= 0) onDrill(items[idx]);
+      }
+    : undefined;
+
   return (
     <>
-      <CustomLegend
+      <ChartLegend
         hoveredKey={hovered}
-        items={items}
-        seriesKey={safeKey}
-        onDrill={onDrill}
+        items={legendItems}
+        onDrill={handleDrill}
         onHover={setHovered}
       />
       <BarChart
-        // Per-bar dimming: non-hovered series fade to 0.1 fillOpacity
-        // (matches Mantine's default legend-hover behavior).
+        // Per-bar dimming on legend hover: non-hovered series fade to
+        // 0.1 fillOpacity. Bars at the hovered series stay solid.
         barProps={(s) =>
           hovered === null || hovered === s.name
             ? { fillOpacity: 1 }
@@ -128,55 +181,51 @@ export function StackedBarChart({
 }
 
 /**
- * Custom legend used by every analytics chart. Mantine's built-in
- * legend mangles dataKeys with dots; we render our own so we can also
- * wire click-to-drill where it applies. When `onDrill` is provided,
- * items with non-null id render as buttons; everything else is inert.
+ * Hover-able legend used by every analytics chart. Chips dim the
+ * non-hovered series (via the parent's `hoveredKey` state) and may
+ * be clickable when a drill is available.
  *
- * Hover events (`onHover`) drive the `hoveredKey` state in the parent
- * — non-hovered bars dim and the hovered series gets per-segment value
- * labels overlaid.
+ * Items carry a pre-resolved CSS color (Mantine theme refs are
+ * resolved by the caller) so this component has no theme dependency.
  */
-function CustomLegend({
+export function ChartLegend({
   items,
-  seriesKey,
   hoveredKey,
-  onDrill,
   onHover,
+  onDrill,
 }: {
-  items: ChartItem[];
-  seriesKey: (i: number) => string;
+  items: { key: string; label: string; color: string; drillable?: boolean }[];
   hoveredKey: string | null;
-  onDrill?: (item: ChartItem) => void;
   onHover: (key: string | null) => void;
+  onDrill?: (key: string) => void;
 }) {
-  const theme = useMantineTheme();
   return (
-    <Group gap="md">
-      {items.map((item, i) => {
-        const key = seriesKey(i);
-        const color = getThemeColor(PALETTE[i % PALETTE.length], theme);
-        const drillable = !!onDrill && item.id !== null;
-        const dimmed = hoveredKey !== null && hoveredKey !== key;
-        const onMouseEnter = () => onHover(key);
+    <Group>
+      {items.map((item) => {
+        const dimmed = hoveredKey !== null && hoveredKey !== item.key;
+        const onMouseEnter = () => onHover(item.key);
         const onMouseLeave = () => onHover(null);
         const chip = (
           <Group gap="xs" style={{ opacity: dimmed ? 0.4 : 1 }} wrap="nowrap">
-            <ColorSwatch color={color} size={12} withShadow={false} />
-            <Text size="sm">{item.name}</Text>
+            <ColorSwatch color={item.color} size={12} withShadow={false} />
+            <Text>{item.label}</Text>
           </Group>
         );
-        return drillable ? (
+        return item.drillable && onDrill ? (
           <UnstyledButton
-            key={i}
-            onClick={() => onDrill(item)}
+            key={item.key}
+            onClick={() => onDrill(item.key)}
             onMouseEnter={onMouseEnter}
             onMouseLeave={onMouseLeave}
           >
             {chip}
           </UnstyledButton>
         ) : (
-          <span key={i} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
+          <span
+            key={item.key}
+            onMouseEnter={onMouseEnter}
+            onMouseLeave={onMouseLeave}
+          >
             {chip}
           </span>
         );
@@ -211,10 +260,7 @@ function ChartOverlay({
   hoveredKey: string | null;
   format: (n: number) => string;
 }) {
-  const xScale = useXAxisScale() as
-    | ((v: string, opts?: { position?: "start" | "middle" | "end" }) => number)
-    | undefined;
-  const yScale = useYAxisScale() as ((v: number) => number) | undefined;
+  const { xScale, yScale } = useChartScales();
   if (!xScale || !yScale) return null;
   const hoveredIdx = hoveredKey ? seriesNames.indexOf(hoveredKey) : -1;
   const showSegmentLabels = !!hoveredKey && hoveredIdx >= 0;

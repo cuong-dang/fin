@@ -129,3 +129,27 @@ export const cashFlowQuery = z.object({
   categoryId: z.uuid().optional(),
 });
 export type CashFlowQuery = z.infer<typeof cashFlowQuery>;
+
+// ─── Net worth ────────────────────────────────────────────────────────────
+
+/**
+ * Cumulative balance across all active accounts, split into Assets
+ * (checking/savings) and Liabilities (credit_card + loan, signed
+ * negative). One value per period at the period's right edge —
+ * `SUM(legs.amount)` for that bucket up to and including that period,
+ * excluding pending transactions. Adjustments are *included* (they
+ * represent real balance changes) and same-currency transfers / CC
+ * payments naturally net to zero (both legs land on the user's
+ * accounts).
+ */
+export const netWorthQuery = z.object({
+  granularity,
+  start: dateString,
+  end: dateString,
+  currency: z
+    .string()
+    .trim()
+    .length(3)
+    .transform((s) => s.toUpperCase()),
+});
+export type NetWorthQuery = z.infer<typeof netWorthQuery>;

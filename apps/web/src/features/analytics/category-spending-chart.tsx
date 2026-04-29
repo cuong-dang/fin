@@ -58,16 +58,8 @@ export function CategorySpendingChart({
           </>
         )}
       </Group>
-      {q.isLoading && (
-        <Text c="dimmed" size="sm">
-          Loading…
-        </Text>
-      )}
-      {q.error && (
-        <Text c="red" size="sm">
-          {(q.error as Error).message}
-        </Text>
-      )}
+      {q.isLoading && <Text c="dimmed">Loading…</Text>}
+      {q.error && <Text c="red">{(q.error as Error).message}</Text>}
       {q.data && (
         <StackedBarChart
           buckets={q.data.buckets}

@@ -9,6 +9,7 @@ import {
 } from "@/components/granularity-toggle";
 import { CashFlowChart } from "@/features/analytics/cash-flow-chart";
 import { CategorySpendingChart } from "@/features/analytics/category-spending-chart";
+import { NetWorthChart } from "@/features/analytics/net-worth-chart";
 import { listAccounts } from "@/lib/endpoints";
 
 /**
@@ -54,6 +55,12 @@ export function ChartsRoute() {
         start={start}
       />
       <CategorySpendingChart
+        currency={activeCurrency}
+        end={end}
+        granularity={granularity}
+        start={start}
+      />
+      <NetWorthChart
         currency={activeCurrency}
         end={end}
         granularity={granularity}

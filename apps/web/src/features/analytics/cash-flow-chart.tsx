@@ -4,31 +4,12 @@ import type {
   ChartItem,
   Granularity,
 } from "@fin/schemas";
-import {
-  Anchor,
-  getThemeColor,
-  Group,
-  NativeSelect,
-  Stack,
-  Text,
-  Title,
-  useMantineTheme,
-} from "@mantine/core";
+import { Anchor, Group, NativeSelect, Stack, Text, Title } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import {
-  Bar,
-  CartesianGrid,
-  ComposedChart,
-  Legend,
-  Line,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 
 import { StackedBarChart } from "@/features/analytics/chart-shared";
+import { DivergingNetChart } from "@/features/analytics/diverging-net-chart";
 import { getCashFlow } from "@/lib/endpoints";
 
 /**
@@ -181,7 +162,7 @@ export function CashFlowChart({
   return (
     <Stack>
       <Group gap="xs" justify="space-between">
-        <Group gap="xs">
+        <Group gap="xs" p={0}>
           <Anchor
             c="inherit"
             component="button"
@@ -233,16 +214,8 @@ export function CashFlowChart({
           />
         )}
       </Group>
-      {q.isLoading && (
-        <Text c="dimmed" size="sm">
-          Loading…
-        </Text>
-      )}
-      {q.error && (
-        <Text c="red" size="sm">
-          {(q.error as Error).message}
-        </Text>
-      )}
+      {q.isLoading && <Text c="dimmed">Loading…</Text>}
+      {q.error && <Text c="red">{(q.error as Error).message}</Text>}
       {q.data &&
         (drill.direction === "net" ? (
           <NetCashFlowChartView
@@ -267,15 +240,10 @@ export function CashFlowChart({
 }
 
 /**
- * Diverging-bar + net-line view used for direction="net". Shows two
- * stacked bars per period — Cash in (green, positive, above zero) and
- * Cash out (red, negative, below zero) — plus a Net line whose dots
- * are colored conditionally (green when positive, red when negative).
- *
- * Built directly on Recharts' `ComposedChart` because Mantine's
- * `BarChart` wrapper doesn't support a Line series alongside Bars.
- * `stackOffset="sign"` is what splits the stacked bars across the zero
- * baseline — without it Recharts would just stack arithmetically.
+ * Net cash-flow view: diverging Cash in / Cash out bars per period
+ * (positive above zero, negative below) plus a Net line tracking the
+ * signed total. Same visual family as the net-worth chart; the
+ * `<DivergingNetChart>` primitive owns the rendering.
  */
 function NetCashFlowChartView({
   buckets,
@@ -284,94 +252,25 @@ function NetCashFlowChartView({
   buckets: ChartBucket[];
   currency: string;
 }) {
-  const theme = useMantineTheme();
-  // Match the existing stacked-bar chart palette (teal.6 + red.6) so
-  // the net view feels like part of the same chart family rather than
-  // a stoplight.
-  const inColor = getThemeColor("teal.6", theme);
-  const outColor = getThemeColor("red.6", theme);
-
-  if (buckets.length === 0) {
-    return (
-      <Text c="dimmed" size="sm">
-        No cash flow in this period.
-      </Text>
-    );
-  }
-
   const data = buckets.map((b) => {
     const cashIn = Number(b.in) || 0;
     const cashOut = Number(b.out) || 0;
     return {
       period: b.period,
-      in: cashIn,
-      out: cashOut,
+      positive: cashIn,
+      negative: cashOut,
       net: cashIn + cashOut,
     };
   });
-
-  const fmt = new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency,
-  });
-
   return (
-    <ResponsiveContainer height={400} width="100%">
-      <ComposedChart data={data} stackOffset="sign">
-        <CartesianGrid
-          stroke="var(--chart-grid-color, var(--mantine-color-gray-3))"
-          strokeDasharray="3 3"
-        />
-        <XAxis dataKey="period" tick={{ fontSize: 12 }} />
-        <YAxis
-          tick={{ fontSize: 12 }}
-          tickFormatter={(v: number) => fmt.format(v)}
-          width={80}
-        />
-        <Tooltip
-          contentStyle={{
-            background: "var(--mantine-color-body)",
-            border: "1px solid var(--mantine-color-default-border)",
-            borderRadius: 4,
-          }}
-          formatter={(value) => fmt.format(Number(value))}
-        />
-        <Legend />
-        <Bar dataKey="in" fill={inColor} name="Cash in" stackId="cashflow" />
-        <Bar dataKey="out" fill={outColor} name="Cash out" stackId="cashflow" />
-        <Line
-          dataKey="net"
-          // The line itself is neutral; per-point dots carry the
-          // positive/negative signal via fill color. Recharts types
-          // the dot callback's `key` as React.Key (which includes
-          // null) — we forward it as-is to the SVG element.
-          dot={(props) => {
-            const { cx, cy, payload, key } = props as {
-              cx?: number;
-              cy?: number;
-              payload?: { net: number };
-              key?: React.Key | null;
-            };
-            const fill = (payload?.net ?? 0) >= 0 ? inColor : outColor;
-            return (
-              <circle
-                key={key}
-                cx={cx}
-                cy={cy}
-                fill={fill}
-                r={5}
-                stroke="var(--mantine-color-body)"
-                strokeWidth={1.5}
-              />
-            );
-          }}
-          isAnimationActive={false}
-          name="Net"
-          stroke={getThemeColor("dark.4", theme)}
-          strokeWidth={2}
-          type="linear"
-        />
-      </ComposedChart>
-    </ResponsiveContainer>
+    <DivergingNetChart
+      currency={currency}
+      data={data}
+      emptyMessage="No cash flow in this period."
+      kind="bars"
+      negative={{ label: "Cash out", color: "red.6" }}
+      net={{ label: "Net", color: "dark.4" }}
+      positive={{ label: "Cash in", color: "teal.6" }}
+    />
   );
 }
