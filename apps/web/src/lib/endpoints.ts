@@ -63,6 +63,12 @@ export const updateAccount = (id: string, body: UpdateAccountBody) =>
 export const deleteAccount = (id: string) =>
   api<void>(`/api/accounts/${id}`, { method: "DELETE" });
 
+export const archiveAccount = (id: string) =>
+  api<void>(`/api/accounts/${id}/archive`, { method: "POST" });
+
+export const unarchiveAccount = (id: string) =>
+  api<void>(`/api/accounts/${id}/unarchive`, { method: "POST" });
+
 // ─── Transactions ─────────────────────────────────────────────────────────
 
 export const listTransactions = (accountId?: string) => {
@@ -152,6 +158,9 @@ export const updateSubscription = (id: string, body: UpdateSubscriptionBody) =>
 
 export const cancelSubscription = (id: string) =>
   api<void>(`/api/subscriptions/${id}/cancel`, { method: "POST" });
+
+export const resumeSubscription = (id: string) =>
+  api<void>(`/api/subscriptions/${id}/resume`, { method: "POST" });
 
 export const deleteSubscription = (id: string) =>
   api<void>(`/api/subscriptions/${id}`, { method: "DELETE" });

@@ -239,3 +239,6 @@ POST             /api/subscriptions/:id/cancel
 - [x] feature: Subscription
 - [x] feature: Credit card account type
 - [x] feature: Loan/Installment
+- [ ] feature: Essential charts
+- [ ] feature: Budgeting
+- [ ] feature: Transaction search

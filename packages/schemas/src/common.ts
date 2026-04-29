@@ -11,5 +11,12 @@ export const moneyString = z
   .trim()
   .regex(MONEY_RE, "Expected a decimal number");
 
+/** ISO 4217 currency code, normalized to upper case. */
+export const currencyField = z
+  .string()
+  .trim()
+  .length(3)
+  .transform((s) => s.toUpperCase());
+
 export const idParam = z.object({ id: z.uuid() });
 export type IdParam = z.infer<typeof idParam>;

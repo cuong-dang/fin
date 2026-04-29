@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { dateString, moneyString } from "./common";
+import { currencyField, dateString, moneyString } from "./common";
 import {
   recurringPlanBody,
   type RecurringPlanDefaultLine,
@@ -25,11 +25,6 @@ export type AccountRecurringPlan = {
 };
 
 const nameField = z.string().trim().min(1).max(100);
-const currencyField = z
-  .string()
-  .trim()
-  .length(3)
-  .transform((s) => s.toUpperCase());
 const newGroupField = z.string().trim().min(1).max(100).optional();
 
 // Loan accounts pair 1:1 with a `recurring_plans` row holding the schedule.
@@ -144,4 +139,6 @@ export type Account = {
   defaultPayFromAccountId: string | null;
   /** Set only when type='loan'. Joined plan summary; null otherwise. */
   recurringPlan: AccountRecurringPlan | null;
+  /** ISO timestamp when archived; null = active. */
+  archivedAt: string | null;
 };

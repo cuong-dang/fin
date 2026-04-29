@@ -162,6 +162,11 @@ export const accounts = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // null = active. Set to hide a still-relevant account (e.g., a paid-off
+    // loan) from the sidebar without deleting it. Distinct from
+    // `deletedAt`: archived accounts remain visible in the manage page so
+    // the user can unarchive; deletion soft-hides them entirely.
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     // Soft-delete: see account_groups.deleted_at.
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },

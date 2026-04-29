@@ -8,14 +8,21 @@ import {
   ScrollArea,
   Stack,
   Text,
+  Tooltip,
+  UnstyledButton,
 } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
-import { Pencil, Plus } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Archive, ChevronDown, ChevronRight } from "lucide-react";
+import { useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router";
 
 import { SectionHeader } from "@/components/section-header";
 import { groupBy } from "@/lib/collections";
-import { listAccountGroups, listAccounts } from "@/lib/endpoints";
+import {
+  archiveAccount,
+  listAccountGroups,
+  listAccounts,
+} from "@/lib/endpoints";
 import { formatMoney } from "@/lib/money";
 
 /**
@@ -39,8 +46,30 @@ export function AccountsSidebar() {
   const accountsQ = useQuery({ queryKey: ["accounts"], queryFn: listAccounts });
 
   const groups = groupsQ.data ?? [];
-  const accounts = accountsQ.data ?? [];
+  // Filter archived accounts out of the sidebar — they live in the manage
+  // page only. Manage page passes the unfiltered list to its own query.
+  const accounts = (accountsQ.data ?? []).filter((a) => a.archivedAt === null);
   const byGroup = groupBy(accounts, (a) => a.accountGroupId);
+  // Hide groups that have no active accounts. Empty groups still exist in
+  // the DB and remain manageable from the settings page; they're just
+  // invisible noise in the sidebar.
+  const visibleGroups = groups.filter(
+    (g) => (byGroup.get(g.id) ?? []).length > 0,
+  );
+  const netWorth = totalsByCurrency(accounts);
+
+  // Collapsed-group state, persisted to localStorage so the sidebar
+  // remembers your preference across reloads. Default expanded; clicking
+  // a group's header toggles its presence in the set.
+  const [collapsed, setCollapsed] = useState<Set<string>>(loadCollapsed);
+  const toggleGroup = (id: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      saveCollapsed(next);
+      return next;
+    });
 
   return (
     // `mih={0}` lets this Stack shrink below its intrinsic content
@@ -50,22 +79,7 @@ export function AccountsSidebar() {
     <Stack flex={1} gap={0} mih={0}>
       <Group justify="space-between">
         <SectionHeader compact>Accounts</SectionHeader>
-        <Group gap={0}>
-          <ActionIcon
-            aria-label="Manage accounts"
-            component={Link}
-            to="/accounts"
-          >
-            <Pencil size={14} />
-          </ActionIcon>
-          <ActionIcon
-            aria-label="New account"
-            component={Link}
-            to="/accounts/new"
-          >
-            <Plus size={14} />
-          </ActionIcon>
-        </Group>
+        <NetWorthSummary totals={netWorth} />
       </Group>
       <Divider />
       <ScrollArea flex={1}>
@@ -75,21 +89,48 @@ export function AccountsSidebar() {
           label="All transactions"
           to="/transactions"
         />
-        {groups.length === 0 ? (
+        {visibleGroups.length === 0 ? (
           <Text c="dimmed">No accounts yet.</Text>
         ) : (
-          groups.map((g) => (
+          visibleGroups.map((g) => (
             <GroupSection
               key={g.id}
               accounts={byGroup.get(g.id) ?? []}
+              collapsed={collapsed.has(g.id)}
               group={g}
               selectedAccountId={selectedAccountId}
+              onToggle={() => toggleGroup(g.id)}
             />
           ))
         )}
       </ScrollArea>
     </Stack>
   );
+}
+
+const COLLAPSED_KEY = "fin:sidebar.collapsedGroups";
+
+function loadCollapsed(): Set<string> {
+  // Tolerate any localStorage failure (private mode, quota, JSON shape
+  // drift) by falling back to an empty set — collapsed state is a UX
+  // nicety, not load-bearing.
+  try {
+    const raw = localStorage.getItem(COLLAPSED_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((v): v is string => typeof v === "string"));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveCollapsed(set: Set<string>) {
+  try {
+    localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...set]));
+  } catch {
+    // ignore — see loadCollapsed
+  }
 }
 
 function groupSubtotal(
@@ -102,37 +143,75 @@ function groupSubtotal(
   return { amount: total, currency };
 }
 
+// Net-worth summary for the sidebar header. Sums present balances per
+// currency — credit-card and loan balances are negative, so the total
+// nets debt against assets correctly. Multi-currency users see one line
+// per currency (no FX conversion done here).
+function totalsByCurrency(items: Account[]): Map<string, bigint> {
+  const totals = new Map<string, bigint>();
+  for (const a of items) {
+    totals.set(
+      a.currency,
+      (totals.get(a.currency) ?? 0n) + BigInt(a.presentBalance),
+    );
+  }
+  return totals;
+}
+
+function NetWorthSummary({ totals }: { totals: Map<string, bigint> }) {
+  if (totals.size === 0) return null;
+  return (
+    <Stack align="flex-end" gap={0}>
+      {[...totals].map(([currency, amount]) => (
+        <Text key={currency} ff="monospace" fw={600}>
+          {formatMoney(amount, currency)}
+        </Text>
+      ))}
+    </Stack>
+  );
+}
+
 function GroupSection({
   group,
   accounts,
   selectedAccountId,
+  collapsed,
+  onToggle,
 }: {
   group: AccountGroup;
   accounts: Account[];
   selectedAccountId: string | undefined;
+  collapsed: boolean;
+  onToggle: () => void;
 }) {
   const subtotal = groupSubtotal(accounts);
   return (
     <Stack gap={0}>
-      <Group justify="space-between">
-        <SectionHeader>{group.name}</SectionHeader>
-        {subtotal && (
-          <Text c="dimmed" ff="monospace">
-            {formatMoney(subtotal.amount, subtotal.currency)}
-          </Text>
-        )}
-      </Group>
-      {accounts.length === 0 ? (
-        <Text c="dimmed">No accounts yet.</Text>
-      ) : (
-        accounts.map((a) => (
-          <AccountItem
-            key={a.id}
-            account={a}
-            active={a.id === selectedAccountId}
-          />
-        ))
-      )}
+      <UnstyledButton onClick={onToggle}>
+        <Group justify="space-between">
+          <Group p={0} wrap="nowrap">
+            {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+            <SectionHeader>{group.name}</SectionHeader>
+          </Group>
+          {subtotal && (
+            <Text c="dimmed" ff="monospace">
+              {formatMoney(subtotal.amount, subtotal.currency)}
+            </Text>
+          )}
+        </Group>
+      </UnstyledButton>
+      {!collapsed &&
+        (accounts.length === 0 ? (
+          <Text c="dimmed">No accounts yet.</Text>
+        ) : (
+          accounts.map((a) => (
+            <AccountItem
+              key={a.id}
+              account={a}
+              active={a.id === selectedAccountId}
+            />
+          ))
+        ))}
     </Stack>
   );
 }
@@ -171,6 +250,8 @@ function AccountItem({
       <Stack gap={0}>
         <Text>{account.name}</Text>
         <LoanRemainingHint
+          accountId={account.id}
+          accountName={account.name}
           amountPerPeriod={BigInt(account.recurringPlan!.amountPerPeriod)}
           balance={available}
           currency={account.currency}
@@ -211,11 +292,15 @@ const FREQUENCY_SUFFIX: Record<RecurringFrequency, string> = {
 };
 
 function LoanRemainingHint({
+  accountId,
+  accountName,
   balance,
   amountPerPeriod,
   currency,
   frequency,
 }: {
+  accountId: string;
+  accountName: string;
   /** Sum of all legs on the loan account (negative when there's debt). */
   balance: bigint;
   amountPerPeriod: bigint;
@@ -228,9 +313,12 @@ function LoanRemainingHint({
   // a sidebar hint, prefixed with `~` to signal the approximation.
   if (balance >= 0n) {
     return (
-      <Text c="dimmed" ff="monospace" size="xs">
-        Paid off
-      </Text>
+      <Group gap="xs" wrap="nowrap">
+        <Text c="dimmed" ff="monospace" size="xs">
+          Paid off
+        </Text>
+        <ArchiveLoanButton accountId={accountId} accountName={accountName} />
+      </Group>
     );
   }
   if (amountPerPeriod <= 0n) return null;
@@ -247,6 +335,44 @@ function LoanRemainingHint({
       ~{Number(remaining)} left · {formatMoney(amountPerPeriod, currency)}
       {FREQUENCY_SUFFIX[frequency]}
     </Text>
+  );
+}
+
+function ArchiveLoanButton({
+  accountId,
+  accountName,
+}: {
+  accountId: string;
+  accountName: string;
+}) {
+  const qc = useQueryClient();
+  const archive = useMutation({
+    mutationFn: () => archiveAccount(accountId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["accounts"] }),
+    onError: (e) => alert((e as Error).message),
+  });
+  return (
+    <Tooltip label="Archive">
+      <ActionIcon
+        aria-label={`Archive ${accountName}`}
+        loading={archive.isPending}
+        onClick={(e) => {
+          // The label sits inside a NavLink (which is a Link); without
+          // these, clicking the button also navigates to /transactions.
+          e.preventDefault();
+          e.stopPropagation();
+          if (
+            confirm(
+              `Archive "${accountName}"? You can unarchive it later from the manage page.`,
+            )
+          ) {
+            archive.mutate();
+          }
+        }}
+      >
+        <Archive size={12} />
+      </ActionIcon>
+    </Tooltip>
   );
 }
 

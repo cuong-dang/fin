@@ -15,6 +15,7 @@ import {
   listAccounts,
   listCategories,
   listTags,
+  resumeSubscription,
   updateSubscription,
 } from "@/lib/endpoints";
 import { formatMoneyPlain } from "@/lib/money";
@@ -86,6 +87,11 @@ function Form({
     onSuccess: go,
     onError: (e) => alert((e as Error).message),
   });
+  const resume = useMutation({
+    mutationFn: () => resumeSubscription(sub.id),
+    onSuccess: go,
+    onError: (e) => alert((e as Error).message),
+  });
   const del = useMutation({
     mutationFn: () => deleteSubscription(sub.id),
     onSuccess: go,
@@ -118,7 +124,7 @@ function Form({
         onSubmit={(body) => mutation.mutate(body)}
       />
       <DangerZone
-        cancelDisabled={cancelled}
+        cancelled={cancelled}
         onCancel={() => {
           if (
             confirm(
@@ -137,18 +143,21 @@ function Form({
             del.mutate();
           }
         }}
+        onResume={() => resume.mutate()}
       />
     </PageShell>
   );
 }
 
 function DangerZone({
-  cancelDisabled,
+  cancelled,
   onCancel,
+  onResume,
   onDelete,
 }: {
-  cancelDisabled: boolean;
+  cancelled: boolean;
   onCancel: () => void;
+  onResume: () => void;
   onDelete: () => void;
 }) {
   return (
@@ -161,15 +170,25 @@ function DangerZone({
           Deleting unlinks past charges and removes the subscription entirely.
         </Text>
         <Group>
-          <Button
-            color="orange"
-            disabled={cancelDisabled}
-            variant="light"
-            w="fit-content"
-            onClick={onCancel}
-          >
-            Cancel subscription
-          </Button>
+          {cancelled ? (
+            <Button
+              color="teal"
+              variant="light"
+              w="fit-content"
+              onClick={onResume}
+            >
+              Resume subscription
+            </Button>
+          ) : (
+            <Button
+              color="orange"
+              variant="light"
+              w="fit-content"
+              onClick={onCancel}
+            >
+              Cancel subscription
+            </Button>
+          )}
           <Button
             color="red"
             variant="light"

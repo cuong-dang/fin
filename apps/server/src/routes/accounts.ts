@@ -54,6 +54,7 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
     defaultPayFromAccountId: string | null;
     presentBalance: string;
     availableBalance: string;
+    archivedAt: Date | null;
     planId: string | null;
     planAmountPerPeriod: string | null;
     planFrequency:
@@ -79,10 +80,12 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
       planFirstPaymentDate,
       planDefaultAccountId,
       planDescription,
+      archivedAt,
       ...rest
     } = row;
     return {
       ...rest,
+      archivedAt: archivedAt?.toISOString() ?? null,
       recurringPlan:
         planId && planAmountPerPeriod && planFrequency && planFirstPaymentDate
           ? {
@@ -113,6 +116,7 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
         defaultPayFromAccountId: schema.accounts.defaultPayFromAccountId,
         presentBalance: presentBalanceSql.as("present_balance"),
         availableBalance: availableBalanceSql.as("available_balance"),
+        archivedAt: schema.accounts.archivedAt,
         ...planSummary,
       })
       .from(schema.accounts)
@@ -156,6 +160,7 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
         defaultPayFromAccountId: schema.accounts.defaultPayFromAccountId,
         presentBalance: presentBalanceSql.as("present_balance"),
         availableBalance: availableBalanceSql.as("available_balance"),
+        archivedAt: schema.accounts.archivedAt,
         ...planSummary,
       })
       .from(schema.accounts)
@@ -447,6 +452,37 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
       }
     });
 
+    return reply.code(204).send();
+  });
+
+  // Archive: hide an account from sidebar/pickers without deleting it.
+  // Used today for paid-off loans the user wants out of the way but
+  // preserved for history. Reversible via /unarchive.
+  app.post("/:id/archive", async (req, reply) => {
+    const { id } = idParam.parse(req.params);
+    const account = await findOwned(schema.accounts, id, req.auth.groupId);
+    if (!account) return reply.code(404).send({ error: "Not found" });
+    if (account.archivedAt !== null) {
+      return reply.code(409).send({ error: "Already archived" });
+    }
+    await db
+      .update(schema.accounts)
+      .set({ archivedAt: new Date(), updatedAt: new Date() })
+      .where(eq(schema.accounts.id, id));
+    return reply.code(204).send();
+  });
+
+  app.post("/:id/unarchive", async (req, reply) => {
+    const { id } = idParam.parse(req.params);
+    const account = await findOwned(schema.accounts, id, req.auth.groupId);
+    if (!account) return reply.code(404).send({ error: "Not found" });
+    if (account.archivedAt === null) {
+      return reply.code(409).send({ error: "Not archived" });
+    }
+    await db
+      .update(schema.accounts)
+      .set({ archivedAt: null, updatedAt: new Date() })
+      .where(eq(schema.accounts.id, id));
     return reply.code(204).send();
   });
 

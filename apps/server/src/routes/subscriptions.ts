@@ -164,6 +164,29 @@ export const subscriptionRoutes: FastifyPluginAsync = async (app) => {
     return reply.code(204).send();
   });
 
+  // ─── Resume ──────────────────────────────────────────────────────────────
+
+  // Flip cancelledAt back to null. We don't preserve cancellation history —
+  // the user explicitly opted out of that. If a sub is re-cancelled later,
+  // only the latest cancelledAt is kept.
+  app.post("/:id/resume", async (req, reply) => {
+    const { id } = idParam.parse(req.params);
+    const existing = await findOwned(
+      schema.subscriptions,
+      id,
+      req.auth.groupId,
+    );
+    if (!existing) return reply.code(404).send({ error: "Not found" });
+    if (existing.cancelledAt === null) {
+      return reply.code(409).send({ error: "Not cancelled" });
+    }
+    await db
+      .update(schema.subscriptions)
+      .set({ cancelledAt: null, updatedAt: new Date() })
+      .where(eq(schema.subscriptions.id, id));
+    return reply.code(204).send();
+  });
+
   // ─── Delete ──────────────────────────────────────────────────────────────
 
   app.delete("/:id", async (req, reply) => {

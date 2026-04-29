@@ -24,6 +24,7 @@ CREATE TABLE "accounts" (
 	"recurring_plan_id" uuid,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"archived_at" timestamp with time zone,
 	"deleted_at" timestamp with time zone
 );
 --> statement-breakpoint

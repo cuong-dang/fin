@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { dateString } from "./common";
+import { currencyField, dateString } from "./common";
 
 export const granularity = z.enum(["daily", "weekly", "monthly", "yearly"]);
 export type Granularity = z.infer<typeof granularity>;
@@ -34,7 +34,9 @@ export type ChartBucket = {
 /**
  * Common response shape across all analytics chart endpoints. The
  * server filters and groups differently per chart, but the wire
- * shape is the same so the client's `<StackedBarChart>` is generic.
+ * shape is the same so the client's chart components
+ * (`<StackedBarChart>`, `<DivergingNetChart>`) can consume it
+ * generically.
  */
 export type AnalyticsChartResponse = {
   currency: string;
@@ -56,11 +58,7 @@ export const categorySpendingQuery = z.object({
   granularity,
   start: dateString,
   end: dateString,
-  currency: z
-    .string()
-    .trim()
-    .length(3)
-    .transform((s) => s.toUpperCase()),
+  currency: currencyField,
   categoryId: z.uuid().optional(),
 });
 export type CategorySpendingQuery = z.infer<typeof categorySpendingQuery>;
@@ -68,8 +66,10 @@ export type CategorySpendingQuery = z.infer<typeof categorySpendingQuery>;
 // ─── Cash flow (out / in / net) ───────────────────────────────────────────
 
 /**
- * Direction of the cash-flow view. Drives the dropdown in the chart
- * UI and determines which dimension defaults to use on switch.
+ * Direction of the cash-flow view. Client-only — never sent over the
+ * wire; the server reads direction from the `dimension` prefix
+ * (`out*` / `in*` / `net`). Drives the dropdown in the chart UI and
+ * determines which dimension defaults to use on switch.
  */
 export const cashFlowDirection = z.enum(["out", "in", "net"]);
 export type CashFlowDirection = z.infer<typeof cashFlowDirection>;
@@ -90,7 +90,9 @@ export const cashFlowDimension = z.enum([
   "inTop", // income by category
   "inByCategory", // drill into a category → subcategory stacks
   // direction=net
-  "net", // per-period signed total (cash in + cash out, where cash-out legs are already negative)
+  // Two stacks per period: `in` (positive sums) and `out` (signed
+  // negative). The Net line is derived client-side as in + out.
+  "net",
 ]);
 export type CashFlowDimension = z.infer<typeof cashFlowDimension>;
 
@@ -98,20 +100,22 @@ export type CashFlowDimension = z.infer<typeof cashFlowDimension>;
  * "Cash flow" chart: combined view of money leaving / entering the
  * user's pocket each period.
  *
- * **out** mirrors the previous "Cash out" chart — three top-level
- * stacks (Expenses from CASA/CC, Loan payments, Subs) with the same
- * drills. Excludes adjustments, CASA→CASA transfers, CC payments
- * (settlements), and loan-account expenses (financed purchases — cash
- * surfaces over time as loan payments).
+ * **out** — three top-level stacks (Expenses from CASA/CC, Loan
+ * payments, Subs) with drills into each. Excludes adjustments,
+ * CASA→CASA transfers, CC payments (settlements), and loan-account
+ * expenses (financed purchases — cash surfaces over time as loan
+ * payments).
  *
  * **in** sums income transactions by category, with subcategory drill.
  * Mirrors the expense-side drill structure on the income side.
  *
- * **net** sums signed leg amounts on CASA/CC accounts per period,
- * excluding adjustments. Income legs (positive) and outflow legs
- * (negative) cancel naturally; CASA→CASA transfers and CC payments
- * net to 0 because both legs are on CASA/CC. Loan-account legs are
- * excluded (financed purchases don't move cash today).
+ * **net** returns two stacks per period from CASA/CC legs: `in`
+ * (positive sums) and `out` (signed negative). The client renders
+ * them as diverging bars and derives the Net line as in + out.
+ * Internal transfers (CASA↔CASA, CC payments) are filtered out — they
+ * would inflate both bars equally without changing net. Loan-account
+ * legs are excluded (financed purchases surface as cash flow when the
+ * loan is paid). Adjustments are excluded.
  *
  * `categoryId` is only used for `outExpensesByCategory` and
  * `inByCategory` drills.
@@ -120,12 +124,8 @@ export const cashFlowQuery = z.object({
   granularity,
   start: dateString,
   end: dateString,
-  currency: z
-    .string()
-    .trim()
-    .length(3)
-    .transform((s) => s.toUpperCase()),
-  dimension: cashFlowDimension.default("outTop"),
+  currency: currencyField,
+  dimension: cashFlowDimension,
   categoryId: z.uuid().optional(),
 });
 export type CashFlowQuery = z.infer<typeof cashFlowQuery>;
@@ -146,10 +146,6 @@ export const netWorthQuery = z.object({
   granularity,
   start: dateString,
   end: dateString,
-  currency: z
-    .string()
-    .trim()
-    .length(3)
-    .transform((s) => s.toUpperCase()),
+  currency: currencyField,
 });
 export type NetWorthQuery = z.infer<typeof netWorthQuery>;

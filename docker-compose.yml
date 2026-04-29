@@ -10,7 +10,10 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - fin-postgres-data:/var/lib/postgresql/data
+      # pg18+ stores data in a versioned subdirectory under
+      # /var/lib/postgresql; mounting at /var/lib/postgresql/data is
+      # rejected by the entrypoint as a legacy layout.
+      - fin-postgres-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U fin -d fin"]
       interval: 2s

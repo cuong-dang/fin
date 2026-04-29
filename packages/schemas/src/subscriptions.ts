@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { dateString, moneyString } from "./common";
+import { currencyField, dateString, moneyString } from "./common";
 import { tagName } from "./tags";
 
 export const recurringFrequency = z.enum([
@@ -11,12 +11,6 @@ export const recurringFrequency = z.enum([
   "yearly",
 ]);
 export type RecurringFrequency = z.infer<typeof recurringFrequency>;
-
-const currencyField = z
-  .string()
-  .trim()
-  .length(3)
-  .transform((s) => s.toUpperCase());
 
 // One default line on a subscription. Sum of line amounts = the subscription's
 // per-period charge. Mirrors `transactionLineBody` so a charge transaction
