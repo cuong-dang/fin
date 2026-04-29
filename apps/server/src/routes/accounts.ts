@@ -39,7 +39,6 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
       "plan_amount_per_period",
     ),
     planFrequency: schema.recurringPlans.frequency,
-    planFirstPaymentDate: schema.recurringPlans.firstPaymentDate,
     planDefaultAccountId: schema.recurringPlans.defaultAccountId,
     planDescription: schema.recurringPlans.description,
   };
@@ -64,7 +63,6 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
       | "quarterly"
       | "yearly"
       | null;
-    planFirstPaymentDate: string | null;
     planDefaultAccountId: string | null;
     planDescription: string | null;
   };
@@ -77,7 +75,6 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
       planId,
       planAmountPerPeriod,
       planFrequency,
-      planFirstPaymentDate,
       planDefaultAccountId,
       planDescription,
       archivedAt,
@@ -87,12 +84,11 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
       ...rest,
       archivedAt: archivedAt?.toISOString() ?? null,
       recurringPlan:
-        planId && planAmountPerPeriod && planFrequency && planFirstPaymentDate
+        planId && planAmountPerPeriod && planFrequency
           ? {
               id: planId,
               amountPerPeriod: planAmountPerPeriod,
               frequency: planFrequency,
-              firstPaymentDate: planFirstPaymentDate,
               defaultAccountId: planDefaultAccountId,
               description: planDescription,
               defaultLines: linesByPlan.get(planId) ?? [],

@@ -127,9 +127,6 @@ function Form({
   const [planFrequency, setPlanFrequency] = useState<RecurringFrequency>(
     account.recurringPlan?.frequency ?? "monthly",
   );
-  const [planFirstPaymentDate, setPlanFirstPaymentDate] = useState(
-    account.recurringPlan?.firstPaymentDate ?? "",
-  );
   const [planPayFromId, setPlanPayFromId] = useState(
     account.recurringPlan?.defaultAccountId ?? "",
   );
@@ -201,7 +198,6 @@ function Form({
               recurringPlan: {
                 amountPerPeriod: planAmountPerPeriod,
                 frequency: planFrequency,
-                firstPaymentDate: planFirstPaymentDate,
                 defaultAccountId: planPayFromId || undefined,
                 description: planDescription || undefined,
                 defaultLines: planLines.map(packCategoryLine),
@@ -254,14 +250,12 @@ function Form({
               amountPerPeriod={planAmountPerPeriod}
               categories={categories}
               description={planDescription}
-              firstPaymentDate={planFirstPaymentDate}
               frequency={planFrequency}
               lines={planLines}
               payFromAccounts={loanPayFromAccounts}
               payFromId={planPayFromId}
               setAmountPerPeriod={setPlanAmountPerPeriod}
               setDescription={setPlanDescription}
-              setFirstPaymentDate={setPlanFirstPaymentDate}
               setFrequency={setPlanFrequency}
               setLines={setPlanLines}
               setPayFromId={setPlanPayFromId}

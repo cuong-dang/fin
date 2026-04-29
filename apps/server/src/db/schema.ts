@@ -271,7 +271,6 @@ export const recurringPlans = pgTable("recurring_plans", {
   currency: char("currency", { length: 3 }).notNull(),
   // No `total_periods`: derivable as ceil(|currentBalance| / amountPerPeriod).
   frequency: recurringFrequencyEnum("frequency").notNull(),
-  firstPaymentDate: date("first_payment_date").notNull(),
   // Default source account auto-fills the source on a new charge transaction.
   defaultAccountId: uuid("default_account_id").references(() => accounts.id, {
     onDelete: "restrict",
@@ -351,7 +350,6 @@ export const subscriptions = pgTable("subscriptions", {
   name: text("name").notNull(),
   currency: char("currency", { length: 3 }).notNull(),
   frequency: recurringFrequencyEnum("frequency").notNull(),
-  firstChargeDate: date("first_charge_date").notNull(),
   // Default source account auto-fills the source on a new charge transaction.
   // Nullable: user may not have settled on a default; the picker still
   // lets them choose per-charge. RESTRICT — see recurring_plans.
@@ -390,8 +388,11 @@ export const subscriptionDefaultLines = pgTable(
     subcategoryId: uuid("subcategory_id").references(() => subcategories.id, {
       onDelete: "restrict",
     }),
-    // Positive minor units in `currency`.
-    amount: bigint("amount", { mode: "bigint" }).notNull(),
+    // Positive minor units in `currency`. Nullable: a sub may charge a
+    // varying amount per period, in which case the template carries
+    // categorization but leaves the amount blank — the user fills it
+    // in on the actual charge transaction.
+    amount: bigint("amount", { mode: "bigint" }),
     currency: char("currency", { length: 3 }).notNull(),
     description: text("description"),
   },

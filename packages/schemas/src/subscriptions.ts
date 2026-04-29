@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { currencyField, dateString, moneyString } from "./common";
+import { currencyField, moneyString } from "./common";
 import { tagName } from "./tags";
 
 export const recurringFrequency = z.enum([
@@ -12,13 +12,16 @@ export const recurringFrequency = z.enum([
 ]);
 export type RecurringFrequency = z.infer<typeof recurringFrequency>;
 
-// One default line on a subscription. Sum of line amounts = the subscription's
-// per-period charge. Mirrors `transactionLineBody` so a charge transaction
-// can copy lines verbatim — including the inline-create category/subcategory
-// path so users don't have to hop to /settings to set up a new sub.
+// One default line on a subscription. Sum of line amounts (when set) =
+// the subscription's per-period charge. Mirrors `transactionLineBody`
+// so a charge transaction can copy lines verbatim — including the
+// inline-create category/subcategory path so users don't have to hop
+// to /settings to set up a new sub. `amount` is optional: a sub may
+// charge a varying amount per period, in which case the template
+// records categorization but leaves the amount blank.
 export const subscriptionDefaultLineBody = z
   .object({
-    amount: moneyString,
+    amount: moneyString.optional(),
     categoryId: z.uuid().optional(),
     newCategoryName: z.string().trim().min(1).max(100).optional(),
     subcategoryId: z.uuid().optional(),
@@ -38,7 +41,6 @@ const subscriptionFields = {
   name: z.string().trim().min(1).max(100),
   currency: currencyField,
   frequency: recurringFrequency,
-  firstChargeDate: dateString,
   defaultAccountId: z.uuid().optional(),
   description: z.string().trim().min(1).max(500).optional(),
   defaultLines: z.array(subscriptionDefaultLineBody).min(1),
@@ -54,7 +56,7 @@ export type UpdateSubscriptionBody = z.infer<typeof updateSubscriptionBody>;
 
 export type SubscriptionDefaultLine = {
   id: string;
-  amount: string; // stringified bigint
+  amount: string | null; // stringified bigint; null = varies per period
   currency: string;
   categoryId: string;
   categoryName: string;
@@ -69,7 +71,6 @@ export type Subscription = {
   name: string;
   currency: string;
   frequency: RecurringFrequency;
-  firstChargeDate: string;
   defaultAccountId: string | null;
   cancelledAt: string | null; // ISO timestamp; null = active
   description: string | null;

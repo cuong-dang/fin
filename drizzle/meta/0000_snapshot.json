@@ -1,5 +1,5 @@
 {
-  "id": "6d733821-807d-4ed1-b772-7c5c672aaf55",
+  "id": "20c7976c-2889-44b2-8c69-e0be2f867f91",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -721,12 +721,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "first_payment_date": {
-          "name": "first_payment_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
         "default_account_id": {
           "name": "default_account_id",
           "type": "uuid",
@@ -993,7 +987,7 @@
           "name": "amount",
           "type": "bigint",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "currency": {
           "name": "currency",
@@ -1120,12 +1114,6 @@
           "name": "frequency",
           "type": "recurring_frequency",
           "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "first_charge_date": {
-          "name": "first_charge_date",
-          "type": "date",
           "primaryKey": false,
           "notNull": true
         },

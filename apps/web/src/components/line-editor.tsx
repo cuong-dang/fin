@@ -16,25 +16,32 @@ import { TagsField } from "@/components/tags-field";
  * line) and later recurring-plan default lines. The "Split across
  * categories" button promotes the host form into multi-line mode by
  * appending a second empty line.
+ *
+ * `amountOptional` mirrors `MultiLineEditor` — for sub default lines
+ * whose amount may vary per period, the field is rendered without the
+ * required marker.
  */
 export function SingleLineEditor({
   line,
   categories,
   allTags,
+  amountOptional = false,
   onUpdate,
   onSplit,
 }: {
   line: CategoryLineFormValues;
   categories: CategoryWithSubs[];
   allTags: string[];
+  amountOptional?: boolean;
   onUpdate: (patch: Partial<CategoryLineFormValues>) => void;
   onSplit: () => void;
 }) {
   return (
     <Stack>
       <MoneyField
-        label="Amount"
+        label={amountOptional ? "Amount (optional)" : "Amount"}
         min={0}
+        required={!amountOptional}
         value={line.amount}
         onChange={(v) => onUpdate({ amount: v })}
       />

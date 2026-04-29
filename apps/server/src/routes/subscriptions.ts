@@ -53,16 +53,11 @@ export const subscriptionRoutes: FastifyPluginAsync = async (app) => {
   app.post("/", async (req, reply) => {
     const body = createSubscriptionBody.parse(req.body);
     if (body.defaultAccountId) {
-      const account = await findOwned(
-        schema.accounts,
+      const errResp = await validateSubDefaultAccount(
         body.defaultAccountId,
         req.auth.groupId,
       );
-      if (!account) {
-        return reply
-          .code(400)
-          .send({ error: "Default account not found in this workspace" });
-      }
+      if (errResp) return reply.code(400).send({ error: errResp });
     }
 
     const result = await db.transaction(async (tx) => {
@@ -73,7 +68,6 @@ export const subscriptionRoutes: FastifyPluginAsync = async (app) => {
           name: body.name,
           currency: body.currency,
           frequency: body.frequency,
-          firstChargeDate: body.firstChargeDate,
           defaultAccountId: body.defaultAccountId ?? null,
           description: body.description ?? null,
         })
@@ -103,16 +97,11 @@ export const subscriptionRoutes: FastifyPluginAsync = async (app) => {
     );
     if (!existing) return reply.code(404).send({ error: "Not found" });
     if (body.defaultAccountId) {
-      const account = await findOwned(
-        schema.accounts,
+      const errResp = await validateSubDefaultAccount(
         body.defaultAccountId,
         req.auth.groupId,
       );
-      if (!account) {
-        return reply
-          .code(400)
-          .send({ error: "Default account not found in this workspace" });
-      }
+      if (errResp) return reply.code(400).send({ error: errResp });
     }
 
     await db.transaction(async (tx) => {
@@ -122,7 +111,6 @@ export const subscriptionRoutes: FastifyPluginAsync = async (app) => {
           name: body.name,
           currency: body.currency,
           frequency: body.frequency,
-          firstChargeDate: body.firstChargeDate,
           defaultAccountId: body.defaultAccountId ?? null,
           description: body.description ?? null,
           updatedAt: new Date(),
@@ -265,7 +253,7 @@ async function fetchDefaultLines(
     (l) => l.subscriptionId,
     (l) => ({
       id: l.id,
-      amount: l.amount.toString(),
+      amount: l.amount === null ? null : l.amount.toString(),
       currency: l.currency,
       categoryId: l.categoryId,
       categoryName: l.categoryName,
@@ -291,9 +279,12 @@ async function insertDefaultLines(
     throw new Error("At least one default line is required");
   }
   // Parse amounts up front so a bad line aborts before any write.
-  const amounts = lines.map((l) => parseMoney(l.amount, currency));
-  if (amounts.some((m) => m <= 0n)) {
-    throw new Error("Each default line amount must be positive");
+  // Amount may be omitted (sub charges a varying amount per period).
+  const amounts = lines.map((l) =>
+    l.amount ? parseMoney(l.amount, currency) : null,
+  );
+  if (amounts.some((m) => m !== null && m <= 0n)) {
+    throw new Error("Each default line amount must be positive when set");
   }
 
   for (let i = 0; i < lines.length; i++) {
@@ -340,10 +331,24 @@ function toResponse(
     name: sub.name,
     currency: sub.currency,
     frequency: sub.frequency,
-    firstChargeDate: sub.firstChargeDate,
     defaultAccountId: sub.defaultAccountId,
     cancelledAt: sub.cancelledAt?.toISOString() ?? null,
     description: sub.description,
     defaultLines,
   };
+}
+
+// A sub's default pay-from must be a CASA or CC account. Loan accounts
+// can't be charge sources — paying a sub from a loan would invent debt
+// against an installment plan, which doesn't model anything real.
+async function validateSubDefaultAccount(
+  accountId: string,
+  workspaceGroupId: string,
+): Promise<string | null> {
+  const account = await findOwned(schema.accounts, accountId, workspaceGroupId);
+  if (!account) return "Default account not found in this workspace";
+  if (account.type === "loan") {
+    return "Default account cannot be a loan account";
+  }
+  return null;
 }

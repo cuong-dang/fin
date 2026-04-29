@@ -90,8 +90,6 @@ export function LoanPlanFields({
   setAmountPerPeriod,
   frequency,
   setFrequency,
-  firstPaymentDate,
-  setFirstPaymentDate,
   payFromId,
   setPayFromId,
   description,
@@ -106,8 +104,6 @@ export function LoanPlanFields({
   setAmountPerPeriod: (v: string) => void;
   frequency: RecurringFrequency;
   setFrequency: (v: RecurringFrequency) => void;
-  firstPaymentDate: string;
-  setFirstPaymentDate: (v: string) => void;
   payFromId: string;
   setPayFromId: (v: string) => void;
   description: string;
@@ -146,13 +142,6 @@ export function LoanPlanFields({
         label="Frequency"
         value={frequency}
         onChange={(e) => setFrequency(e.target.value as RecurringFrequency)}
-      />
-      <TextInput
-        label="First payment date"
-        required
-        type="date"
-        value={firstPaymentDate}
-        onChange={(e) => setFirstPaymentDate(e.target.value)}
       />
       <NativeSelect
         data={[

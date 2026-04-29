@@ -75,7 +75,6 @@ CREATE TABLE "recurring_plans" (
 	"amount_per_period" bigint NOT NULL,
 	"currency" char(3) NOT NULL,
 	"frequency" "recurring_frequency" NOT NULL,
-	"first_payment_date" date NOT NULL,
 	"default_account_id" uuid,
 	"description" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -103,7 +102,7 @@ CREATE TABLE "subscription_default_lines" (
 	"subscription_id" uuid NOT NULL,
 	"category_id" uuid NOT NULL,
 	"subcategory_id" uuid,
-	"amount" bigint NOT NULL,
+	"amount" bigint,
 	"currency" char(3) NOT NULL,
 	"description" text
 );
@@ -114,7 +113,6 @@ CREATE TABLE "subscriptions" (
 	"name" text NOT NULL,
 	"currency" char(3) NOT NULL,
 	"frequency" "recurring_frequency" NOT NULL,
-	"first_charge_date" date NOT NULL,
 	"default_account_id" uuid,
 	"cancelled_at" timestamp with time zone,
 	"description" text,

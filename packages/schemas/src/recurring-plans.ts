@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { dateString, moneyString } from "./common";
+import { moneyString } from "./common";
 import { type RecurringFrequency, recurringFrequency } from "./subscriptions";
 import { tagName } from "./tags";
 
@@ -32,7 +32,6 @@ export const recurringPlanBody = z
   .object({
     amountPerPeriod: moneyString,
     frequency: recurringFrequency,
-    firstPaymentDate: dateString,
     // Optional default pay-from. Validated server-side as checking_savings.
     defaultAccountId: z.uuid().optional(),
     description: z.string().trim().min(1).max(500).optional(),
@@ -60,7 +59,6 @@ export type RecurringPlan = {
   amountPerPeriod: string; // stringified bigint
   currency: string;
   frequency: RecurringFrequency;
-  firstPaymentDate: string;
   defaultAccountId: string | null;
   description: string | null;
   defaultLines: RecurringPlanDefaultLine[];

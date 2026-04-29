@@ -11,6 +11,7 @@ import { aliasedTable, and, eq, gte, lte, ne, sql } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
 
 import { db, schema } from "../db";
+import { findOwned } from "../lib/authz";
 
 /**
  * Postgres `date_trunc` unit per granularity. Daily uses no truncation
@@ -40,141 +41,6 @@ const PERIOD_FORMAT: Record<Granularity, string> = {
 
 export const analyticsRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
-
-  /**
-   * Category-spending chart data. Sums `transaction_lines.amount` by
-   * truncated period, filtered to one currency. Excludes adjustments
-   * (per the project's analytics rule).
-   *
-   * Two modes:
-   *   - default: GROUP BY category — stacks are top-level categories.
-   *   - drill (`categoryId` set): GROUP BY subcategory, filtered to
-   *     that category's lines. Lines with a null subcategory roll up
-   *     under "Other" with id=null.
-   *
-   * Buckets use ids as keys (not names) so the client can robustly
-   * track stacks even if names contain special chars.
-   */
-  app.get(
-    "/category-spending",
-    async (req): Promise<AnalyticsChartResponse> => {
-      const { granularity, start, end, currency, categoryId } =
-        categorySpendingQuery.parse(req.query);
-      // Inline the trunc unit and to_char format as raw SQL literals.
-      // Bind-parameter form would prevent Postgres from seeing the
-      // SELECT and GROUP BY date_trunc calls as the same expression
-      // (different placeholders); enum-validated values are safe to
-      // splice raw.
-      const truncLit = sql.raw(`'${TRUNC_UNIT[granularity]}'`);
-      const fmtLit = sql.raw(`'${PERIOD_FORMAT[granularity]}'`);
-      const truncExpr = sql`date_trunc(${truncLit}, ${schema.transactions.date})`;
-
-      const drilling = !!categoryId;
-      const periodExpr = sql<string>`to_char(${truncExpr}, ${fmtLit})`;
-      const amountExpr = sql<string>`SUM(${schema.transactionLines.amount})::text`;
-
-      const rows = drilling
-        ? await db
-            .select({
-              period: periodExpr,
-              itemId: schema.transactionLines.subcategoryId,
-              itemName: schema.subcategories.name,
-              amountMinor: amountExpr,
-            })
-            .from(schema.transactionLines)
-            .innerJoin(
-              schema.transactions,
-              eq(schema.transactions.id, schema.transactionLines.transactionId),
-            )
-            .leftJoin(
-              schema.subcategories,
-              eq(
-                schema.subcategories.id,
-                schema.transactionLines.subcategoryId,
-              ),
-            )
-            .where(
-              and(
-                eq(schema.transactions.groupId, req.auth.groupId),
-                eq(schema.transactionLines.currency, currency),
-                eq(schema.transactionLines.categoryId, categoryId),
-                ne(schema.transactions.type, "adjustment"),
-                gte(schema.transactions.date, start),
-                lte(schema.transactions.date, end),
-              ),
-            )
-            .groupBy(
-              truncExpr,
-              schema.transactionLines.subcategoryId,
-              schema.subcategories.name,
-            )
-            .orderBy(truncExpr)
-        : await db
-            .select({
-              period: periodExpr,
-              itemId: schema.categories.id,
-              itemName: schema.categories.name,
-              amountMinor: amountExpr,
-            })
-            .from(schema.transactionLines)
-            .innerJoin(
-              schema.transactions,
-              eq(schema.transactions.id, schema.transactionLines.transactionId),
-            )
-            .innerJoin(
-              schema.categories,
-              eq(schema.categories.id, schema.transactionLines.categoryId),
-            )
-            .where(
-              and(
-                eq(schema.transactions.groupId, req.auth.groupId),
-                eq(schema.transactionLines.currency, currency),
-                // "Spending" = expense-kind categories only. Income
-                // lines belong on a separate chart.
-                eq(schema.categories.kind, "expense"),
-                ne(schema.transactions.type, "adjustment"),
-                gte(schema.transactions.date, start),
-                lte(schema.transactions.date, end),
-              ),
-            )
-            .groupBy(truncExpr, schema.categories.id, schema.categories.name)
-            .orderBy(truncExpr);
-
-      // Major units in the response so Recharts can chart directly.
-      const decimals = currencyDecimals(currency);
-      const divisor = 10 ** decimals;
-
-      const byPeriod = new Map<string, ChartBucket>();
-      // Map<id, name> — using a Map preserves insertion order and
-      // dedupes. id is `null` for lines with no subcategory in drill
-      // mode.
-      const itemsById = new Map<string | null, string>();
-      for (const r of rows) {
-        const id = r.itemId;
-        const name = r.itemName ?? "Other";
-        itemsById.set(id, name);
-        let bucket = byPeriod.get(r.period);
-        if (!bucket) {
-          bucket = { period: r.period };
-          byPeriod.set(r.period, bucket);
-        }
-        // Use id as the key so names can be anything (including dots
-        // or empty); the client maps id → label for display.
-        const key = id ?? "__none__";
-        bucket[key] = Number(r.amountMinor) / divisor;
-      }
-
-      const items: ChartItem[] = [...itemsById.entries()]
-        .map(([id, name]) => ({ id, name }))
-        .sort((a, b) => a.name.localeCompare(b.name));
-
-      return {
-        currency,
-        items,
-        buckets: [...byPeriod.values()],
-      };
-    },
-  );
 
   /**
    * "Cash flow" chart data. Three directions, eight dimensions:
@@ -559,6 +425,142 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
         .map(([id, name]) => ({ id, name }))
         .sort((a, b) => a.name.localeCompare(b.name));
     }
+
+    return {
+      currency,
+      items,
+      buckets: [...byPeriod.values()],
+    };
+  });
+
+  /**
+   * Category-spending chart data. Sums `transaction_lines.amount` by
+   * truncated period, filtered to one currency. Excludes adjustments
+   * (per the project's analytics rule).
+   *
+   * Two modes:
+   *   - default: GROUP BY category — stacks are top-level categories.
+   *   - drill (`categoryId` set): GROUP BY subcategory, filtered to
+   *     that category's lines. Lines with a null subcategory roll up
+   *     under "Other" with id=null.
+   *
+   * Buckets use ids as keys (not names) so the client can robustly
+   * track stacks even if names contain special chars.
+   */
+  app.get("/category-spending", async (req, reply) => {
+    const { granularity, start, end, currency, categoryId } =
+      categorySpendingQuery.parse(req.query);
+
+    // Drill mode: validate the category is owned and is expense-kind
+    // up front. The drill query filters lines by `categoryId` directly
+    // (no `categories` join), so without this guard a hand-crafted URL
+    // could pass an income category's id and render income lines on
+    // the spending chart.
+    if (categoryId) {
+      const cat = await findOwned(
+        schema.categories,
+        categoryId,
+        req.auth.groupId,
+      );
+      if (!cat || cat.kind !== "expense") {
+        return reply.code(400).send({ error: "Category must be expense-kind" });
+      }
+    }
+
+    // Inline the trunc unit and to_char format as raw SQL literals.
+    // Bind-parameter form would prevent Postgres from seeing the
+    // SELECT and GROUP BY date_trunc calls as the same expression
+    // (different placeholders); enum-validated values are safe to
+    // splice raw.
+    const truncLit = sql.raw(`'${TRUNC_UNIT[granularity]}'`);
+    const fmtLit = sql.raw(`'${PERIOD_FORMAT[granularity]}'`);
+    const truncExpr = sql`date_trunc(${truncLit}, ${schema.transactions.date})`;
+
+    const drilling = !!categoryId;
+    const periodExpr = sql<string>`to_char(${truncExpr}, ${fmtLit})`;
+    const amountExpr = sql<string>`SUM(${schema.transactionLines.amount})::text`;
+    // Adjustments have no `transaction_lines` rows by design (see
+    // AGENTS.md), so the line-driven join below already excludes
+    // them structurally — no `ne(type, 'adjustment')` filter needed.
+
+    // Shared scaffolding (FROM/JOIN/WHERE/select shape); the ternary
+    // below only varies the lookup-table join, the discriminating
+    // filter (categoryId vs. kind), and the groupBy targets.
+    const baseSelect = {
+      period: periodExpr,
+      itemId: drilling
+        ? schema.transactionLines.subcategoryId
+        : schema.categories.id,
+      itemName: drilling ? schema.subcategories.name : schema.categories.name,
+      amountMinor: amountExpr,
+    };
+    const baseQuery = db
+      .select(baseSelect)
+      .from(schema.transactionLines)
+      .innerJoin(
+        schema.transactions,
+        eq(schema.transactions.id, schema.transactionLines.transactionId),
+      );
+    const baseWhere = and(
+      eq(schema.transactions.groupId, req.auth.groupId),
+      eq(schema.transactionLines.currency, currency),
+      gte(schema.transactions.date, start),
+      lte(schema.transactions.date, end),
+    );
+
+    const rows = drilling
+      ? await baseQuery
+          .leftJoin(
+            schema.subcategories,
+            eq(schema.subcategories.id, schema.transactionLines.subcategoryId),
+          )
+          .where(
+            and(baseWhere, eq(schema.transactionLines.categoryId, categoryId!)),
+          )
+          .groupBy(
+            truncExpr,
+            schema.transactionLines.subcategoryId,
+            schema.subcategories.name,
+          )
+          .orderBy(truncExpr)
+      : await baseQuery
+          .innerJoin(
+            schema.categories,
+            eq(schema.categories.id, schema.transactionLines.categoryId),
+          )
+          // "Spending" = expense-kind categories only. Income lines
+          // belong on a separate chart.
+          .where(and(baseWhere, eq(schema.categories.kind, "expense")))
+          .groupBy(truncExpr, schema.categories.id, schema.categories.name)
+          .orderBy(truncExpr);
+
+    // Major units in the response so Recharts can chart directly.
+    const decimals = currencyDecimals(currency);
+    const divisor = 10 ** decimals;
+
+    const byPeriod = new Map<string, ChartBucket>();
+    // Map<id, name> — using a Map preserves insertion order and
+    // dedupes. id is `null` for lines with no subcategory in drill
+    // mode.
+    const itemsById = new Map<string | null, string>();
+    for (const r of rows) {
+      const id = r.itemId;
+      const name = r.itemName ?? "Other";
+      itemsById.set(id, name);
+      let bucket = byPeriod.get(r.period);
+      if (!bucket) {
+        bucket = { period: r.period };
+        byPeriod.set(r.period, bucket);
+      }
+      // Use id as the key so names can be anything (including dots
+      // or empty); the client maps id → label for display.
+      const key = id ?? "__none__";
+      bucket[key] = Number(r.amountMinor) / divisor;
+    }
+
+    const items: ChartItem[] = [...itemsById.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     return {
       currency,

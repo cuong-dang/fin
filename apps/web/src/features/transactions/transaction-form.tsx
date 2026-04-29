@@ -196,7 +196,9 @@ export function TransactionForm({
     if (!sub) return;
     setLines(
       sub.defaultLines.map((l) => ({
-        amount: formatMoneyPlain(BigInt(l.amount), l.currency),
+        // Sub default lines may have a null amount (varies per period);
+        // pre-fill blank in that case so the user enters the actual charge.
+        amount: l.amount ? formatMoneyPlain(BigInt(l.amount), l.currency) : "",
         categoryId: l.categoryId,
         newCategoryName: "",
         subcategoryId: l.subcategoryId ?? "",
@@ -289,8 +291,12 @@ export function TransactionForm({
     setLines((prev) => prev.filter((_, i) => i !== index));
   }
 
-  const lineToBody = (l: LineFormValues): TransactionLineBody =>
-    packCategoryLine(l);
+  const lineToBody = (l: LineFormValues): TransactionLineBody => {
+    const packed = packCategoryLine(l);
+    // Transaction lines require amount (form enforces via `required`);
+    // server Zod re-validates if anything slips through.
+    return { ...packed, amount: packed.amount ?? "" };
+  };
 
   const handleSubmit: ComponentProps<"form">["onSubmit"] = (e) => {
     e.preventDefault();

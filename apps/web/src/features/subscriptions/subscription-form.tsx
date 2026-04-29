@@ -37,7 +37,6 @@ export type InitialSubValues = {
   name: string;
   currency: string;
   frequency: RecurringFrequency;
-  firstChargeDate: string;
   defaultAccountId: string;
   description: string;
   lines: LineFormValues[];
@@ -75,7 +74,6 @@ export function SubscriptionForm({
     name: "",
     currency: "USD",
     frequency: "monthly",
-    firstChargeDate: "",
     defaultAccountId: "",
     description: "",
     lines: [emptyLine()],
@@ -86,9 +84,6 @@ export function SubscriptionForm({
   const [frequency, setFrequency] = useState<RecurringFrequency>(
     defaults.frequency,
   );
-  const [firstChargeDate, setFirstChargeDate] = useState(
-    defaults.firstChargeDate,
-  );
   const [defaultAccountId, setDefaultAccountId] = useState(
     defaults.defaultAccountId,
   );
@@ -96,6 +91,8 @@ export function SubscriptionForm({
   const [lines, setLines] = useState<LineFormValues[]>(defaults.lines);
 
   const expenseCategories = categories.filter((c) => c.kind === "expense");
+  // Sub charges flow from CASA or CC; loan accounts can't be charge sources.
+  const payFromAccounts = accounts.filter((a) => a.type !== "loan");
   const allTagNames = tags.map((t) => t.name);
   const isMultiLine = lines.length > 1;
 
@@ -119,7 +116,6 @@ export function SubscriptionForm({
           name,
           currency,
           frequency,
-          firstChargeDate,
           defaultAccountId: defaultAccountId || undefined,
           description: description || undefined,
           defaultLines: lines.map(packCategoryLine),
@@ -148,17 +144,10 @@ export function SubscriptionForm({
           value={frequency}
           onChange={(e) => setFrequency(e.target.value as RecurringFrequency)}
         />
-        <TextInput
-          label="First charge date"
-          required
-          type="date"
-          value={firstChargeDate}
-          onChange={(e) => setFirstChargeDate(e.target.value)}
-        />
         <NativeSelect
           data={[
             { value: "", label: "— No default —" },
-            ...accounts.map((a) => ({
+            ...payFromAccounts.map((a) => ({
               value: a.id,
               label: `${a.name} (${a.currency})`,
             })),
@@ -172,6 +161,7 @@ export function SubscriptionForm({
         {isMultiLine ? (
           <MultiLineEditor
             allTags={allTagNames}
+            amountOptional
             categories={expenseCategories}
             lines={lines}
             onAdd={addLine}
@@ -181,6 +171,7 @@ export function SubscriptionForm({
         ) : (
           <SingleLineEditor
             allTags={allTagNames}
+            amountOptional
             categories={expenseCategories}
             line={lines[0]}
             onSplit={addLine}

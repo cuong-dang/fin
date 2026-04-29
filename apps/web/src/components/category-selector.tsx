@@ -123,10 +123,13 @@ export type CategoryLineFormValues = {
  * when picking existing rows, `newCategoryName`/`newSubcategoryName`
  * strings when the user typed a new name. `tagNames` are upserted
  * server-side. Mirrors `transactionLineBody` and
- * `subscriptionDefaultLineBody`.
+ * `subscriptionDefaultLineBody`. `amount` is optional here so empty
+ * values pack cleanly for sub / loan default lines whose Zod schemas
+ * mark amount optional; required-amount schemas (transactions) reject
+ * the missing field at parse time with a clear required-field error.
  */
 type CategoryLineBody = {
-  amount: string;
+  amount?: string;
   categoryId?: string;
   newCategoryName?: string;
   subcategoryId?: string;
@@ -141,7 +144,7 @@ type CategoryLineBody = {
 export function packCategoryLine(l: CategoryLineFormValues): CategoryLineBody {
   const creatingCategory = l.categoryId === CREATE_NEW;
   return {
-    amount: l.amount,
+    amount: l.amount || undefined,
     categoryId: creatingCategory ? undefined : l.categoryId || undefined,
     newCategoryName: creatingCategory ? l.newCategoryName : undefined,
     subcategoryId:

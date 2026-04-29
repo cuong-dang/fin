@@ -31,7 +31,6 @@ export async function insertRecurringPlan(
       amountPerPeriod: amountPerPeriodMinor,
       currency,
       frequency: body.frequency,
-      firstPaymentDate: body.firstPaymentDate,
       defaultAccountId: body.defaultAccountId ?? null,
       description: body.description ?? null,
     })
@@ -66,7 +65,6 @@ export async function updateRecurringPlan(
     .set({
       amountPerPeriod: amountPerPeriodMinor,
       frequency: body.frequency,
-      firstPaymentDate: body.firstPaymentDate,
       defaultAccountId: body.defaultAccountId ?? null,
       description: body.description ?? null,
       updatedAt: new Date(),

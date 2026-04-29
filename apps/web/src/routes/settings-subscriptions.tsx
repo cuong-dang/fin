@@ -55,7 +55,14 @@ export function SettingsSubscriptionsRoute() {
 }
 
 function Row({ sub }: { sub: Subscription }) {
-  const total = sub.defaultLines.reduce((acc, l) => acc + BigInt(l.amount), 0n);
+  // Lines with a null amount (varies per period) are skipped from the
+  // total. If every line is null, `total` stays at 0n — rendered as the
+  // currency's zero, which reads as "no fixed amount" alongside subs
+  // that do total to a fixed charge.
+  const total = sub.defaultLines.reduce(
+    (acc, l) => (l.amount ? acc + BigInt(l.amount) : acc),
+    0n,
+  );
   return (
     <Group justify="space-between">
       <Anchor

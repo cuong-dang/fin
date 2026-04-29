@@ -208,11 +208,10 @@ function deriveInitial(sub: Subscription): InitialSubValues {
     name: sub.name,
     currency: sub.currency,
     frequency: sub.frequency,
-    firstChargeDate: sub.firstChargeDate,
     defaultAccountId: sub.defaultAccountId ?? "",
     description: sub.description ?? "",
     lines: sub.defaultLines.map((l) => ({
-      amount: formatMoneyPlain(BigInt(l.amount), l.currency),
+      amount: l.amount ? formatMoneyPlain(BigInt(l.amount), l.currency) : "",
       categoryId: l.categoryId,
       newCategoryName: "",
       subcategoryId: l.subcategoryId ?? "",

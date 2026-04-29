@@ -59,7 +59,6 @@ export function AccountNewRoute() {
   // Loan-specific state (mirrors recurringPlanBody)
   const [amountPerPeriod, setAmountPerPeriod] = useState("");
   const [frequency, setFrequency] = useState<RecurringFrequency>("monthly");
-  const [firstPaymentDate, setFirstPaymentDate] = useState("");
   const [planPayFromId, setPlanPayFromId] = useState("");
   const [planDescription, setPlanDescription] = useState("");
   const [planLines, setPlanLines] = useState<CategoryLineFormValues[]>([]);
@@ -116,7 +115,6 @@ export function AccountNewRoute() {
               recurringPlan: {
                 amountPerPeriod,
                 frequency,
-                firstPaymentDate,
                 defaultAccountId: planPayFromId || undefined,
                 description: planDescription || undefined,
                 defaultLines: planLines.map(packCategoryLine),
@@ -190,14 +188,12 @@ export function AccountNewRoute() {
               amountPerPeriod={amountPerPeriod}
               categories={categoriesQ.data ?? []}
               description={planDescription}
-              firstPaymentDate={firstPaymentDate}
               frequency={frequency}
               lines={planLines}
               payFromAccounts={loanPayFromAccounts}
               payFromId={planPayFromId}
               setAmountPerPeriod={setAmountPerPeriod}
               setDescription={setPlanDescription}
-              setFirstPaymentDate={setFirstPaymentDate}
               setFrequency={setFrequency}
               setLines={setPlanLines}
               setPayFromId={setPlanPayFromId}
