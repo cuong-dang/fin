@@ -45,7 +45,7 @@ const baseCreate = z.object({
 
 const checkingSavingsCreate = baseCreate
   .extend({
-    type: z.literal("checking_savings").default("checking_savings"),
+    type: z.literal("checking_savings"),
   })
   .strict();
 
@@ -139,6 +139,10 @@ export type Account = {
   defaultPayFromAccountId: string | null;
   /** Set only when type='loan'. Joined plan summary; null otherwise. */
   recurringPlan: AccountRecurringPlan | null;
-  /** ISO timestamp when archived; null = active. */
+  /**
+   * ISO timestamp when archived; null = active. Distinct from
+   * soft-delete — archived rows still surface in the manage page so
+   * the user can unarchive.
+   */
   archivedAt: string | null;
 };
