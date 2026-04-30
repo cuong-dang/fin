@@ -7,7 +7,16 @@ import {
   type Granularity,
   netWorthQuery,
 } from "@fin/schemas";
-import { aliasedTable, and, eq, gte, lte, ne, sql } from "drizzle-orm";
+import {
+  aliasedTable,
+  and,
+  eq,
+  gte,
+  lte,
+  ne,
+  type SQL,
+  sql,
+} from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
 
 import { db, schema } from "../db";
@@ -17,6 +26,11 @@ import { findOwned } from "../lib/authz";
  * Postgres `date_trunc` unit per granularity. Daily uses no truncation
  * (we just take the date column) and gets a trailing-30-day default
  * window from the client; the others bucket appropriately.
+ *
+ * `weekly` is a special case — `date_trunc('week', d)` always returns
+ * Monday (ISO weeks). We want Sunday-starting weeks to match common
+ * personal-finance convention, so the trunc expression below adds 1
+ * day before truncating and subtracts 1 after to shift the boundary.
  */
 const TRUNC_UNIT: Record<Granularity, string> = {
   daily: "day",
@@ -28,16 +42,29 @@ const TRUNC_UNIT: Record<Granularity, string> = {
 /**
  * `to_char` format string per granularity. Picked to match the labels
  * the client displays directly (no extra formatting on the chart side).
- * Weekly uses ISO week (`IYYY-"W"IW`) so weeks straddling a year
- * boundary land in the right bucket name (e.g., 2025-W01 starts on
- * 2024-12-30).
+ * Weekly drops the year and uses `Mon DD` (e.g., "Apr 26") for a
+ * compact X axis — week-start convention is already signalled by the
+ * "Weekly (Sun)" label on the granularity toggle.
  */
 const PERIOD_FORMAT: Record<Granularity, string> = {
   daily: "YYYY-MM-DD",
-  weekly: 'IYYY-"W"IW',
+  weekly: "Mon DD",
   monthly: "YYYY-MM",
   yearly: "YYYY",
 };
+
+/**
+ * Truncate `col` to the start of its bucket for the given granularity.
+ * For `weekly`, shifts by ±1 day around `date_trunc('week', …)` so the
+ * bucket starts on Sunday instead of Postgres's default Monday.
+ */
+function truncExprFor(granularity: Granularity, col: SQL): SQL<unknown> {
+  if (granularity === "weekly") {
+    return sql`(date_trunc('week', ${col} + interval '1 day') - interval '1 day')`;
+  }
+  const unit = sql.raw(`'${TRUNC_UNIT[granularity]}'`);
+  return sql`date_trunc(${unit}, ${col})`;
+}
 
 export const analyticsRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
@@ -76,9 +103,11 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
   app.get("/cash-flow", async (req): Promise<AnalyticsChartResponse> => {
     const { granularity, start, end, currency, dimension, categoryId } =
       cashFlowQuery.parse(req.query);
-    const truncLit = sql.raw(`'${TRUNC_UNIT[granularity]}'`);
     const fmtLit = sql.raw(`'${PERIOD_FORMAT[granularity]}'`);
-    const truncExpr = sql`date_trunc(${truncLit}, ${schema.transactions.date})`;
+    const truncExpr = truncExprFor(
+      granularity,
+      sql`${schema.transactions.date}`,
+    );
     const periodExpr = sql<string>`to_char(${truncExpr}, ${fmtLit})`;
     const legAmountExpr = sql<string>`SUM(-${schema.transactionLegs.amount})::text`;
     const lineAmountExpr = sql<string>`SUM(${schema.transactionLines.amount})::text`;
@@ -434,54 +463,84 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
   });
 
   /**
-   * Category-spending chart data. Sums `transaction_lines.amount` by
-   * truncated period, filtered to one currency. Excludes adjustments
-   * (per the project's analytics rule).
+   * By-category-&-tag chart data. Sums `transaction_lines.amount` by
+   * truncated period, filtered to one currency. Adjustments have no
+   * lines by design (see AGENTS.md) and are excluded structurally by
+   * the line-driven join.
    *
    * Two modes:
-   *   - default: GROUP BY category — stacks are top-level categories.
+   *   - default: GROUP BY category — stacks are top-level categories
+   *     of the chosen `direction` (expense or income).
    *   - drill (`categoryId` set): GROUP BY subcategory, filtered to
    *     that category's lines. Lines with a null subcategory roll up
    *     under "Other" with id=null.
+   *
+   * Optional `tagId` filter: a UUID restricts to lines tagged with
+   * that tag; the literal `"none"` restricts to untagged lines.
    *
    * Buckets use ids as keys (not names) so the client can robustly
    * track stacks even if names contain special chars.
    */
   app.get("/category-spending", async (req, reply) => {
-    const { granularity, start, end, currency, categoryId } =
+    const { granularity, start, end, currency, direction, categoryId, tagId } =
       categorySpendingQuery.parse(req.query);
 
-    // Drill mode: validate the category is owned and is expense-kind
-    // up front. The drill query filters lines by `categoryId` directly
-    // (no `categories` join), so without this guard a hand-crafted URL
-    // could pass an income category's id and render income lines on
-    // the spending chart.
+    // Drill mode: validate the category is owned and matches the
+    // current `direction` up front. The drill query filters lines by
+    // `categoryId` directly (no `categories` join), so without this
+    // guard a hand-crafted URL could pass a wrong-kind category and
+    // render mismatched lines.
     if (categoryId) {
       const cat = await findOwned(
         schema.categories,
         categoryId,
         req.auth.groupId,
       );
-      if (!cat || cat.kind !== "expense") {
-        return reply.code(400).send({ error: "Category must be expense-kind" });
+      if (!cat || cat.kind !== direction) {
+        return reply
+          .code(400)
+          .send({ error: `Category must be ${direction}-kind` });
       }
     }
 
-    // Inline the trunc unit and to_char format as raw SQL literals.
-    // Bind-parameter form would prevent Postgres from seeing the
-    // SELECT and GROUP BY date_trunc calls as the same expression
-    // (different placeholders); enum-validated values are safe to
-    // splice raw.
-    const truncLit = sql.raw(`'${TRUNC_UNIT[granularity]}'`);
+    // Specific-tag mode: validate the tag is owned. "none" sentinel
+    // doesn't need lookup.
+    if (tagId && tagId !== "none") {
+      const tag = await findOwned(schema.tags, tagId, req.auth.groupId);
+      if (!tag) return reply.code(400).send({ error: "Tag not found" });
+    }
+
+    // Inline the to_char format as a raw SQL literal — bind-parameter
+    // form would prevent Postgres from seeing the SELECT and GROUP BY
+    // expressions as the same expression (different placeholders);
+    // enum-validated values are safe to splice raw.
     const fmtLit = sql.raw(`'${PERIOD_FORMAT[granularity]}'`);
-    const truncExpr = sql`date_trunc(${truncLit}, ${schema.transactions.date})`;
+    const truncExpr = truncExprFor(
+      granularity,
+      sql`${schema.transactions.date}`,
+    );
 
     const drilling = !!categoryId;
     const periodExpr = sql<string>`to_char(${truncExpr}, ${fmtLit})`;
     const amountExpr = sql<string>`SUM(${schema.transactionLines.amount})::text`;
-    // Adjustments have no `transaction_lines` rows by design (see
-    // AGENTS.md), so the line-driven join below already excludes
-    // them structurally — no `ne(type, 'adjustment')` filter needed.
+
+    // Tag filter expressed as a SQL fragment that joins the WHERE
+    // clause. Specific-tag uses EXISTS rather than INNER JOIN to keep
+    // the line-row count stable when a line carries multiple tags
+    // (otherwise the SUM would multiply by the number of tags).
+    const tagFilter =
+      tagId === "none"
+        ? sql`NOT EXISTS (
+            SELECT 1 FROM transaction_line_tags lt
+            WHERE lt.line_id = ${schema.transactionLines.id}
+          )`
+        : tagId
+          ? sql`EXISTS (
+              SELECT 1 FROM transaction_line_tags lt
+              WHERE lt.line_id = ${schema.transactionLines.id}
+                AND lt.tag_id = ${tagId}
+            )`
+          : undefined;
 
     // Shared scaffolding (FROM/JOIN/WHERE/select shape); the ternary
     // below only varies the lookup-table join, the discriminating
@@ -506,6 +565,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
       eq(schema.transactionLines.currency, currency),
       gte(schema.transactions.date, start),
       lte(schema.transactions.date, end),
+      tagFilter,
     );
 
     const rows = drilling
@@ -528,9 +588,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
             schema.categories,
             eq(schema.categories.id, schema.transactionLines.categoryId),
           )
-          // "Spending" = expense-kind categories only. Income lines
-          // belong on a separate chart.
-          .where(and(baseWhere, eq(schema.categories.kind, "expense")))
+          .where(and(baseWhere, eq(schema.categories.kind, direction)))
           .groupBy(truncExpr, schema.categories.id, schema.categories.name)
           .orderBy(truncExpr);
 
@@ -592,9 +650,18 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
     const { granularity, start, end, currency } = netWorthQuery.parse(
       req.query,
     );
-    const truncLit = sql.raw(`'${TRUNC_UNIT[granularity]}'`);
     const fmtLit = sql.raw(`'${PERIOD_FORMAT[granularity]}'`);
     const intervalLit = sql.raw(`'1 ${TRUNC_UNIT[granularity]}'::interval`);
+    // Pre-build the trunc expression for each input we need to bucket.
+    // For `weekly`, `truncExprFor` produces a Sunday-shifted form so
+    // generated periods and per-day grouping land on Sundays.
+    const truncStart = truncExprFor(granularity, sql`${start}::date`);
+    const truncEnd = truncExprFor(granularity, sql`${end}::date`);
+    const truncFirstLeg = truncExprFor(
+      granularity,
+      sql`(SELECT d FROM first_leg)`,
+    );
+    const truncDate = truncExprFor(granularity, sql`date`);
 
     const rows = await db.execute<{
       period: string;
@@ -624,10 +691,10 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
         -- a long flat run of zero buckets at the head of the chart.
         SELECT generate_series(
           GREATEST(
-            date_trunc(${truncLit}, ${start}::date),
-            date_trunc(${truncLit}, (SELECT d FROM first_leg))
+            ${truncStart},
+            ${truncFirstLeg}
           ),
-          date_trunc(${truncLit}, ${end}::date),
+          ${truncEnd},
           ${intervalLit}
         )::date AS period
       ),
@@ -644,7 +711,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
       ),
       period_deltas AS (
         SELECT
-          date_trunc(${truncLit}, date)::date AS period,
+          (${truncDate})::date AS period,
           bucket,
           SUM(amount) AS delta
         FROM bucket_legs

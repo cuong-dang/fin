@@ -12,7 +12,7 @@ import {
   UnstyledButton,
 } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Archive, ChevronDown, ChevronRight } from "lucide-react";
+import { Archive, ChevronDown, ChevronRight, CircleOff } from "lucide-react";
 import { useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router";
 
@@ -238,11 +238,25 @@ function AccountItem({
   // remaining-payments hint render inline beneath the name. NavLink's
   // `children` slot is for nested sub-NavLinks (collapsible), which isn't
   // what we want here.
-  let label: React.ReactNode = account.name;
+  const nameRow = (
+    <Group gap={4} wrap="nowrap">
+      {account.excludeFromNetWorth && (
+        <Tooltip label="Excluded from net worth">
+          <CircleOff
+            aria-label="Excluded from net worth"
+            color="var(--mantine-color-dimmed)"
+            size={12}
+          />
+        </Tooltip>
+      )}
+      <Text>{account.name}</Text>
+    </Group>
+  );
+  let label: React.ReactNode = nameRow;
   if (isCc) {
     label = (
       <Stack gap={0}>
-        <Text>{account.name}</Text>
+        {nameRow}
         <CreditLimitBar
           creditLimit={BigInt(account.creditLimit!)}
           currency={account.currency}
@@ -253,7 +267,7 @@ function AccountItem({
   } else if (isLoan) {
     label = (
       <Stack gap={0}>
-        <Text>{account.name}</Text>
+        {nameRow}
         <LoanRemainingHint
           accountId={account.id}
           accountName={account.name}

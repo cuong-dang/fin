@@ -3,9 +3,12 @@ import { SegmentedControl } from "@mantine/core";
 
 import { localDateKey } from "@/lib/dates";
 
+// "Weekly (Sun)" makes the Sunday-start convention visible at the
+// granularity selector itself, so the X-axis ticks (each a week's
+// start date) don't need a per-tick "starts on…" annotation.
 const OPTIONS: { value: Granularity; label: string }[] = [
   { value: "daily", label: "Daily" },
-  { value: "weekly", label: "Weekly" },
+  { value: "weekly", label: "Weekly (Sun)" },
   { value: "monthly", label: "Monthly" },
   { value: "yearly", label: "Yearly" },
 ];
@@ -50,15 +53,14 @@ export function defaultRange(granularity: Granularity): {
       start.setDate(start.getDate() - 30);
       break;
     case "weekly": {
-      // Snap to the ISO Monday on/before the calculated start so the
-      // first bucket is a full week. Server's `date_trunc('week', date)`
-      // would land on the Monday too — without snapping, the leftmost
-      // bucket would include only the partial-week range from the
-      // calendar-day start.
+      // Snap to the Sunday on/before the calculated start so the first
+      // bucket is a full week. Server's weekly trunc shifts the ISO
+      // boundary to land on Sunday — without snapping here, the
+      // leftmost bucket would include only the partial-week range
+      // from the calendar-day start.
       start.setDate(start.getDate() - 12 * 7);
       const day = start.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
-      const offsetToMonday = day === 0 ? 6 : day - 1;
-      start.setDate(start.getDate() - offsetToMonday);
+      start.setDate(start.getDate() - day);
       break;
     }
     case "monthly":

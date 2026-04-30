@@ -73,7 +73,7 @@ export function TransactionEditRoute() {
     queryKey: ["categories"],
     queryFn: listCategories,
   });
-  const tagsQ = useQuery({ queryKey: ["tags"], queryFn: listTags });
+  const tagsQ = useQuery({ queryKey: ["tags"], queryFn: () => listTags() });
   const subsQ = useQuery({
     queryKey: ["subscriptions"],
     queryFn: listSubscriptions,

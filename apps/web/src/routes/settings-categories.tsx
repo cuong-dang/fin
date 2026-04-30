@@ -25,7 +25,7 @@ const TAGS_KEY = ["tags"];
 
 export function SettingsCategoriesRoute() {
   const catsQ = useQuery({ queryKey: CATEGORIES_KEY, queryFn: listCategories });
-  const tagsQ = useQuery({ queryKey: TAGS_KEY, queryFn: listTags });
+  const tagsQ = useQuery({ queryKey: TAGS_KEY, queryFn: () => listTags() });
   const cats = catsQ.data ?? [];
   const income = cats.filter((c) => c.kind === "income");
   const expense = cats.filter((c) => c.kind === "expense");

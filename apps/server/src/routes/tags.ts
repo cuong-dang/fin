@@ -1,19 +1,65 @@
 import { createTagBody, idParam, updateTagBody } from "@fin/schemas";
-import { eq } from "drizzle-orm";
+import { and, eq, exists, sql } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
+import { z } from "zod";
 
 import { schema } from "../db";
 import { db } from "../db";
 import { findOwned, ownedActive } from "../lib/authz";
 
+const listTagsQuery = z.object({
+  // When set, restricts the result to tags that have been used on at
+  // least one line of that category kind. Used by analytics charts so
+  // the tag picker doesn't surface tags irrelevant to the current
+  // direction (e.g., expense-only tags while viewing income).
+  kind: z.enum(["expense", "income"]).optional(),
+});
+
 export const tagRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
 
   app.get("/", async (req) => {
+    const { kind } = listTagsQuery.parse(req.query);
+    if (!kind) {
+      return db
+        .select({ id: schema.tags.id, name: schema.tags.name })
+        .from(schema.tags)
+        .where(ownedActive(schema.tags, req.auth.groupId))
+        .orderBy(schema.tags.name);
+    }
+    // Filter via EXISTS on the tag→line→category chain. Same shape as
+    // the analytics route's tag filter — keeps the row count stable
+    // and avoids deduping in JS.
     return db
       .select({ id: schema.tags.id, name: schema.tags.name })
       .from(schema.tags)
-      .where(ownedActive(schema.tags, req.auth.groupId))
+      .where(
+        and(
+          ownedActive(schema.tags, req.auth.groupId),
+          exists(
+            db
+              .select({ one: sql`1` })
+              .from(schema.transactionLineTags)
+              .innerJoin(
+                schema.transactionLines,
+                eq(
+                  schema.transactionLines.id,
+                  schema.transactionLineTags.lineId,
+                ),
+              )
+              .innerJoin(
+                schema.categories,
+                eq(schema.categories.id, schema.transactionLines.categoryId),
+              )
+              .where(
+                and(
+                  eq(schema.transactionLineTags.tagId, schema.tags.id),
+                  eq(schema.categories.kind, kind),
+                ),
+              ),
+          ),
+        ),
+      )
       .orderBy(schema.tags.name);
   });
 

@@ -131,7 +131,10 @@ export const updateSubcategory = (id: string, body: UpdateSubcategoryBody) =>
 export const deleteSubcategory = (id: string) =>
   api<void>(`/api/subcategories/${id}`, { method: "DELETE" });
 
-export const listTags = () => api<Tag[]>("/api/tags");
+export const listTags = (kind?: "expense" | "income") => {
+  const qs = kind ? `?kind=${kind}` : "";
+  return api<Tag[]>(`/api/tags${qs}`);
+};
 
 export const createTag = (body: CreateTagBody) =>
   api<Tag>("/api/tags", { method: "POST", json: body });
@@ -173,8 +176,10 @@ export const getCategorySpending = (q: CategorySpendingQuery) => {
     start: q.start,
     end: q.end,
     currency: q.currency,
+    direction: q.direction,
   });
   if (q.categoryId) qs.set("categoryId", q.categoryId);
+  if (q.tagId) qs.set("tagId", q.tagId);
   return api<AnalyticsChartResponse>(`/api/analytics/category-spending?${qs}`);
 };
 

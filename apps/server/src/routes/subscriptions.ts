@@ -339,8 +339,9 @@ function toResponse(
 }
 
 // A sub's default pay-from must be a CASA or CC account. Loan accounts
-// can't be charge sources — paying a sub from a loan would invent debt
-// against an installment plan, which doesn't model anything real.
+// represent installment debts (mortgage, car, BNPL) and aren't a charge
+// source for recurring subs in any real-world flow — there's no provider
+// that bills your mortgage for Netflix.
 async function validateSubDefaultAccount(
   accountId: string,
   workspaceGroupId: string,

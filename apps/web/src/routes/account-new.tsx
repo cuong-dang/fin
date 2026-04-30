@@ -46,7 +46,7 @@ export function AccountNewRoute() {
     queryKey: ["categories"],
     queryFn: listCategories,
   });
-  const tagsQ = useQuery({ queryKey: ["tags"], queryFn: listTags });
+  const tagsQ = useQuery({ queryKey: ["tags"], queryFn: () => listTags() });
 
   const [type, setType] = useState<AccountType>("checking_savings");
   const [name, setName] = useState("");
@@ -72,7 +72,7 @@ export function AccountNewRoute() {
       qc.invalidateQueries({ queryKey: ["account-groups"] });
       qc.invalidateQueries({ queryKey: ["categories"] });
       qc.invalidateQueries({ queryKey: ["tags"] });
-      navigate("/");
+      navigate("/accounts");
     },
   });
 
@@ -90,7 +90,7 @@ export function AccountNewRoute() {
   const hasGroups = groups.length > 0;
 
   return (
-    <PageShell back="/" title="New account">
+    <PageShell back="/accounts" title="New account">
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -229,7 +229,7 @@ export function AccountNewRoute() {
             <Button loading={mutation.isPending} type="submit">
               Create
             </Button>
-            <Button component={Link} to="/" variant="subtle">
+            <Button component={Link} to="/accounts" variant="subtle">
               Cancel
             </Button>
           </Group>

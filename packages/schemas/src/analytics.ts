@@ -44,22 +44,40 @@ export type AnalyticsChartResponse = {
   buckets: ChartBucket[];
 };
 
-// ─── Category spending ────────────────────────────────────────────────────
+// ─── By category & tag ────────────────────────────────────────────────────
 
 /**
- * Request shape for the category-spending chart. Client computes the
+ * Direction of the by-category-&-tag chart. Drives both the
+ * server-side `categories.kind` filter and the client title /
+ * defaults.
+ */
+export const categoryChartDirection = z.enum(["expense", "income"]);
+export type CategoryChartDirection = z.infer<typeof categoryChartDirection>;
+
+/**
+ * Request shape for the by-category-&-tag chart. Client computes the
  * range — typically a granularity-appropriate trailing window (e.g.,
  * 12 months for `monthly`) — and the server bucket-sums lines into
- * those periods, group by category. When `categoryId` is set the
+ * those periods, grouped by category. When `categoryId` is set the
  * chart drills into a single category and groups by subcategory; lines
  * with a null subcategory roll up into a synthetic "Other" item.
+ *
+ * `tagId` filters lines by tag (the line→tag M2M is the natural place
+ * — tags only land on income/expense lines, never on transfer or
+ * adjustment legs):
+ *   - omitted → no tag filter
+ *   - a UUID → only lines tagged with that tag
+ *   - "none" → only lines with no tags
+ * Multi-tag selection isn't supported.
  */
 export const categorySpendingQuery = z.object({
   granularity,
   start: dateString,
   end: dateString,
   currency: currencyField,
+  direction: categoryChartDirection.default("expense"),
   categoryId: z.uuid().optional(),
+  tagId: z.union([z.uuid(), z.literal("none")]).optional(),
 });
 export type CategorySpendingQuery = z.infer<typeof categorySpendingQuery>;
 

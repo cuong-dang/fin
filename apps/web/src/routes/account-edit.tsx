@@ -57,7 +57,7 @@ export function AccountEditRoute() {
     queryKey: ["categories"],
     queryFn: listCategories,
   });
-  const tagsQ = useQuery({ queryKey: ["tags"], queryFn: listTags });
+  const tagsQ = useQuery({ queryKey: ["tags"], queryFn: () => listTags() });
 
   if (
     accountQ.isLoading ||

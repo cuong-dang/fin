@@ -19,7 +19,7 @@ export function SubscriptionNewRoute() {
     queryKey: ["categories"],
     queryFn: listCategories,
   });
-  const tagsQ = useQuery({ queryKey: ["tags"], queryFn: listTags });
+  const tagsQ = useQuery({ queryKey: ["tags"], queryFn: () => listTags() });
 
   const mutation = useMutation({
     mutationFn: createSubscription,
