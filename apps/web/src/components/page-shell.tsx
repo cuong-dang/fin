@@ -24,7 +24,7 @@ export function PageShell({
   children: ReactNode;
 }) {
   return (
-    <Container>
+    <Container p="xs" size="xs">
       <Stack>
         {typeof back === "string" ? (
           <BackLink to={back} />

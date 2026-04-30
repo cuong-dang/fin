@@ -161,8 +161,8 @@ export function CashFlowChart({
 
   return (
     <Stack>
-      <Group gap="xs" justify="space-between">
-        <Group gap="xs" p={0}>
+      <Group justify="space-between">
+        <Group>
           <Anchor
             c="inherit"
             component="button"

@@ -206,7 +206,7 @@ export function ChartLegend({
         const onMouseEnter = () => onHover(item.key);
         const onMouseLeave = () => onHover(null);
         const chip = (
-          <Group gap="xs" style={{ opacity: dimmed ? 0.4 : 1 }} wrap="nowrap">
+          <Group style={{ opacity: dimmed ? 0.4 : 1 }} wrap="nowrap">
             <ColorSwatch color={item.color} size={12} withShadow={false} />
             <Text>{item.label}</Text>
           </Group>

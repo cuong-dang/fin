@@ -1,7 +1,6 @@
 import {
   ActionIcon,
   Card,
-  Container,
   createTheme,
   Group,
   Stack,
@@ -25,12 +24,6 @@ export const theme = createTheme({
       defaultProps: {
         withBorder: true,
         padding: "xs",
-      },
-    }),
-    Container: Container.extend({
-      defaultProps: {
-        size: "xs",
-        p: "xs",
       },
     }),
     Group: Group.extend({

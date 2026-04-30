@@ -47,7 +47,7 @@ export function CategorySpendingChart({
 
   return (
     <Stack>
-      <Group gap="xs">
+      <Group>
         <Anchor c="inherit" component="button" type="button" onClick={reset}>
           <Title order={4}>Spending</Title>
         </Anchor>

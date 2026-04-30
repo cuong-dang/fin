@@ -90,7 +90,7 @@ export function AppLayoutRoute() {
             outer Stack collapses to content height and the accounts
             list overflows the viewport without scrolling. */}
         <Stack h="100%">
-          <Stack gap={2}>
+          <Stack>
             {PAGES.map((p) => (
               <PageNavLink key={p.to} label={p.label} to={p.to} />
             ))}
@@ -153,7 +153,7 @@ function UserMenu() {
   return (
     <Menu position="bottom-end" shadow="md" width={240}>
       <Menu.Target>
-        <ActionIcon aria-label="Account menu" radius="xl" size="md">
+        <ActionIcon aria-label="Account menu" radius="lg" size="lg">
           <Avatar color="initials" name={initials} radius="xl" size={28}>
             {initials}
           </Avatar>
@@ -161,7 +161,7 @@ function UserMenu() {
       </Menu.Target>
       <Menu.Dropdown>
         <Menu.Label>
-          <Stack gap={0}>
+          <Stack>
             <Text fw={500}>{name}</Text>
             <Text c="dimmed" size="xs">
               {email}

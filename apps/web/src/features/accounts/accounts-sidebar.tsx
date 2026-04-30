@@ -313,7 +313,7 @@ function LoanRemainingHint({
   // a sidebar hint, prefixed with `~` to signal the approximation.
   if (balance >= 0n) {
     return (
-      <Group gap="xs" wrap="nowrap">
+      <Group wrap="nowrap">
         <Text c="dimmed" ff="monospace" size="xs">
           Paid off
         </Text>
