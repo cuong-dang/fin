@@ -1,11 +1,11 @@
 import { z } from "zod";
 
+import type { RecurringFrequency } from "./bills";
 import { currencyField, dateString, moneyString } from "./common";
 import {
   recurringPlanBody,
   type RecurringPlanDefaultLine,
 } from "./recurring-plans";
-import type { RecurringFrequency } from "./subscriptions";
 
 /**
  * Full recurring-plan payload embedded on the loan account row. Bundled
@@ -109,7 +109,7 @@ const creditCardUpdate = baseUpdate
   .strict();
 
 // Loan-account update: rewrites the paired recurring_plan along with the
-// account fields (mirrors subscription update — full replacement, not a
+// account fields (mirrors bill update — full replacement, not a
 // patch). Currency and type stay sticky.
 const loanUpdate = baseUpdate
   .extend({

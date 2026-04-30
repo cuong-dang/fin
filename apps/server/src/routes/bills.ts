@@ -1,10 +1,10 @@
 import {
-  createSubscriptionBody,
+  type Bill,
+  type BillDefaultLine,
+  type BillDefaultLineBody,
+  createBillBody,
   idParam,
-  type Subscription,
-  type SubscriptionDefaultLine,
-  type SubscriptionDefaultLineBody,
-  updateSubscriptionBody,
+  updateBillBody,
 } from "@fin/schemas";
 import { eq, inArray } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
@@ -19,41 +19,41 @@ import { upsertTags } from "../lib/tags-upsert";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-export const subscriptionRoutes: FastifyPluginAsync = async (app) => {
+export const billRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
 
   // ─── List ────────────────────────────────────────────────────────────────
 
-  app.get("/", async (req): Promise<Subscription[]> => {
-    const subs = await listOwnedActive(
-      schema.subscriptions,
+  app.get("/", async (req): Promise<Bill[]> => {
+    const rows = await listOwnedActive(
+      schema.bills,
       req.auth.groupId,
-      schema.subscriptions.name,
+      schema.bills.name,
     );
-    if (subs.length === 0) return [];
-    const linesBySub = await fetchDefaultLines(subs.map((s) => s.id));
-    return subs.map((s) => toResponse(s, linesBySub.get(s.id) ?? []));
+    if (rows.length === 0) return [];
+    const linesByBill = await fetchDefaultLines(rows.map((b) => b.id));
+    return rows.map((b) => toResponse(b, linesByBill.get(b.id) ?? []));
   });
 
   // ─── Get one ─────────────────────────────────────────────────────────────
 
-  app.get("/:id", async (req, reply): Promise<Subscription | undefined> => {
+  app.get("/:id", async (req, reply): Promise<Bill | undefined> => {
     const { id } = idParam.parse(req.params);
-    const sub = await findOwned(schema.subscriptions, id, req.auth.groupId);
-    if (!sub) {
+    const bill = await findOwned(schema.bills, id, req.auth.groupId);
+    if (!bill) {
       reply.code(404).send({ error: "Not found" });
       return;
     }
-    const linesBySub = await fetchDefaultLines([id]);
-    return toResponse(sub, linesBySub.get(id) ?? []);
+    const linesByBill = await fetchDefaultLines([id]);
+    return toResponse(bill, linesByBill.get(id) ?? []);
   });
 
   // ─── Create ─────────────────────────────────────────────────────────────
 
   app.post("/", async (req, reply) => {
-    const body = createSubscriptionBody.parse(req.body);
+    const body = createBillBody.parse(req.body);
     if (body.defaultAccountId) {
-      const errResp = await validateSubDefaultAccount(
+      const errResp = await validateBillDefaultAccount(
         body.defaultAccountId,
         req.auth.groupId,
       );
@@ -61,26 +61,27 @@ export const subscriptionRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const result = await db.transaction(async (tx) => {
-      const [subRow] = await tx
-        .insert(schema.subscriptions)
+      const [billRow] = await tx
+        .insert(schema.bills)
         .values({
           groupId: req.auth.groupId,
           name: body.name,
+          type: body.type,
           currency: body.currency,
           frequency: body.frequency,
           defaultAccountId: body.defaultAccountId ?? null,
           description: body.description ?? null,
         })
-        .returning({ id: schema.subscriptions.id });
+        .returning({ id: schema.bills.id });
 
       await insertDefaultLines(
         tx,
-        subRow.id,
+        billRow.id,
         body.defaultLines,
         body.currency,
         req.auth.groupId,
       );
-      return subRow;
+      return billRow;
     });
     return reply.code(201).send(result);
   });
@@ -89,15 +90,11 @@ export const subscriptionRoutes: FastifyPluginAsync = async (app) => {
 
   app.patch("/:id", async (req, reply) => {
     const { id } = idParam.parse(req.params);
-    const body = updateSubscriptionBody.parse(req.body);
-    const existing = await findOwned(
-      schema.subscriptions,
-      id,
-      req.auth.groupId,
-    );
+    const body = updateBillBody.parse(req.body);
+    const existing = await findOwned(schema.bills, id, req.auth.groupId);
     if (!existing) return reply.code(404).send({ error: "Not found" });
     if (body.defaultAccountId) {
-      const errResp = await validateSubDefaultAccount(
+      const errResp = await validateBillDefaultAccount(
         body.defaultAccountId,
         req.auth.groupId,
       );
@@ -106,21 +103,22 @@ export const subscriptionRoutes: FastifyPluginAsync = async (app) => {
 
     await db.transaction(async (tx) => {
       await tx
-        .update(schema.subscriptions)
+        .update(schema.bills)
         .set({
           name: body.name,
+          type: body.type,
           currency: body.currency,
           frequency: body.frequency,
           defaultAccountId: body.defaultAccountId ?? null,
           description: body.description ?? null,
           updatedAt: new Date(),
         })
-        .where(eq(schema.subscriptions.id, id));
+        .where(eq(schema.bills.id, id));
 
       // Rewrite lines: junction tag rows cascade off the lines.
       await tx
-        .delete(schema.subscriptionDefaultLines)
-        .where(eq(schema.subscriptionDefaultLines.subscriptionId, id));
+        .delete(schema.billDefaultLines)
+        .where(eq(schema.billDefaultLines.billId, id));
       await insertDefaultLines(
         tx,
         id,
@@ -136,42 +134,34 @@ export const subscriptionRoutes: FastifyPluginAsync = async (app) => {
 
   app.post("/:id/cancel", async (req, reply) => {
     const { id } = idParam.parse(req.params);
-    const existing = await findOwned(
-      schema.subscriptions,
-      id,
-      req.auth.groupId,
-    );
+    const existing = await findOwned(schema.bills, id, req.auth.groupId);
     if (!existing) return reply.code(404).send({ error: "Not found" });
     if (existing.cancelledAt !== null) {
       return reply.code(409).send({ error: "Already cancelled" });
     }
     await db
-      .update(schema.subscriptions)
+      .update(schema.bills)
       .set({ cancelledAt: new Date(), updatedAt: new Date() })
-      .where(eq(schema.subscriptions.id, id));
+      .where(eq(schema.bills.id, id));
     return reply.code(204).send();
   });
 
   // ─── Resume ──────────────────────────────────────────────────────────────
 
   // Flip cancelledAt back to null. We don't preserve cancellation history —
-  // the user explicitly opted out of that. If a sub is re-cancelled later,
+  // the user explicitly opted out of that. If a bill is re-cancelled later,
   // only the latest cancelledAt is kept.
   app.post("/:id/resume", async (req, reply) => {
     const { id } = idParam.parse(req.params);
-    const existing = await findOwned(
-      schema.subscriptions,
-      id,
-      req.auth.groupId,
-    );
+    const existing = await findOwned(schema.bills, id, req.auth.groupId);
     if (!existing) return reply.code(404).send({ error: "Not found" });
     if (existing.cancelledAt === null) {
       return reply.code(409).send({ error: "Not cancelled" });
     }
     await db
-      .update(schema.subscriptions)
+      .update(schema.bills)
       .set({ cancelledAt: null, updatedAt: new Date() })
-      .where(eq(schema.subscriptions.id, id));
+      .where(eq(schema.bills.id, id));
     return reply.code(204).send();
   });
 
@@ -179,19 +169,15 @@ export const subscriptionRoutes: FastifyPluginAsync = async (app) => {
 
   app.delete("/:id", async (req, reply) => {
     const { id } = idParam.parse(req.params);
-    const existing = await findOwned(
-      schema.subscriptions,
-      id,
-      req.auth.groupId,
-    );
+    const existing = await findOwned(schema.bills, id, req.auth.groupId);
     if (!existing) return reply.code(404).send({ error: "Not found" });
-    // Soft-delete: past transactions still link to this subscription via
-    // transactions.subscription_id (RESTRICT FK) and continue to display
-    // its name. Default lines + tag links remain intact for history.
+    // Soft-delete: past transactions still link to this bill via
+    // transactions.bill_id (RESTRICT FK) and continue to display its name.
+    // Default lines + tag links remain intact for history.
     await db
-      .update(schema.subscriptions)
+      .update(schema.bills)
       .set({ deletedAt: new Date(), updatedAt: new Date() })
-      .where(eq(schema.subscriptions.id, id));
+      .where(eq(schema.bills.id, id));
     return reply.code(204).send();
   });
 };
@@ -199,49 +185,46 @@ export const subscriptionRoutes: FastifyPluginAsync = async (app) => {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 async function fetchDefaultLines(
-  subIds: string[],
-): Promise<Map<string, SubscriptionDefaultLine[]>> {
-  if (subIds.length === 0) return new Map();
+  billIds: string[],
+): Promise<Map<string, BillDefaultLine[]>> {
+  if (billIds.length === 0) return new Map();
   const lineRows = await db
     .select({
-      id: schema.subscriptionDefaultLines.id,
-      subscriptionId: schema.subscriptionDefaultLines.subscriptionId,
-      amount: schema.subscriptionDefaultLines.amount,
-      currency: schema.subscriptionDefaultLines.currency,
-      categoryId: schema.subscriptionDefaultLines.categoryId,
+      id: schema.billDefaultLines.id,
+      billId: schema.billDefaultLines.billId,
+      amount: schema.billDefaultLines.amount,
+      currency: schema.billDefaultLines.currency,
+      categoryId: schema.billDefaultLines.categoryId,
       categoryName: schema.categories.name,
-      subcategoryId: schema.subscriptionDefaultLines.subcategoryId,
+      subcategoryId: schema.billDefaultLines.subcategoryId,
       subcategoryName: schema.subcategories.name,
-      description: schema.subscriptionDefaultLines.description,
+      description: schema.billDefaultLines.description,
     })
-    .from(schema.subscriptionDefaultLines)
+    .from(schema.billDefaultLines)
     .innerJoin(
       schema.categories,
-      eq(schema.categories.id, schema.subscriptionDefaultLines.categoryId),
+      eq(schema.categories.id, schema.billDefaultLines.categoryId),
     )
     .leftJoin(
       schema.subcategories,
-      eq(
-        schema.subcategories.id,
-        schema.subscriptionDefaultLines.subcategoryId,
-      ),
+      eq(schema.subcategories.id, schema.billDefaultLines.subcategoryId),
     )
-    .where(inArray(schema.subscriptionDefaultLines.subscriptionId, subIds));
+    .where(inArray(schema.billDefaultLines.billId, billIds));
 
   const tagRows = await db
     .select({
-      lineId: schema.subscriptionDefaultLineTags.lineId,
+      lineId: schema.billDefaultLineTags.lineId,
       tagId: schema.tags.id,
       tagName: schema.tags.name,
     })
-    .from(schema.subscriptionDefaultLineTags)
+    .from(schema.billDefaultLineTags)
     .innerJoin(
       schema.tags,
-      eq(schema.tags.id, schema.subscriptionDefaultLineTags.tagId),
+      eq(schema.tags.id, schema.billDefaultLineTags.tagId),
     )
     .where(
       inArray(
-        schema.subscriptionDefaultLineTags.lineId,
+        schema.billDefaultLineTags.lineId,
         lineRows.map((l) => l.id),
       ),
     )
@@ -250,7 +233,7 @@ async function fetchDefaultLines(
 
   return groupBy(
     lineRows,
-    (l) => l.subscriptionId,
+    (l) => l.billId,
     (l) => ({
       id: l.id,
       amount: l.amount === null ? null : l.amount.toString(),
@@ -270,8 +253,8 @@ async function fetchDefaultLines(
 
 async function insertDefaultLines(
   tx: Tx,
-  subscriptionId: string,
-  lines: SubscriptionDefaultLineBody[],
+  billId: string,
+  lines: BillDefaultLineBody[],
   currency: string,
   workspaceGroupId: string,
 ): Promise<void> {
@@ -279,7 +262,7 @@ async function insertDefaultLines(
     throw new Error("At least one default line is required");
   }
   // Parse amounts up front so a bad line aborts before any write.
-  // Amount may be omitted (sub charges a varying amount per period).
+  // Amount may be omitted (utilities, taxes — varies per period).
   const amounts = lines.map((l) =>
     l.amount ? parseMoney(l.amount, currency) : null,
   );
@@ -289,8 +272,8 @@ async function insertDefaultLines(
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    // Subscriptions are always expense-side; pass that to the resolver so
-    // an inline-created category gets the right kind.
+    // Bills are always expense-side; pass that to the resolver so an
+    // inline-created category gets the right kind.
     const { categoryId, subcategoryId } = await resolveCategory(
       tx,
       line,
@@ -298,20 +281,20 @@ async function insertDefaultLines(
       workspaceGroupId,
     );
     const [row] = await tx
-      .insert(schema.subscriptionDefaultLines)
+      .insert(schema.billDefaultLines)
       .values({
-        subscriptionId,
+        billId,
         categoryId,
         subcategoryId,
         amount: amounts[i],
         currency,
       })
-      .returning({ id: schema.subscriptionDefaultLines.id });
+      .returning({ id: schema.billDefaultLines.id });
 
     if (line.tagNames && line.tagNames.length > 0) {
       const byName = await upsertTags(tx, line.tagNames, workspaceGroupId);
       const unique = [...new Set(line.tagNames)];
-      await tx.insert(schema.subscriptionDefaultLineTags).values(
+      await tx.insert(schema.billDefaultLineTags).values(
         unique.map((name) => {
           const tagId = byName.get(name);
           if (!tagId) throw new Error(`Invariant: tag "${name}" not resolved`);
@@ -323,26 +306,27 @@ async function insertDefaultLines(
 }
 
 function toResponse(
-  sub: typeof schema.subscriptions.$inferSelect,
-  defaultLines: SubscriptionDefaultLine[],
-): Subscription {
+  bill: typeof schema.bills.$inferSelect,
+  defaultLines: BillDefaultLine[],
+): Bill {
   return {
-    id: sub.id,
-    name: sub.name,
-    currency: sub.currency,
-    frequency: sub.frequency,
-    defaultAccountId: sub.defaultAccountId,
-    cancelledAt: sub.cancelledAt?.toISOString() ?? null,
-    description: sub.description,
+    id: bill.id,
+    name: bill.name,
+    type: bill.type,
+    currency: bill.currency,
+    frequency: bill.frequency,
+    defaultAccountId: bill.defaultAccountId,
+    cancelledAt: bill.cancelledAt?.toISOString() ?? null,
+    description: bill.description,
     defaultLines,
   };
 }
 
-// A sub's default pay-from must be a CASA or CC account. Loan accounts
+// A bill's default pay-from must be a CASA or CC account. Loan accounts
 // represent installment debts (mortgage, car, BNPL) and aren't a charge
-// source for recurring subs in any real-world flow — there's no provider
+// source for recurring bills in any real-world flow — there's no provider
 // that bills your mortgage for Netflix.
-async function validateSubDefaultAccount(
+async function validateBillDefaultAccount(
   accountId: string,
   workspaceGroupId: string,
 ): Promise<string | null> {

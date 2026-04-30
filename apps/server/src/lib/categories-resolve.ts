@@ -4,7 +4,7 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * One categorized line's category/subcategory inputs — shared by transaction
- * lines and subscription/recurring-plan default lines. The form passes
+ * lines and bill/recurring-plan default lines. The form passes
  * either an existing id or a new name (the inline-create path); the
  * resolver inserts the new row and returns the resulting ids.
  */

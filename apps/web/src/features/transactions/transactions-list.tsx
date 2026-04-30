@@ -314,7 +314,7 @@ function SortableRow({
                     );
                   }
                   return (
-                    <Group key="principal" justify="space-between">
+                    <Group key="principal" justify="space-between" pr="xs">
                       <Text c="dimmed" size="xs">
                         {outLeg.accountName} → {inLeg.accountName}
                       </Text>
@@ -328,7 +328,7 @@ function SortableRow({
                   );
                 })()}
               {tx.lines.map((line, i) => (
-                <Group key={i} justify="space-between">
+                <Group key={i} justify="space-between" pr="xs">
                   <Text c="dimmed" size="xs">
                     {categoryLabel(line)}
                     {line.tags.length > 0 &&
@@ -361,7 +361,7 @@ function RowBody({
     filterAccountId,
   );
   return (
-    <Group>
+    <Group pr="xs">
       <Box flex={1}>
         <Text fw={500}>{primary}</Text>
         <Text c="dimmed" size="xs">
@@ -508,11 +508,11 @@ function rowContent(
 }
 
 /**
- * "↻ Netflix" when the tx is a sub charge. Loan / CC payments will plug in
- * here too — same `↻` glyph, name pulled from the corresponding entity.
+ * "↻ Netflix" when the tx is a bill charge. Loan / CC payments will plug
+ * in here too — same `↻` glyph, name pulled from the corresponding entity.
  */
 function recurringSourceLabel(tx: EnrichedTransaction): string {
-  if (tx.subscriptionName) return `↻ ${tx.subscriptionName}`;
+  if (tx.billName) return `↻ ${tx.billName}`;
   return "";
 }
 

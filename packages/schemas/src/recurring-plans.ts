@@ -1,11 +1,11 @@
 import { z } from "zod";
 
+import { type RecurringFrequency, recurringFrequency } from "./bills";
 import { moneyString } from "./common";
-import { type RecurringFrequency, recurringFrequency } from "./subscriptions";
 import { tagName } from "./tags";
 
 // One default categorization line on a recurring plan. Mirrors
-// `subscriptionDefaultLineBody` except `amount` is *optional* — for
+// `billDefaultLineBody` except `amount` is *optional* — for
 // amortizing loans the principal/interest split changes per period, so
 // the template records categorization but leaves amounts to be entered
 // at transaction time. Set the amount only when it's actually fixed

@@ -7,6 +7,7 @@ import type {
 import { NativeSelect, TextInput } from "@mantine/core";
 import type { Dispatch, SetStateAction } from "react";
 
+import { AccountSelect } from "@/components/account-select";
 import type { CategoryLineFormValues } from "@/components/category-selector";
 import { MultiLineEditor } from "@/components/line-editor";
 import { MoneyField } from "@/components/money-field";
@@ -57,18 +58,13 @@ export function CcFields({
         value={creditLimit}
         onChange={setCreditLimit}
       />
-      <NativeSelect
-        data={[
-          { value: "", label: "— No default —" },
-          ...payFromAccounts.map((a) => ({
-            value: a.id,
-            label: `${a.name} (${a.currency})`,
-          })),
-        ]}
+      <AccountSelect
+        accounts={payFromAccounts}
+        allowNone
         description="Pre-fills the source account when paying this card."
         label="Default pay-from account (optional)"
         value={defaultPayFromAccountId}
-        onChange={(e) => setDefaultPayFromAccountId(e.target.value)}
+        onChange={setDefaultPayFromAccountId}
       />
     </>
   );
@@ -143,18 +139,13 @@ export function LoanPlanFields({
         value={frequency}
         onChange={(e) => setFrequency(e.target.value as RecurringFrequency)}
       />
-      <NativeSelect
-        data={[
-          { value: "", label: "— No default —" },
-          ...payFromAccounts.map((a) => ({
-            value: a.id,
-            label: `${a.name} (${a.currency})`,
-          })),
-        ]}
+      <AccountSelect
+        accounts={payFromAccounts}
+        allowNone
         description="Pre-fills the source when paying this loan."
         label="Default pay-from account (optional)"
         value={payFromId}
-        onChange={(e) => setPayFromId(e.target.value)}
+        onChange={setPayFromId}
       />
       <TextInput
         label="Description (optional)"

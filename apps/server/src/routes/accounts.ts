@@ -563,7 +563,7 @@ async function resolveCcFields(
 }
 
 // Hydrates default lines (with categories, subcategories, and tags) for
-// the given plan ids. Mirrors the subscription default-line fetch:
+// the given plan ids. Mirrors the bill default-line fetch:
 // inner-join the category, left-join the subcategory, then a second pass
 // for the M2M tag rows. Plan default-line amounts are nullable (loan
 // principal/interest splits vary per period), so the response carries

@@ -3,28 +3,28 @@ import type {
   AccountGroup,
   AdjustmentUpdateBody,
   AnalyticsChartResponse,
+  Bill,
   CashFlowQuery,
   CategorySpendingQuery,
   CategoryWithSubs,
   CreateAccountBody,
+  CreateBillBody,
   CreateCategoryBody,
   CreateSubcategoryBody,
-  CreateSubscriptionBody,
   CreateTagBody,
   EnrichedTransaction,
   Me,
   NetWorthQuery,
   ProcessTransactionBody,
   ReorderTransactionsBody,
-  Subscription,
   Tag,
   TransactionBody,
   TransactionsListResponse,
   UpdateAccountBody,
   UpdateAccountGroupBody,
+  UpdateBillBody,
   UpdateCategoryBody,
   UpdateSubcategoryBody,
-  UpdateSubscriptionBody,
   UpdateTagBody,
 } from "@fin/schemas";
 
@@ -145,28 +145,26 @@ export const updateTag = (id: string, body: UpdateTagBody) =>
 export const deleteTag = (id: string) =>
   api<void>(`/api/tags/${id}`, { method: "DELETE" });
 
-// ─── Subscriptions ────────────────────────────────────────────────────────
+// ─── Bills ────────────────────────────────────────────────────────────────
 
-export const listSubscriptions = () =>
-  api<Subscription[]>("/api/subscriptions");
+export const listBills = () => api<Bill[]>("/api/bills");
 
-export const getSubscription = (id: string) =>
-  api<Subscription>(`/api/subscriptions/${id}`);
+export const getBill = (id: string) => api<Bill>(`/api/bills/${id}`);
 
-export const createSubscription = (body: CreateSubscriptionBody) =>
-  api<{ id: string }>("/api/subscriptions", { method: "POST", json: body });
+export const createBill = (body: CreateBillBody) =>
+  api<{ id: string }>("/api/bills", { method: "POST", json: body });
 
-export const updateSubscription = (id: string, body: UpdateSubscriptionBody) =>
-  api<void>(`/api/subscriptions/${id}`, { method: "PATCH", json: body });
+export const updateBill = (id: string, body: UpdateBillBody) =>
+  api<void>(`/api/bills/${id}`, { method: "PATCH", json: body });
 
-export const cancelSubscription = (id: string) =>
-  api<void>(`/api/subscriptions/${id}/cancel`, { method: "POST" });
+export const cancelBill = (id: string) =>
+  api<void>(`/api/bills/${id}/cancel`, { method: "POST" });
 
-export const resumeSubscription = (id: string) =>
-  api<void>(`/api/subscriptions/${id}/resume`, { method: "POST" });
+export const resumeBill = (id: string) =>
+  api<void>(`/api/bills/${id}/resume`, { method: "POST" });
 
-export const deleteSubscription = (id: string) =>
-  api<void>(`/api/subscriptions/${id}`, { method: "DELETE" });
+export const deleteBill = (id: string) =>
+  api<void>(`/api/bills/${id}`, { method: "DELETE" });
 
 // ─── Analytics ────────────────────────────────────────────────────────────
 

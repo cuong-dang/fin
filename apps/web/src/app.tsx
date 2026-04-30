@@ -6,15 +6,15 @@ import { AccountGroupEditRoute } from "./routes/account-group-edit";
 import { AccountNewRoute } from "./routes/account-new";
 import { AccountsManageRoute } from "./routes/accounts-manage";
 import { AuthCallbackRoute } from "./routes/auth-callback";
+import { BillEditRoute } from "./routes/bill-edit";
+import { BillNewRoute } from "./routes/bill-new";
 import { ChartsRoute } from "./routes/charts";
 import { NotFoundRoute } from "./routes/not-found";
 import { RequireAuth } from "./routes/require-auth";
 import { SettingsRoute } from "./routes/settings";
+import { SettingsBillsRoute } from "./routes/settings-bills";
 import { SettingsCategoriesRoute } from "./routes/settings-categories";
-import { SettingsSubscriptionsRoute } from "./routes/settings-subscriptions";
 import { SignInRoute } from "./routes/signin";
-import { SubscriptionEditRoute } from "./routes/subscription-edit";
-import { SubscriptionNewRoute } from "./routes/subscription-new";
 import { TransactionEditRoute } from "./routes/transaction-edit";
 import { TransactionNewRoute } from "./routes/transaction-new";
 import { TransactionsRoute } from "./routes/transactions";
@@ -49,15 +49,9 @@ export function App() {
           element={<SettingsCategoriesRoute />}
           path="/settings/categories"
         />
-        <Route
-          element={<SettingsSubscriptionsRoute />}
-          path="/settings/subscriptions"
-        />
-        <Route element={<SubscriptionNewRoute />} path="/subscriptions/new" />
-        <Route
-          element={<SubscriptionEditRoute />}
-          path="/subscriptions/:id/edit"
-        />
+        <Route element={<SettingsBillsRoute />} path="/settings/bills" />
+        <Route element={<BillNewRoute />} path="/bills/new" />
+        <Route element={<BillEditRoute />} path="/bills/:id/edit" />
       </Route>
       <Route element={<NotFoundRoute />} path="*" />
     </Routes>

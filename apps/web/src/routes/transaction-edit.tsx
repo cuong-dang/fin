@@ -26,8 +26,8 @@ import {
   deleteTransaction,
   getTransaction,
   listAccounts,
+  listBills,
   listCategories,
-  listSubscriptions,
   listTags,
   updateAdjustmentTransaction,
   updateTransaction,
@@ -74,16 +74,16 @@ export function TransactionEditRoute() {
     queryFn: listCategories,
   });
   const tagsQ = useQuery({ queryKey: ["tags"], queryFn: () => listTags() });
-  const subsQ = useQuery({
-    queryKey: ["subscriptions"],
-    queryFn: listSubscriptions,
+  const billsQ = useQuery({
+    queryKey: ["bills"],
+    queryFn: listBills,
   });
 
   if (
     txQ.isLoading ||
     accountsQ.isLoading ||
     categoriesQ.isLoading ||
-    subsQ.isLoading
+    billsQ.isLoading
   ) {
     return null;
   }
@@ -111,8 +111,8 @@ export function TransactionEditRoute() {
   return (
     <FullEdit
       accounts={accountsQ.data ?? []}
+      bills={billsQ.data ?? []}
       categories={categoriesQ.data ?? []}
-      subscriptions={subsQ.data ?? []}
       tags={tagsQ.data ?? []}
       tx={tx}
     />
@@ -121,8 +121,8 @@ export function TransactionEditRoute() {
   function FullEdit(props: {
     tx: EnrichedTransaction;
     accounts: Awaited<ReturnType<typeof listAccounts>>;
+    bills: Awaited<ReturnType<typeof listBills>>;
     categories: Awaited<ReturnType<typeof listCategories>>;
-    subscriptions: Awaited<ReturnType<typeof listSubscriptions>>;
     tags: Awaited<ReturnType<typeof listTags>>;
   }) {
     const mutation = useMutation({
@@ -146,12 +146,12 @@ export function TransactionEditRoute() {
       >
         <TransactionForm
           accounts={props.accounts}
+          bills={props.bills}
           categories={props.categories}
           error={mutation.error ? (mutation.error as Error).message : null}
           initialValues={initial}
           pending={mutation.isPending}
           submitLabel="Save"
-          subscriptions={props.subscriptions}
           tags={props.tags}
           onCancel={goBack}
           onSubmit={(body) => mutation.mutate(body)}
@@ -265,7 +265,7 @@ function DangerZone({ onDelete }: { onDelete: () => void }) {
 
 function deriveInitial(tx: EnrichedTransaction): InitialTxValues {
   // Three things determine the form tab:
-  //   - sub-linked expense → Payment > Subscription
+  //   - bill-linked expense → Payment > Bill
   //   - transfer landing on a CC → Payment > Credit card
   //   - transfer landing on a loan → Payment > Loan (lines carry interest/fees)
   //   - everything else tracks tx.type
@@ -273,9 +273,9 @@ function deriveInitial(tx: EnrichedTransaction): InitialTxValues {
   // defensive.
   let formType: InitialTxValues["type"];
   let paymentKind: InitialTxValues["paymentKind"];
-  if (tx.subscriptionId) {
+  if (tx.billId) {
     formType = "payment";
-    paymentKind = "subscription";
+    paymentKind = "bill";
   } else if (tx.type === "transfer") {
     const inLeg = tx.legs.find((l) => BigInt(l.amount) > 0n);
     if (inLeg?.accountType === "credit_card") {
@@ -302,7 +302,7 @@ function deriveInitial(tx: EnrichedTransaction): InitialTxValues {
     destinationAccountId: "",
     transferAmount: "",
     lines: [],
-    subscriptionId: tx.subscriptionId ?? "",
+    billId: tx.billId ?? "",
   };
   if (tx.type === "transfer") {
     const outLeg = tx.legs.find((l) => BigInt(l.amount) < 0n);

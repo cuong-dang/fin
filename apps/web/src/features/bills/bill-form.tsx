@@ -1,7 +1,8 @@
 import type {
   Account,
+  BillType,
   CategoryWithSubs,
-  CreateSubscriptionBody,
+  CreateBillBody,
   RecurringFrequency,
   Tag,
 } from "@fin/schemas";
@@ -10,12 +11,15 @@ import {
   Button,
   Group,
   NativeSelect,
+  SegmentedControl,
   Stack,
+  Text,
   TextInput,
 } from "@mantine/core";
 import { useState } from "react";
 import { Link } from "react-router";
 
+import { AccountSelect } from "@/components/account-select";
 import {
   type CategoryLineFormValues,
   packCategoryLine,
@@ -31,10 +35,27 @@ const FREQUENCY_OPTIONS: { value: RecurringFrequency; label: string }[] = [
   { value: "yearly", label: "Yearly" },
 ];
 
+const TYPE_OPTIONS: { value: BillType; label: string }[] = [
+  { value: "utility", label: "Utility" },
+  { value: "subscription", label: "Subscription" },
+  { value: "other", label: "Other" },
+];
+
+// Per-type guidance shown under the type picker. Drives only UX —
+// behaviour is identical across types (a bill is a bill on the wire).
+const TYPE_HINT: Record<BillType, string> = {
+  utility:
+    "Variable-amount essential service (electric, water, gas). The amount is left blank in the template — fill it in per charge.",
+  subscription:
+    "Fixed-amount recurring service (Netflix, software). Pause or cancel anytime.",
+  other: "Catch-all for taxes, fees, dues, and anything else periodic.",
+};
+
 type LineFormValues = CategoryLineFormValues;
 
-export type InitialSubValues = {
+export type InitialBillValues = {
   name: string;
+  type: BillType;
   currency: string;
   frequency: RecurringFrequency;
   defaultAccountId: string;
@@ -51,7 +72,7 @@ const emptyLine = (): LineFormValues => ({
   tagNames: [],
 });
 
-export function SubscriptionForm({
+export function BillForm({
   accounts,
   categories,
   tags,
@@ -64,14 +85,15 @@ export function SubscriptionForm({
   accounts: Account[];
   categories: CategoryWithSubs[];
   tags: Tag[];
-  initialValues?: InitialSubValues;
+  initialValues?: InitialBillValues;
   submitLabel: string;
-  onSubmit: (body: CreateSubscriptionBody) => void;
+  onSubmit: (body: CreateBillBody) => void;
   pending: boolean;
   error: string | null;
 }) {
-  const defaults: InitialSubValues = initialValues ?? {
+  const defaults: InitialBillValues = initialValues ?? {
     name: "",
+    type: "subscription",
     currency: "USD",
     frequency: "monthly",
     defaultAccountId: "",
@@ -80,6 +102,7 @@ export function SubscriptionForm({
   };
 
   const [name, setName] = useState(defaults.name);
+  const [type, setType] = useState<BillType>(defaults.type);
   const [currency, setCurrency] = useState(defaults.currency);
   const [frequency, setFrequency] = useState<RecurringFrequency>(
     defaults.frequency,
@@ -91,7 +114,7 @@ export function SubscriptionForm({
   const [lines, setLines] = useState<LineFormValues[]>(defaults.lines);
 
   const expenseCategories = categories.filter((c) => c.kind === "expense");
-  // Sub charges flow from CASA or CC; loan accounts can't be charge sources.
+  // Bill charges flow from CASA or CC; loan accounts can't be charge sources.
   const payFromAccounts = accounts.filter((a) => a.type !== "loan");
   const allTagNames = tags.map((t) => t.name);
   const isMultiLine = lines.length > 1;
@@ -114,6 +137,7 @@ export function SubscriptionForm({
         e.preventDefault();
         onSubmit({
           name,
+          type,
           currency,
           frequency,
           defaultAccountId: defaultAccountId || undefined,
@@ -132,6 +156,19 @@ export function SubscriptionForm({
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
+        <Stack gap="xs">
+          <Text fw={500} size="sm">
+            Type
+          </Text>
+          <SegmentedControl
+            data={TYPE_OPTIONS}
+            value={type}
+            onChange={(v) => setType(v as BillType)}
+          />
+          <Text c="dimmed" size="xs">
+            {TYPE_HINT[type]}
+          </Text>
+        </Stack>
         <NativeSelect
           data={COMMON_CURRENCIES}
           label="Currency"
@@ -144,18 +181,13 @@ export function SubscriptionForm({
           value={frequency}
           onChange={(e) => setFrequency(e.target.value as RecurringFrequency)}
         />
-        <NativeSelect
-          data={[
-            { value: "", label: "— No default —" },
-            ...payFromAccounts.map((a) => ({
-              value: a.id,
-              label: `${a.name} (${a.currency})`,
-            })),
-          ]}
-          description="Charges from this subscription will pre-fill the source account."
+        <AccountSelect
+          accounts={payFromAccounts}
+          allowNone
+          description="Charges for this bill will pre-fill the source account."
           label="Default source account (optional)"
           value={defaultAccountId}
-          onChange={(e) => setDefaultAccountId(e.target.value)}
+          onChange={setDefaultAccountId}
         />
 
         {isMultiLine ? (
@@ -192,11 +224,7 @@ export function SubscriptionForm({
           <Button loading={pending} type="submit">
             {submitLabel}
           </Button>
-          <Button
-            component={Link}
-            to="/settings/subscriptions"
-            variant="subtle"
-          >
+          <Button component={Link} to="/settings/bills" variant="subtle">
             Cancel
           </Button>
         </Group>

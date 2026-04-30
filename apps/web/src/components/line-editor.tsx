@@ -12,7 +12,7 @@ import { TagsField } from "@/components/tags-field";
 
 /**
  * One-line editor: a single amount + category + tags. Used by transaction
- * forms (income/expense single line) and subscription forms (one default
+ * forms (income/expense single line) and bill forms (one default
  * line) and later recurring-plan default lines. The "Split across
  * categories" button promotes the host form into multi-line mode by
  * appending a second empty line.

@@ -20,9 +20,9 @@ export function SettingsRoute() {
       />
       <NavLink
         component={Link}
-        description="Recurring expenses (Netflix, Spotify, software, etc.)"
-        label="Subscriptions"
-        to="/settings/subscriptions"
+        description="Recurring charges — utilities, subscriptions, taxes & fees"
+        label="Bills"
+        to="/settings/bills"
       />
     </PageShell>
   );

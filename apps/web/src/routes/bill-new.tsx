@@ -2,15 +2,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 
 import { PageShell } from "@/components/page-shell";
-import { SubscriptionForm } from "@/features/subscriptions/subscription-form";
+import { BillForm } from "@/features/bills/bill-form";
 import {
-  createSubscription,
+  createBill,
   listAccounts,
   listCategories,
   listTags,
 } from "@/lib/endpoints";
 
-export function SubscriptionNewRoute() {
+export function BillNewRoute() {
   const navigate = useNavigate();
   const qc = useQueryClient();
 
@@ -22,11 +22,11 @@ export function SubscriptionNewRoute() {
   const tagsQ = useQuery({ queryKey: ["tags"], queryFn: () => listTags() });
 
   const mutation = useMutation({
-    mutationFn: createSubscription,
+    mutationFn: createBill,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["subscriptions"] });
+      qc.invalidateQueries({ queryKey: ["bills"] });
       qc.invalidateQueries({ queryKey: ["tags"] });
-      navigate("/settings/subscriptions");
+      navigate("/settings/bills");
     },
   });
 
@@ -35,8 +35,8 @@ export function SubscriptionNewRoute() {
   }
 
   return (
-    <PageShell back="/settings/subscriptions" title="New subscription">
-      <SubscriptionForm
+    <PageShell back="/settings/bills" title="New bill">
+      <BillForm
         accounts={accountsQ.data ?? []}
         categories={categoriesQ.data ?? []}
         error={mutation.error ? (mutation.error as Error).message : null}

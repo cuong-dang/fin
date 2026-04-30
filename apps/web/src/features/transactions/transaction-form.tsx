@@ -1,7 +1,8 @@
 import type {
   Account,
+  Bill,
+  BillType,
   CategoryWithSubs,
-  Subscription,
   Tag,
   TransactionBody,
   TransactionLineBody,
@@ -11,8 +12,8 @@ import {
   Button,
   Checkbox,
   Group,
-  NativeSelect,
   SegmentedControl,
+  Select,
   Stack,
   Text,
   TextInput,
@@ -20,6 +21,7 @@ import {
 import { type ComponentProps, useState } from "react";
 import { Link } from "react-router";
 
+import { AccountSelect } from "@/components/account-select";
 import {
   type CategoryLineFormValues,
   packCategoryLine,
@@ -35,8 +37,10 @@ type TxType = "income" | "expense" | "transfer" | "payment";
 //   - Credit card payment → transfer (checking → CC)
 //   - Loan payment → transfer (checking/CC → loan), with optional lines
 //     categorizing interest/fee portions
-//   - Subscription charge → expense with subscriptionId
-type PaymentKind = "creditCard" | "loan" | "subscription";
+//   - Bill charge → expense with billId. The bill picker groups all
+//     three bill types (utility / subscription / other); the user
+//     doesn't think about the type at charge time.
+type PaymentKind = "creditCard" | "loan" | "bill";
 
 const PAYMENT_KIND_OPTIONS: {
   value: PaymentKind;
@@ -45,7 +49,7 @@ const PAYMENT_KIND_OPTIONS: {
 }[] = [
   { value: "creditCard", label: "Credit card" },
   { value: "loan", label: "Loan" },
-  { value: "subscription", label: "Subscription" },
+  { value: "bill", label: "Bill" },
 ];
 
 type LineFormValues = CategoryLineFormValues;
@@ -53,7 +57,7 @@ type LineFormValues = CategoryLineFormValues;
 export type InitialTxValues = {
   type: TxType;
   // Only consulted when type === "payment". Edit pre-fills it so the
-  // Payment tab opens on the right kind (creditCard / loan / subscription).
+  // Payment tab opens on the right kind (creditCard / loan / bill).
   paymentKind?: PaymentKind;
   date: string;
   pending: boolean;
@@ -62,7 +66,7 @@ export type InitialTxValues = {
   destinationAccountId: string;
   transferAmount: string;
   lines: LineFormValues[];
-  subscriptionId: string;
+  billId: string;
 };
 
 const emptyLine = (): LineFormValues => ({
@@ -78,7 +82,7 @@ export function TransactionForm({
   accounts,
   categories,
   tags,
-  subscriptions,
+  bills,
   submitLabel,
   initialValues,
   onSubmit,
@@ -89,7 +93,7 @@ export function TransactionForm({
   accounts: Account[];
   categories: CategoryWithSubs[];
   tags: Tag[];
-  subscriptions: Subscription[];
+  bills: Bill[];
   submitLabel: string;
   initialValues?: InitialTxValues;
   onSubmit: (body: TransactionBody) => void;
@@ -106,7 +110,7 @@ export function TransactionForm({
     destinationAccountId: "",
     transferAmount: "",
     lines: [emptyLine()],
-    subscriptionId: "",
+    billId: "",
   };
 
   const [type, setType] = useState<TxType>(defaults.type);
@@ -121,15 +125,15 @@ export function TransactionForm({
   );
   const [isPending, setIsPending] = useState(defaults.pending);
   const [description, setDescription] = useState(defaults.description);
-  const [subscriptionId, setSubscriptionId] = useState(defaults.subscriptionId);
+  const [billId, setBillId] = useState(defaults.billId);
   const [paymentKind, setPaymentKind] = useState<PaymentKind>(
     defaults.paymentKind ?? "creditCard",
   );
 
-  // Active subs + the currently linked one (even if cancelled), so editing
-  // a payment that points at a since-cancelled sub still resolves.
-  const subOptions = subscriptions.filter(
-    (s) => s.cancelledAt === null || s.id === subscriptionId,
+  // Active bills + the currently linked one (even if cancelled), so editing
+  // a payment that points at a since-cancelled bill still resolves.
+  const billOptions = bills.filter(
+    (b) => b.cancelledAt === null || b.id === billId,
   );
 
   // CC payment: pick a CC account to pay; the source account pre-fills
@@ -189,19 +193,20 @@ export function TransactionForm({
     }
   }
 
-  function applySubscription(newId: string) {
-    setSubscriptionId(newId);
+  function applyBill(newId: string) {
+    setBillId(newId);
     if (!newId) {
       // Cleared the picker — leave existing lines/account; the user is
-      // probably about to pick a different sub or switch tabs.
+      // probably about to pick a different bill or switch tabs.
       return;
     }
-    const sub = subscriptions.find((s) => s.id === newId);
-    if (!sub) return;
+    const bill = bills.find((b) => b.id === newId);
+    if (!bill) return;
     setLines(
-      sub.defaultLines.map((l) => ({
-        // Sub default lines may have a null amount (varies per period);
-        // pre-fill blank in that case so the user enters the actual charge.
+      bill.defaultLines.map((l) => ({
+        // Bill default lines may have a null amount (utilities and other
+        // variable bills); pre-fill blank so the user enters the actual
+        // charge.
         amount: l.amount ? formatMoneyPlain(BigInt(l.amount), l.currency) : "",
         categoryId: l.categoryId,
         newCategoryName: "",
@@ -210,7 +215,7 @@ export function TransactionForm({
         tagNames: l.tags.map((t) => t.name),
       })),
     );
-    if (sub.defaultAccountId) setAccountId(sub.defaultAccountId);
+    if (bill.defaultAccountId) setAccountId(bill.defaultAccountId);
   }
 
   const isMultiLine = lines.length > 1;
@@ -253,7 +258,7 @@ export function TransactionForm({
     // each tab starts fresh. paymentKind defaults back too, since it only
     // applies to the Payment tab.
     setLines([emptyLine()]);
-    setSubscriptionId("");
+    setBillId("");
     setDestinationAccountId("");
     setTransferAmount("");
     setPaymentKind("creditCard");
@@ -264,7 +269,7 @@ export function TransactionForm({
     // Switching kinds invalidates the prefilled state (each kind owns its
     // own entity + amount/lines). Clear everything kind-specific. For
     // Loan, lines start empty (fees are the exception, not the rule).
-    setSubscriptionId("");
+    setBillId("");
     setLines(newKind === "loan" ? [] : [emptyLine()]);
     setDestinationAccountId("");
     setTransferAmount("");
@@ -326,7 +331,7 @@ export function TransactionForm({
       //   creditCard → transfer (checking → CC)
       //   loan → transfer (checking/CC → loan), with optional fee/interest
       //     lines categorizing the non-principal portion
-      //   subscription → expense + subscriptionId (sub charge)
+      //   bill → expense + billId (bill charge)
       if (paymentKind === "creditCard") {
         onSubmit({
           type: "transfer",
@@ -352,7 +357,7 @@ export function TransactionForm({
         type: "expense",
         ...commonBase,
         accountId,
-        subscriptionId,
+        billId,
         lines: lines.map(lineToBody),
       });
       return;
@@ -378,14 +383,14 @@ export function TransactionForm({
   }
 
   // Payment tab requires picking the entity (CC account, loan account, or
-  // subscription) before anything else makes sense. Hide the rest of the
+  // bill) before anything else makes sense. Hide the rest of the
   // form until one is selected, and surface a "create one first"
   // affordance when there are none of that kind.
   const paymentEntityMissing =
     type === "payment" &&
     ((paymentKind === "creditCard" && !destinationAccountId) ||
       (paymentKind === "loan" && !destinationAccountId) ||
-      (paymentKind === "subscription" && !subscriptionId));
+      (paymentKind === "bill" && !billId));
 
   return (
     <form onSubmit={handleSubmit}>
@@ -413,12 +418,12 @@ export function TransactionForm({
                 onChange={applyLoan}
               />
             )}
-            {paymentKind === "subscription" && (
-              <PaymentSubscriptionPicker
-                subOptions={subOptions}
-                subscriptionId={subscriptionId}
-                totalSubs={subscriptions.length}
-                onChange={applySubscription}
+            {paymentKind === "bill" && (
+              <PaymentBillPicker
+                billId={billId}
+                billOptions={billOptions}
+                totalBills={bills.length}
+                onChange={applyBill}
               />
             )}
           </Stack>
@@ -501,14 +506,8 @@ export function TransactionForm({
               />
             )}
 
-            <NativeSelect
-              data={[
-                { value: "", label: "Select…", disabled: true },
-                ...sourceAccounts.map((a) => ({
-                  value: a.id,
-                  label: `${a.name} (${a.currency})`,
-                })),
-              ]}
+            <AccountSelect
+              accounts={sourceAccounts}
               label={
                 type === "transfer" ||
                 (type === "payment" &&
@@ -518,22 +517,16 @@ export function TransactionForm({
               }
               required
               value={accountId}
-              onChange={(e) => handleAccountChange(e.target.value)}
+              onChange={handleAccountChange}
             />
 
             {type === "transfer" && (
-              <NativeSelect
-                data={[
-                  { value: "", label: "Select…", disabled: true },
-                  ...destinationAccounts.map((a) => ({
-                    value: a.id,
-                    label: `${a.name} (${a.currency})`,
-                  })),
-                ]}
+              <AccountSelect
+                accounts={destinationAccounts}
                 label="To account"
                 required
                 value={destinationAccountId}
-                onChange={(e) => handleDestinationChange(e.target.value)}
+                onChange={handleDestinationChange}
               />
             )}
 
@@ -586,19 +579,14 @@ function PaymentCreditCardPicker({
     );
   }
   return (
-    <NativeSelect
-      data={[
-        { value: "", label: "Select a credit card…", disabled: true },
-        ...ccAccounts.map((a) => ({
-          value: a.id,
-          label: `${a.name} (${a.currency})`,
-        })),
-      ]}
+    <AccountSelect
+      accounts={ccAccounts}
       description="Source account pre-fills from the card's default pay-from."
       label="Credit card"
+      placeholder="Select a credit card…"
       required
       value={destinationAccountId}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={onChange}
     />
   );
 }
@@ -628,63 +616,75 @@ function PaymentLoanPicker({
     );
   }
   return (
-    <NativeSelect
-      data={[
-        { value: "", label: "Select a loan…", disabled: true },
-        ...loanAccounts.map((a) => ({
-          value: a.id,
-          label: `${a.name} (${a.currency})`,
-        })),
-      ]}
+    <AccountSelect
+      accounts={loanAccounts}
       description="Source pre-fills from the plan's default pay-from. Add fee/interest lines to categorize the non-principal portion."
       label="Loan"
+      placeholder="Select a loan…"
       required
       value={destinationAccountId}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={onChange}
     />
   );
 }
 
-function PaymentSubscriptionPicker({
-  subOptions,
-  subscriptionId,
-  totalSubs,
+// Single picker covering all bill types. Mantine `Select` (vs the
+// `NativeSelect` used elsewhere in this form) is required because we
+// want grouped options + searchable filtering. Bills are grouped by
+// `type` so the user can scroll-with-context or type to filter.
+function PaymentBillPicker({
+  billOptions,
+  billId,
+  totalBills,
   onChange,
 }: {
-  subOptions: Subscription[];
-  subscriptionId: string;
-  totalSubs: number;
+  billOptions: Bill[];
+  billId: string;
+  totalBills: number;
   onChange: (id: string) => void;
 }) {
-  if (totalSubs === 0) {
+  if (totalBills === 0) {
     return (
       <Stack>
-        <Text c="dimmed">No subscriptions yet.</Text>
+        <Text c="dimmed">No bills yet.</Text>
         <Button
           component={Link}
-          to="/subscriptions/new"
+          to="/bills/new"
           variant="subtle"
           w="fit-content"
         >
-          Create subscription
+          Create bill
         </Button>
       </Stack>
     );
   }
+  const GROUP_LABEL: Record<BillType, string> = {
+    utility: "Utilities",
+    subscription: "Subscriptions",
+    other: "Other",
+  };
+  // Stable section order; only emit groups that have at least one item.
+  const ORDER: BillType[] = ["utility", "subscription", "other"];
+  const data = ORDER.map((t) => {
+    const items = billOptions
+      .filter((b) => b.type === t)
+      .map((b) => ({
+        value: b.id,
+        label: b.cancelledAt !== null ? `${b.name} (cancelled)` : b.name,
+      }));
+    return { group: GROUP_LABEL[t], items };
+  }).filter((g) => g.items.length > 0);
   return (
-    <NativeSelect
-      data={[
-        { value: "", label: "Select a subscription…", disabled: true },
-        ...subOptions.map((s) => ({
-          value: s.id,
-          label: s.cancelledAt !== null ? `${s.name} (cancelled)` : s.name,
-        })),
-      ]}
-      description="Account and lines auto-fill from the subscription's defaults; you can edit either."
-      label="Subscription"
+    <Select
+      clearable={false}
+      data={data}
+      description="Account and lines auto-fill from the bill's defaults; you can edit either."
+      label="Bill"
+      placeholder="Select a bill…"
       required
-      value={subscriptionId}
-      onChange={(e) => onChange(e.target.value)}
+      searchable
+      value={billId || null}
+      onChange={(v) => onChange(v ?? "")}
     />
   );
 }

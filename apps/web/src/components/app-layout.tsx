@@ -36,7 +36,7 @@ const PAGES: { to: string; label: string }[] = [
  * "+" create menu + user menu), the navbar (page nav + accounts
  * panel), and the Outlet for the current page.
  *
- * Form routes (account / transaction / subscription edit etc.) sit
+ * Form routes (account / transaction / bill edit etc.) sit
  * outside this layout so they get a focused, chrome-less view via
  * PageShell + BackLink.
  */
@@ -110,7 +110,7 @@ export function AppLayoutRoute() {
 
 /**
  * "+" dropdown next to the user menu — the entry point for creating a
- * new transaction, account, or subscription. Replaces the old FAB.
+ * new transaction, account, or bill. Replaces the old FAB.
  * Mantine doesn't ship a built-in +/× morph icon, so the trigger
  * stays a plain `+` per the "don't bother custom-building it" call.
  */
@@ -140,9 +140,9 @@ function CreateMenu() {
         <Menu.Item
           component={Link}
           leftSection={<Repeat size={14} />}
-          to="/subscriptions/new"
+          to="/bills/new"
         >
-          New subscription
+          New bill
         </Menu.Item>
       </Menu.Dropdown>
     </Menu>

@@ -6,8 +6,8 @@ import { TransactionForm } from "@/features/transactions/transaction-form";
 import {
   createTransaction,
   listAccounts,
+  listBills,
   listCategories,
-  listSubscriptions,
   listTags,
 } from "@/lib/endpoints";
 
@@ -24,9 +24,9 @@ export function TransactionNewRoute() {
     queryFn: listCategories,
   });
   const tagsQ = useQuery({ queryKey: ["tags"], queryFn: () => listTags() });
-  const subsQ = useQuery({
-    queryKey: ["subscriptions"],
-    queryFn: listSubscriptions,
+  const billsQ = useQuery({
+    queryKey: ["bills"],
+    queryFn: listBills,
   });
 
   // Add / Cancel / Back all return to wherever the user came from
@@ -48,7 +48,7 @@ export function TransactionNewRoute() {
     accountsQ.isLoading ||
     categoriesQ.isLoading ||
     tagsQ.isLoading ||
-    subsQ.isLoading
+    billsQ.isLoading
   ) {
     return null;
   }
@@ -57,11 +57,11 @@ export function TransactionNewRoute() {
     <PageShell back={goBack} title="New transaction">
       <TransactionForm
         accounts={accountsQ.data ?? []}
+        bills={billsQ.data ?? []}
         categories={categoriesQ.data ?? []}
         error={mutation.error ? (mutation.error as Error).message : null}
         pending={mutation.isPending}
         submitLabel="Save"
-        subscriptions={subsQ.data ?? []}
         tags={tagsQ.data ?? []}
         onCancel={goBack}
         onSubmit={(body) => mutation.mutate(body)}

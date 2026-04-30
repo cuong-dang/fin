@@ -16,8 +16,8 @@ import { getCashFlow } from "@/lib/endpoints";
  * Drill state — discriminated by the active direction. Each direction
  * has its own state machine:
  *
- *   - out: top (Expenses/Loans/Subs) → expenses → expensesByCategory,
- *          or top → loans / subs (leaves)
+ *   - out: top (Expenses/Loans/Bills) → expenses → expensesByCategory,
+ *          or top → loans / bills (leaves)
  *   - in:  top (categories) → byCategory (subcategories of one category)
  *   - net: single state, no drill
  *
@@ -33,7 +33,7 @@ type DrillState =
       categoryName: string;
     }
   | { direction: "out"; dimension: "outLoans" }
-  | { direction: "out"; dimension: "outSubs" }
+  | { direction: "out"; dimension: "outBills" }
   | { direction: "in"; dimension: "inTop" }
   | {
       direction: "in";
@@ -50,13 +50,13 @@ const DIRECTION_TITLES: Record<CashFlowDirection, string> = {
 };
 
 const OUT_DRILL_LABELS: Record<
-  "outExpenses" | "outExpensesByCategory" | "outLoans" | "outSubs",
+  "outExpenses" | "outExpensesByCategory" | "outLoans" | "outBills",
   string
 > = {
   outExpenses: "Expenses",
   outExpensesByCategory: "Expenses",
-  outLoans: "Loan payments",
-  outSubs: "Subs",
+  outLoans: "Loans",
+  outBills: "Bills",
 };
 
 const DIRECTION_OPTIONS = [
@@ -91,8 +91,8 @@ export function CashFlowChart({
         setDrill({ direction: "out", dimension: "outExpenses" });
       else if (item.id === "loan")
         setDrill({ direction: "out", dimension: "outLoans" });
-      else if (item.id === "sub")
-        setDrill({ direction: "out", dimension: "outSubs" });
+      else if (item.id === "bill")
+        setDrill({ direction: "out", dimension: "outBills" });
     } else if (drill.dimension === "outExpenses") {
       setDrill({
         direction: "out",

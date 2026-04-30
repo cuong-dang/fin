@@ -1,32 +1,29 @@
-import type { Subscription } from "@fin/schemas";
+import type { Bill } from "@fin/schemas";
 import { Alert, Box, Button, Divider, Group, Stack, Text } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router";
 
 import { PageShell } from "@/components/page-shell";
+import { BillForm, type InitialBillValues } from "@/features/bills/bill-form";
 import {
-  type InitialSubValues,
-  SubscriptionForm,
-} from "@/features/subscriptions/subscription-form";
-import {
-  cancelSubscription,
-  deleteSubscription,
-  getSubscription,
+  cancelBill,
+  deleteBill,
+  getBill,
   listAccounts,
   listCategories,
   listTags,
-  resumeSubscription,
-  updateSubscription,
+  resumeBill,
+  updateBill,
 } from "@/lib/endpoints";
 import { formatMoneyPlain } from "@/lib/money";
 
 import { NotFoundRoute } from "./not-found";
 
-export function SubscriptionEditRoute() {
+export function BillEditRoute() {
   const { id } = useParams<{ id: string }>();
-  const subQ = useQuery({
-    queryKey: ["subscription", id],
-    queryFn: () => getSubscription(id!),
+  const billQ = useQuery({
+    queryKey: ["bill", id],
+    queryFn: () => getBill(id!),
     enabled: !!id,
   });
   const accountsQ = useQuery({ queryKey: ["accounts"], queryFn: listAccounts });
@@ -37,32 +34,32 @@ export function SubscriptionEditRoute() {
   const tagsQ = useQuery({ queryKey: ["tags"], queryFn: () => listTags() });
 
   if (
-    subQ.isLoading ||
+    billQ.isLoading ||
     accountsQ.isLoading ||
     categoriesQ.isLoading ||
     tagsQ.isLoading
   ) {
     return null;
   }
-  if (subQ.error || !subQ.data) return <NotFoundRoute />;
+  if (billQ.error || !billQ.data) return <NotFoundRoute />;
 
   return (
     <Form
       accounts={accountsQ.data ?? []}
+      bill={billQ.data}
       categories={categoriesQ.data ?? []}
-      sub={subQ.data}
       tags={tagsQ.data ?? []}
     />
   );
 }
 
 function Form({
-  sub,
+  bill,
   accounts,
   categories,
   tags,
 }: {
-  sub: Subscription;
+  bill: Bill;
   accounts: Awaited<ReturnType<typeof listAccounts>>;
   categories: Awaited<ReturnType<typeof listCategories>>;
   tags: Awaited<ReturnType<typeof listTags>>;
@@ -71,49 +68,49 @@ function Form({
   const qc = useQueryClient();
 
   function go() {
-    qc.invalidateQueries({ queryKey: ["subscriptions"] });
-    qc.invalidateQueries({ queryKey: ["subscription", sub.id] });
+    qc.invalidateQueries({ queryKey: ["bills"] });
+    qc.invalidateQueries({ queryKey: ["bill", bill.id] });
     qc.invalidateQueries({ queryKey: ["tags"] });
-    navigate("/settings/subscriptions");
+    navigate("/settings/bills");
   }
 
   const mutation = useMutation({
-    mutationFn: (body: Parameters<typeof updateSubscription>[1]) =>
-      updateSubscription(sub.id, body),
+    mutationFn: (body: Parameters<typeof updateBill>[1]) =>
+      updateBill(bill.id, body),
     onSuccess: go,
   });
   const cancel = useMutation({
-    mutationFn: () => cancelSubscription(sub.id),
+    mutationFn: () => cancelBill(bill.id),
     onSuccess: go,
     onError: (e) => alert((e as Error).message),
   });
   const resume = useMutation({
-    mutationFn: () => resumeSubscription(sub.id),
+    mutationFn: () => resumeBill(bill.id),
     onSuccess: go,
     onError: (e) => alert((e as Error).message),
   });
   const del = useMutation({
-    mutationFn: () => deleteSubscription(sub.id),
+    mutationFn: () => deleteBill(bill.id),
     onSuccess: go,
     onError: (e) => alert((e as Error).message),
   });
 
-  const initial = deriveInitial(sub);
-  const cancelled = sub.cancelledAt !== null;
+  const initial = deriveInitial(bill);
+  const cancelled = bill.cancelledAt !== null;
 
   return (
     <PageShell
-      back="/settings/subscriptions"
-      subtitle={cancelled ? `Cancelled ${sub.cancelledAt}` : undefined}
-      title="Edit subscription"
+      back="/settings/bills"
+      subtitle={cancelled ? `Cancelled ${bill.cancelledAt}` : undefined}
+      title="Edit bill"
     >
       {cancelled && (
         <Alert color="black">
-          This subscription has been cancelled. Past transactions still
-          reference it; editing here updates future projections only.
+          This bill has been cancelled. Past transactions still reference it;
+          editing here updates future projections only.
         </Alert>
       )}
-      <SubscriptionForm
+      <BillForm
         accounts={accounts}
         categories={categories}
         error={mutation.error ? (mutation.error as Error).message : null}
@@ -128,7 +125,7 @@ function Form({
         onCancel={() => {
           if (
             confirm(
-              "Cancel this subscription? Past transactions stay attached; future projections stop.",
+              "Cancel this bill? Past transactions stay attached; future projections stop.",
             )
           ) {
             cancel.mutate();
@@ -137,7 +134,7 @@ function Form({
         onDelete={() => {
           if (
             confirm(
-              "Delete this subscription? Past transactions become unlinked but are preserved. This cannot be undone.",
+              "Delete this bill? Past transactions become unlinked but are preserved. This cannot be undone.",
             )
           ) {
             del.mutate();
@@ -167,7 +164,7 @@ function DangerZone({
         <Text fw={600}>Danger zone</Text>
         <Text c="dimmed">
           Cancelling stops future projections; past charges stay linked.
-          Deleting unlinks past charges and removes the subscription entirely.
+          Deleting unlinks past charges and removes the bill entirely.
         </Text>
         <Group>
           {cancelled ? (
@@ -177,7 +174,7 @@ function DangerZone({
               w="fit-content"
               onClick={onResume}
             >
-              Resume subscription
+              Resume bill
             </Button>
           ) : (
             <Button
@@ -186,7 +183,7 @@ function DangerZone({
               w="fit-content"
               onClick={onCancel}
             >
-              Cancel subscription
+              Cancel bill
             </Button>
           )}
           <Button
@@ -195,7 +192,7 @@ function DangerZone({
             w="fit-content"
             onClick={onDelete}
           >
-            Delete subscription
+            Delete bill
           </Button>
         </Group>
       </Stack>
@@ -203,14 +200,15 @@ function DangerZone({
   );
 }
 
-function deriveInitial(sub: Subscription): InitialSubValues {
+function deriveInitial(bill: Bill): InitialBillValues {
   return {
-    name: sub.name,
-    currency: sub.currency,
-    frequency: sub.frequency,
-    defaultAccountId: sub.defaultAccountId ?? "",
-    description: sub.description ?? "",
-    lines: sub.defaultLines.map((l) => ({
+    name: bill.name,
+    type: bill.type,
+    currency: bill.currency,
+    frequency: bill.frequency,
+    defaultAccountId: bill.defaultAccountId ?? "",
+    description: bill.description ?? "",
+    lines: bill.defaultLines.map((l) => ({
       amount: l.amount ? formatMoneyPlain(BigInt(l.amount), l.currency) : "",
       categoryId: l.categoryId,
       newCategoryName: "",

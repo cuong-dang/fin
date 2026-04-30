@@ -43,6 +43,19 @@ export const recurringFrequencyEnum = pgEnum("recurring_frequency", [
 
 export const categoryKindEnum = pgEnum("category_kind", ["income", "expense"]);
 
+// Three flavors of recurring bill, distinguished mostly by UX hints (the
+// underlying mechanism is the same — a periodic charge with a default
+// categorization template):
+//   - utility:      variable-amount essential service (electric, water).
+//   - subscription: fixed-amount discretionary service (Netflix). Pause/cancel.
+//   - other:        catch-all for taxes, fees, dues, etc.
+// Old data migrated 1:1 as `subscription` (the original semantic).
+export const billTypeEnum = pgEnum("bill_type", [
+  "utility",
+  "subscription",
+  "other",
+]);
+
 // `loan` is reserved — only `checking_savings` and `credit_card` are wired
 // today. Loan accounts will pair 1:1 with a recurring_plan when added.
 export const accountTypeEnum = pgEnum("account_type", [
@@ -263,7 +276,7 @@ export const tags = pgTable(
 // Templated installment-style transactions with a cadence and (typically)
 // a known end — mortgages, car loans, BNPL.
 //
-// Like subscriptions, a recurring plan owns a set of default lines that act
+// Like bills, a recurring plan owns a set of default lines that act
 // as a categorization template. The actual amounts paid per period live on
 // the linked transactions (sum of principal-role line amounts → principal
 // reduction; sum of interest-role line amounts → total interest paid).
@@ -295,7 +308,7 @@ export const recurringPlans = pgTable("recurring_plans", {
 });
 
 // Default categorization template for a recurring plan. Mirrors
-// `subscription_default_lines`. Amount is *nullable* on purpose: for
+// `bill_default_lines`. Amount is *nullable* on purpose: for
 // amortizing loans the principal/interest split changes per period, so
 // the template records categorization but leaves amounts to be entered
 // at transaction time. Set the amount only when it's actually fixed
@@ -326,7 +339,7 @@ export const recurringPlanDefaultLines = pgTable(
 );
 
 // Tag links for recurring-plan default lines — same shape as
-// `transaction_line_tags` and `subscription_default_line_tags`.
+// `transaction_line_tags` and `bill_default_line_tags`.
 export const recurringPlanDefaultLineTags = pgTable(
   "recurring_plan_default_line_tags",
   {
@@ -343,19 +356,21 @@ export const recurringPlanDefaultLineTags = pgTable(
   ],
 );
 
-// ─── Subscriptions ─────────────────────────────────────────────────────────
+// ─── Bills ─────────────────────────────────────────────────────────────────
 
-// Recurring expenses with a cadence and no principal/balance — Netflix,
-// Spotify, AAA, software licenses. Each subscription has one or more
-// default lines that act as a categorization template; transactions
-// linked to the subscription pre-fill from those lines but the user
-// can edit per-charge (a sub may temporarily charge a different amount).
-export const subscriptions = pgTable("subscriptions", {
+// Recurring charges with a cadence and no principal/balance. The `type`
+// enum distinguishes three UX flavors (see `billTypeEnum`); the
+// underlying mechanism is identical — each bill owns default lines that
+// act as a categorization template, and charge transactions link via
+// `transactions.billId`. Charges pre-fill from the template but the
+// user can edit per-charge (utilities especially vary period-to-period).
+export const bills = pgTable("bills", {
   id: uuid("id").primaryKey().defaultRandom(),
   groupId: uuid("group_id")
     .notNull()
     .references(() => groups.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
+  type: billTypeEnum("type").notNull().default("subscription"),
   currency: char("currency", { length: 3 }).notNull(),
   frequency: recurringFrequencyEnum("frequency").notNull(),
   // Default source account auto-fills the source on a new charge transaction.
@@ -365,8 +380,8 @@ export const subscriptions = pgTable("subscriptions", {
     onDelete: "restrict",
   }),
   // null = active. Set when the user cancels; past transactions linked to
-  // this subscription stay attached and the row is preserved for history.
-  // Distinct from `deletedAt`: cancellation stops projections but the sub
+  // this bill stay attached and the row is preserved for history.
+  // Distinct from `deletedAt`: cancellation stops projections but the bill
   // remains visible in the management UI; deletion soft-hides it entirely.
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
   description: text("description"),
@@ -380,50 +395,50 @@ export const subscriptions = pgTable("subscriptions", {
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
 });
 
-// Default categorization template for a subscription. Mirrors the shape
-// of `transaction_lines` so a charge transaction can copy lines verbatim.
-// Sum of line amounts per subscription = the period charge.
-export const subscriptionDefaultLines = pgTable(
-  "subscription_default_lines",
+// Default categorization template for a bill. Mirrors the shape of
+// `transaction_lines` so a charge transaction can copy lines verbatim.
+// Sum of line amounts per bill = the period charge.
+export const billDefaultLines = pgTable(
+  "bill_default_lines",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    subscriptionId: uuid("subscription_id")
+    billId: uuid("bill_id")
       .notNull()
-      .references(() => subscriptions.id, { onDelete: "cascade" }),
+      .references(() => bills.id, { onDelete: "cascade" }),
     categoryId: uuid("category_id")
       .notNull()
       .references(() => categories.id, { onDelete: "restrict" }),
     subcategoryId: uuid("subcategory_id").references(() => subcategories.id, {
       onDelete: "restrict",
     }),
-    // Positive minor units in `currency`. Nullable: a sub may charge a
-    // varying amount per period, in which case the template carries
-    // categorization but leaves the amount blank — the user fills it
-    // in on the actual charge transaction.
+    // Positive minor units in `currency`. Nullable: a bill may charge a
+    // varying amount per period (utilities, taxes), in which case the
+    // template carries categorization but leaves the amount blank — the
+    // user fills it in on the actual charge transaction.
     amount: bigint("amount", { mode: "bigint" }),
     currency: char("currency", { length: 3 }).notNull(),
     description: text("description"),
   },
   (t) => [
-    index("subscription_default_lines_sub_idx").on(t.subscriptionId),
-    index("subscription_default_lines_category_idx").on(t.categoryId),
+    index("bill_default_lines_bill_idx").on(t.billId),
+    index("bill_default_lines_category_idx").on(t.categoryId),
   ],
 );
 
 // Tag links for default lines — same shape as `transaction_line_tags`.
-export const subscriptionDefaultLineTags = pgTable(
-  "subscription_default_line_tags",
+export const billDefaultLineTags = pgTable(
+  "bill_default_line_tags",
   {
     lineId: uuid("line_id")
       .notNull()
-      .references(() => subscriptionDefaultLines.id, { onDelete: "cascade" }),
+      .references(() => billDefaultLines.id, { onDelete: "cascade" }),
     tagId: uuid("tag_id")
       .notNull()
       .references(() => tags.id, { onDelete: "restrict" }),
   },
   (t) => [
     primaryKey({ columns: [t.lineId, t.tagId] }),
-    index("subscription_default_line_tags_tag_idx").on(t.tagId),
+    index("bill_default_line_tags_tag_idx").on(t.tagId),
   ],
 );
 
@@ -454,13 +469,13 @@ export const transactions = pgTable(
     // with a leg on the loan account, and the loan account already carries
     // `recurring_plan_id`. The plan is reachable via tx → leg → account →
     // plan, so a direct FK on transactions would just duplicate the link.
-    // Subscriptions, by contrast, are stored as expenses with no leg on a
-    // sub-side account, so the explicit `subscription_id` below is the only
-    // way to identify a sub charge.
+    // Bills, by contrast, are stored as expenses with no leg on a
+    // bill-side account, so the explicit `bill_id` below is the only
+    // way to identify a bill charge.
     //
-    // Set when this transaction is a charge for a subscription. RESTRICT —
-    // we soft-delete subscriptions; past transactions retain their link.
-    subscriptionId: uuid("subscription_id").references(() => subscriptions.id, {
+    // Set when this transaction is a charge for a bill. RESTRICT —
+    // we soft-delete bills; past transactions retain their link.
+    billId: uuid("bill_id").references(() => bills.id, {
       onDelete: "restrict",
     }),
     // Stored as decimal for precision; high scale so minor-unit math is lossless.

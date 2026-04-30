@@ -74,11 +74,11 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
    *
    * **out**
    *   - outTop: 3 synthetic stacks per period: Expenses, Loan payments,
-   *     Subs. Mutually exclusive (CASE order: sub > loan-transfer > expense).
+   *     Bills. Mutually exclusive (CASE order: bill > loan-transfer > expense).
    *   - outExpenses: outTop's "Expenses" bucket broken down by category.
    *   - outExpensesByCategory: a single category broken down by subcategory.
    *   - outLoans: outTop's "Loan payments" bucket broken down by loan account.
-   *   - outSubs: outTop's "Subs" bucket broken down by subscription.
+   *   - outBills: outTop's "Bills" bucket broken down by bill (any type).
    *
    * **in**
    *   - inTop: income transactions grouped by income-kind category.
@@ -133,9 +133,9 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
       // expense / income transaction has exactly one leg, so joining
       // legs × lines doesn't change line totals.
       //
-      // The expense path additionally excludes sub-tagged expenses
-      // (those land in the Subs bucket of `outTop`); the income path
-      // has no such filter — income with a subscription is still income.
+      // The expense path additionally excludes bill-tagged expenses
+      // (those land in the Bills bucket of `outTop`); the income path
+      // has no such filter — income with a bill link is still income.
       const isIncome = dimension === "inTop" || dimension === "inByCategory";
       const drilling =
         dimension === "outExpensesByCategory" || dimension === "inByCategory";
@@ -179,7 +179,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
             eq(schema.transactions.groupId, req.auth.groupId),
             eq(schema.transactionLines.currency, currency),
             eq(schema.transactions.type, "expense"),
-            sql`${schema.transactions.subscriptionId} IS NULL`,
+            sql`${schema.transactions.billId} IS NULL`,
             sql`${schema.accounts.type} IN ('checking_savings', 'credit_card')`,
             gte(schema.transactions.date, start),
             lte(schema.transactions.date, end),
@@ -276,13 +276,13 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
         )
         .groupBy(truncExpr, destAcc.id, destAcc.name)
         .orderBy(truncExpr);
-    } else if (dimension === "outSubs") {
-      // Per-subscription breakdown.
+    } else if (dimension === "outBills") {
+      // Per-bill breakdown (any bill type — utility, subscription, other).
       rows = await db
         .select({
           period: periodExpr,
-          itemId: schema.subscriptions.id,
-          itemName: schema.subscriptions.name,
+          itemId: schema.bills.id,
+          itemName: schema.bills.name,
           amountMinor: legAmountExpr,
         })
         .from(schema.transactionLegs)
@@ -295,8 +295,8 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
           eq(schema.accounts.id, schema.transactionLegs.accountId),
         )
         .innerJoin(
-          schema.subscriptions,
-          eq(schema.subscriptions.id, schema.transactions.subscriptionId),
+          schema.bills,
+          eq(schema.bills.id, schema.transactions.billId),
         )
         .where(
           and(
@@ -308,7 +308,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
             lte(schema.transactions.date, end),
           ),
         )
-        .groupBy(truncExpr, schema.subscriptions.id, schema.subscriptions.name)
+        .groupBy(truncExpr, schema.bills.id, schema.bills.name)
         .orderBy(truncExpr);
     } else if (dimension === "net") {
       // Per-period signed sums on CASA/CC legs, split into two stacks:
@@ -363,9 +363,9 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
         .groupBy(truncExpr, sideExpr, sideNameExpr)
         .orderBy(truncExpr);
     } else {
-      // outTop: 3 synthetic buckets via CASE. Order matters — sub-tagged
-      // expenses fall into "sub" rather than "expense" because the
-      // subscription branch comes first.
+      // outTop: 3 synthetic buckets via CASE. Order matters — bill-tagged
+      // expenses fall into "bill" rather than "expense" because the bill
+      // branch comes first.
       const destTypeSubquery = sql<string>`(
         SELECT a.type FROM transaction_legs ol
         INNER JOIN accounts a ON a.id = ol.account_id
@@ -374,7 +374,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
         LIMIT 1
       )`;
       const bucketIdExpr = sql<string>`CASE
-        WHEN ${schema.transactions.subscriptionId} IS NOT NULL THEN 'sub'
+        WHEN ${schema.transactions.billId} IS NOT NULL THEN 'bill'
         WHEN ${schema.transactions.type} = 'transfer' AND ${destTypeSubquery} = 'loan' THEN 'loan'
         WHEN ${schema.transactions.type} = 'expense' AND ${schema.accounts.type} IN ('checking_savings', 'credit_card') THEN 'expense'
       END`;
@@ -435,8 +435,8 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
       // Stable display order; only include buckets that have data.
       const ORDER: { id: string; name: string }[] = [
         { id: "expense", name: "Expenses" },
-        { id: "loan", name: "Loan payments" },
-        { id: "sub", name: "Subs" },
+        { id: "loan", name: "Loans" },
+        { id: "bill", name: "Bills" },
       ];
       items = ORDER.filter((o) => itemsById.has(o.id));
     } else if (

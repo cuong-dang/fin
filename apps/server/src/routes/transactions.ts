@@ -80,7 +80,7 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
     const txIds = [...pendingRows, ...completedRows].map((t) => t.id);
     if (txIds.length === 0) return { pending: [], completed: [] };
 
-    const { legsByTx, linesByTx, tagsByLine, subByTx } =
+    const { legsByTx, linesByTx, tagsByLine, billByTx } =
       await fetchLegsAndLines(txIds);
 
     // Running balance: only when filtered to a single account, and only on
@@ -126,7 +126,7 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
         legsByTx.get(t.id),
         linesByTx.get(t.id),
         tagsByLine,
-        subByTx.get(t.id),
+        billByTx.get(t.id),
         balanceAfterByTx.get(t.id),
       );
 
@@ -147,14 +147,14 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
         reply.code(404).send({ error: "Not found" });
         return;
       }
-      const { legsByTx, linesByTx, tagsByLine, subByTx } =
+      const { legsByTx, linesByTx, tagsByLine, billByTx } =
         await fetchLegsAndLines([id]);
       return enrichTx(
         tx,
         legsByTx.get(id),
         linesByTx.get(id),
         tagsByLine,
-        subByTx.get(id),
+        billByTx.get(id),
       );
     },
   );
@@ -172,21 +172,15 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
     if (!sourceAccount)
       return reply.code(404).send({ error: "Account not found" });
 
-    // An expense may carry an optional subscription link (it represents a
-    // sub charge in that case). Validate ownership before writing.
-    if (body.type === "expense" && body.subscriptionId) {
-      const sub = await findOwned(
-        schema.subscriptions,
-        body.subscriptionId,
-        req.auth.groupId,
-      );
-      if (!sub)
-        return reply.code(404).send({ error: "Subscription not found" });
+    // An expense may carry an optional bill link (it represents a bill
+    // charge in that case). Validate ownership before writing.
+    if (body.type === "expense" && body.billId) {
+      const bill = await findOwned(schema.bills, body.billId, req.auth.groupId);
+      if (!bill) return reply.code(404).send({ error: "Bill not found" });
     }
 
     const newDate = body.pending ? null : (body.date ?? null);
-    const subscriptionId =
-      body.type === "expense" ? (body.subscriptionId ?? null) : null;
+    const billId = body.type === "expense" ? (body.billId ?? null) : null;
 
     const result = await db.transaction(async (tx) => {
       const sortKey = newDate
@@ -202,7 +196,7 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
           sortKey,
           type: body.type,
           description: body.description ?? null,
-          subscriptionId,
+          billId,
         })
         .returning({ id: schema.transactions.id });
 
@@ -241,21 +235,15 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
     if (!sourceAccount)
       return reply.code(404).send({ error: "Account not found" });
 
-    if (body.type === "expense" && body.subscriptionId) {
-      const sub = await findOwned(
-        schema.subscriptions,
-        body.subscriptionId,
-        req.auth.groupId,
-      );
-      if (!sub)
-        return reply.code(404).send({ error: "Subscription not found" });
+    if (body.type === "expense" && body.billId) {
+      const bill = await findOwned(schema.bills, body.billId, req.auth.groupId);
+      if (!bill) return reply.code(404).send({ error: "Bill not found" });
     }
 
     const oldDate = existing.date;
     const newDate = body.pending ? null : (body.date ?? null);
     const dateChanged = oldDate !== newDate;
-    const subscriptionId =
-      body.type === "expense" ? (body.subscriptionId ?? null) : null;
+    const billId = body.type === "expense" ? (body.billId ?? null) : null;
 
     await db.transaction(async (tx) => {
       // When the bucket changes, move this row to the end of the new bucket
@@ -273,7 +261,7 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
           date: newDate,
           type: body.type,
           description: body.description ?? null,
-          subscriptionId,
+          billId,
           updatedAt: new Date(),
           ...(sortKey !== undefined ? { sortKey } : {}),
         })

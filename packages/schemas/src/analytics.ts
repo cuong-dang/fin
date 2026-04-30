@@ -103,7 +103,7 @@ export const cashFlowDimension = z.enum([
   "outExpenses", // drill into Expenses → category stacks
   "outExpensesByCategory", // drill further → subcategory stacks (within one category)
   "outLoans", // drill into Loan payments → per-loan stacks
-  "outSubs", // drill into Subs → per-sub stacks
+  "outBills", // drill into Bills → per-bill stacks
   // direction=in
   "inTop", // income by category
   "inByCategory", // drill into a category → subcategory stacks

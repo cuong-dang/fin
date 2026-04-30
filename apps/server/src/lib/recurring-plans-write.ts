@@ -48,7 +48,7 @@ export async function insertRecurringPlan(
 
 /**
  * Update a recurring_plans row + rewrite its default lines (delete + re-insert).
- * Mirrors the subscription update pattern: full replacement of the lines list,
+ * Mirrors the bill update pattern: full replacement of the lines list,
  * not a patch. The tag-junction rows cascade off the deleted lines.
  */
 export async function updateRecurringPlan(

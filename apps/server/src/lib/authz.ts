@@ -58,8 +58,8 @@ export function ownedActive<T extends OwnedActiveTable>(
  * owned by `workspaceGroupId`, optionally sorted. For lists that need a
  * custom projection or joins, drop down to `ownedActive` instead.
  *
- *   const subs = await listOwnedActive(
- *     schema.subscriptions, req.auth.groupId, schema.subscriptions.name,
+ *   const bills = await listOwnedActive(
+ *     schema.bills, req.auth.groupId, schema.bills.name,
  *   );
  */
 export async function listOwnedActive<T extends OwnedActiveTable>(
