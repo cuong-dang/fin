@@ -611,6 +611,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
         INNER JOIN ${schema.accounts} a ON a.id = legs.account_id
         WHERE a.group_id = ${req.auth.groupId}
           AND a.deleted_at IS NULL
+          AND a.exclude_from_net_worth = false
           AND a.currency = ${currency}
           AND t.date IS NOT NULL
       ),

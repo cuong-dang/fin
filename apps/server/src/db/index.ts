@@ -11,8 +11,8 @@ import * as schemaNs from "./schema";
 // after 20s ensures we always reconnect before Neon hangs up.
 const client = postgres(env.DATABASE_URL, {
   max: 10,
-  idle_timeout: 20,
-  max_lifetime: 60 * 30,
+  idle_timeout: 10 * 60,
+  max_lifetime: 30 * 60,
   connect_timeout: 10,
 });
 export const db = drizzle(client, { schema: schemaNs });

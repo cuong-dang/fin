@@ -41,6 +41,7 @@ const baseCreate = z.object({
   newGroupName: newGroupField,
   startingBalance: moneyString.optional(),
   adjustmentDate: dateString.optional(),
+  excludeFromNetWorth: z.boolean().optional(),
 });
 
 const checkingSavingsCreate = baseCreate
@@ -90,6 +91,7 @@ const baseUpdate = z.object({
   newGroupName: newGroupField,
   newBalance: moneyString.optional(),
   adjustmentDate: dateString.optional(),
+  excludeFromNetWorth: z.boolean().optional(),
 });
 
 const checkingSavingsUpdate = baseUpdate
@@ -145,4 +147,6 @@ export type Account = {
    * the user can unarchive.
    */
   archivedAt: string | null;
+  /** When true, this account is omitted from net-worth aggregations. */
+  excludeFromNetWorth: boolean;
 };

@@ -2,6 +2,7 @@ import type { Account, AccountType, RecurringFrequency } from "@fin/schemas";
 import {
   Alert,
   Button,
+  Checkbox,
   Group,
   NativeSelect,
   SegmentedControl,
@@ -62,6 +63,7 @@ export function AccountNewRoute() {
   const [planPayFromId, setPlanPayFromId] = useState("");
   const [planDescription, setPlanDescription] = useState("");
   const [planLines, setPlanLines] = useState<CategoryLineFormValues[]>([]);
+  const [excludeFromNetWorth, setExcludeFromNetWorth] = useState(false);
 
   const mutation = useMutation({
     mutationFn: createAccount,
@@ -100,6 +102,7 @@ export function AccountNewRoute() {
             newGroupName: creatingNewGroup ? newGroupName : undefined,
             startingBalance: startingBalance ? startingBalance : "0",
             adjustmentDate: localDateKey(new Date()),
+            excludeFromNetWorth,
           };
           if (type === "credit_card") {
             mutation.mutate({
@@ -212,6 +215,12 @@ export function AccountNewRoute() {
             required={false}
             value={startingBalance}
             onChange={setStartingBalance}
+          />
+          <Checkbox
+            checked={excludeFromNetWorth}
+            description="Account stays visible in the sidebar; just doesn't roll into the net-worth total or chart."
+            label="Exclude from net worth"
+            onChange={(e) => setExcludeFromNetWorth(e.currentTarget.checked)}
           />
           {mutation.error && (
             <Alert color="red">{(mutation.error as Error).message}</Alert>

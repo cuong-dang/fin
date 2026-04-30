@@ -22,6 +22,7 @@ CREATE TABLE "accounts" (
 	"credit_limit" bigint,
 	"default_pay_from_account_id" uuid,
 	"recurring_plan_id" uuid,
+	"exclude_from_net_worth" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"archived_at" timestamp with time zone,

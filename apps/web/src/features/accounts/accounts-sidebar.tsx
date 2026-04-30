@@ -56,7 +56,12 @@ export function AccountsSidebar() {
   const visibleGroups = groups.filter(
     (g) => (byGroup.get(g.id) ?? []).length > 0,
   );
-  const netWorth = totalsByCurrency(accounts);
+  // Net-worth header sums only the accounts the user counts toward
+  // their net worth; the rest stay visible (with balances + group
+  // subtotals) but don't roll into the total.
+  const netWorth = totalsByCurrency(
+    accounts.filter((a) => !a.excludeFromNetWorth),
+  );
 
   // Collapsed-group state, persisted to localStorage so the sidebar
   // remembers your preference across reloads. Default expanded; clicking

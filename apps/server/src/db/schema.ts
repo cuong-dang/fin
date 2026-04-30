@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
   bigint,
+  boolean,
   char,
   check,
   date,
@@ -156,6 +157,13 @@ export const accounts = pgTable(
       (): AnyPgColumn => recurringPlans.id,
       { onDelete: "restrict" },
     ),
+    // Per-account opt-out from net-worth aggregations (sidebar header
+    // total + /analytics/net-worth chart). The account row, its balance,
+    // and its group subtotal stay visible in the sidebar — the flag only
+    // controls whether the account contributes to "your net worth".
+    excludeFromNetWorth: boolean("exclude_from_net_worth")
+      .notNull()
+      .default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

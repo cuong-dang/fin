@@ -1,5 +1,5 @@
 {
-  "id": "20c7976c-2889-44b2-8c69-e0be2f867f91",
+  "id": "1dad29d0-43bc-482d-8a91-1a9dfd4ce0e8",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -153,6 +153,13 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
+        },
+        "exclude_from_net_worth": {
+          "name": "exclude_from_net_worth",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "created_at": {
           "name": "created_at",

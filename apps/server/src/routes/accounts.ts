@@ -54,6 +54,7 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
     presentBalance: string;
     availableBalance: string;
     archivedAt: Date | null;
+    excludeFromNetWorth: boolean;
     planId: string | null;
     planAmountPerPeriod: string | null;
     planFrequency:
@@ -113,6 +114,7 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
         presentBalance: presentBalanceSql.as("present_balance"),
         availableBalance: availableBalanceSql.as("available_balance"),
         archivedAt: schema.accounts.archivedAt,
+        excludeFromNetWorth: schema.accounts.excludeFromNetWorth,
         ...planSummary,
       })
       .from(schema.accounts)
@@ -157,6 +159,7 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
         presentBalance: presentBalanceSql.as("present_balance"),
         availableBalance: availableBalanceSql.as("available_balance"),
         archivedAt: schema.accounts.archivedAt,
+        excludeFromNetWorth: schema.accounts.excludeFromNetWorth,
         ...planSummary,
       })
       .from(schema.accounts)
@@ -260,6 +263,7 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
           creditLimit: ccFields.creditLimit,
           defaultPayFromAccountId: ccFields.defaultPayFromAccountId,
           recurringPlanId,
+          excludeFromNetWorth: body.excludeFromNetWorth ?? false,
         })
         .returning({
           id: schema.accounts.id,
@@ -401,6 +405,7 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
           accountGroupId: accountGroupId!,
           creditLimit: ccFields.creditLimit,
           defaultPayFromAccountId: ccFields.defaultPayFromAccountId,
+          excludeFromNetWorth: body.excludeFromNetWorth ?? false,
           updatedAt: new Date(),
         })
         .where(eq(schema.accounts.id, id));

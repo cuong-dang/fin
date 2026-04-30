@@ -5,7 +5,14 @@ import type {
   RecurringFrequency,
   Tag,
 } from "@fin/schemas";
-import { Alert, Button, Group, Stack, TextInput } from "@mantine/core";
+import {
+  Alert,
+  Button,
+  Checkbox,
+  Group,
+  Stack,
+  TextInput,
+} from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
@@ -133,6 +140,9 @@ function Form({
   const [planDescription, setPlanDescription] = useState(
     account.recurringPlan?.description ?? "",
   );
+  const [excludeFromNetWorth, setExcludeFromNetWorth] = useState(
+    account.excludeFromNetWorth,
+  );
   const [planLines, setPlanLines] = useState<CategoryLineFormValues[]>(
     account.recurringPlan
       ? account.recurringPlan.defaultLines.map((l) => ({
@@ -183,6 +193,7 @@ function Form({
             newGroupName: creatingNewGroup ? newGroupName : undefined,
             newBalance: balance !== initialBalance ? balance : undefined,
             adjustmentDate: localDateKey(new Date()),
+            excludeFromNetWorth,
           };
           if (account.type === "credit_card") {
             mutation.mutate({
@@ -267,6 +278,12 @@ function Form({
             label="Balance"
             value={balance}
             onChange={setBalance}
+          />
+          <Checkbox
+            checked={excludeFromNetWorth}
+            description="Account stays visible in the sidebar; just doesn't roll into the net-worth total or chart."
+            label="Exclude from net worth"
+            onChange={(e) => setExcludeFromNetWorth(e.currentTarget.checked)}
           />
           {mutation.error && (
             <Alert color="red">{(mutation.error as Error).message}</Alert>
