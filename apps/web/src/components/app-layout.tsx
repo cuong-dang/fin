@@ -12,7 +12,7 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useQuery } from "@tanstack/react-query";
-import { LogOut, Plus, Settings } from "lucide-react";
+import { LogOut, Plus, Receipt, Repeat, Settings, Wallet } from "lucide-react";
 import { useEffect } from "react";
 import {
   Link,
@@ -32,9 +32,9 @@ const PAGES: { to: string; label: string }[] = [
 ];
 
 /**
- * Multi-page chrome wrapper. Hosts the header (brand + page title + user
- * menu), the navbar (page nav + accounts panel), the Outlet for the
- * current page, and a floating "+" FAB linking to /transactions/new.
+ * Multi-page chrome wrapper. Hosts the header (brand + page title + a
+ * "+" create menu + user menu), the navbar (page nav + accounts
+ * panel), and the Outlet for the current page.
  *
  * Form routes (account / transaction / subscription edit etc.) sit
  * outside this layout so they get a focused, chrome-less view via
@@ -81,7 +81,10 @@ export function AppLayoutRoute() {
               {pageLabel}
             </Title>
           </Group>
-          <UserMenu />
+          <Group gap="xs">
+            <CreateMenu />
+            <UserMenu />
+          </Group>
         </Group>
       </AppShell.Header>
       <AppShell.Navbar>
@@ -101,18 +104,48 @@ export function AppLayoutRoute() {
       <AppShell.Main>
         <Outlet />
       </AppShell.Main>
-      <ActionIcon
-        aria-label="New transaction"
-        component={Link}
-        radius="xl"
-        size={56}
-        style={{ position: "fixed", bottom: 24, right: 24, zIndex: 100 }}
-        to="/transactions/new"
-        variant="filled"
-      >
-        <Plus size={24} />
-      </ActionIcon>
     </AppShell>
+  );
+}
+
+/**
+ * "+" dropdown next to the user menu — the entry point for creating a
+ * new transaction, account, or subscription. Replaces the old FAB.
+ * Mantine doesn't ship a built-in +/× morph icon, so the trigger
+ * stays a plain `+` per the "don't bother custom-building it" call.
+ */
+function CreateMenu() {
+  return (
+    <Menu position="bottom-end" shadow="md" width={220}>
+      <Menu.Target>
+        <ActionIcon aria-label="Create" radius="lg" size="lg" variant="filled">
+          <Plus size={18} />
+        </ActionIcon>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Item
+          component={Link}
+          leftSection={<Receipt size={14} />}
+          to="/transactions/new"
+        >
+          New transaction
+        </Menu.Item>
+        <Menu.Item
+          component={Link}
+          leftSection={<Wallet size={14} />}
+          to="/accounts/new"
+        >
+          New account
+        </Menu.Item>
+        <Menu.Item
+          component={Link}
+          leftSection={<Repeat size={14} />}
+          to="/subscriptions/new"
+        >
+          New subscription
+        </Menu.Item>
+      </Menu.Dropdown>
+    </Menu>
   );
 }
 
@@ -154,7 +187,7 @@ function UserMenu() {
     <Menu position="bottom-end" shadow="md" width={240}>
       <Menu.Target>
         <ActionIcon aria-label="Account menu" radius="lg" size="lg">
-          <Avatar color="initials" name={initials} radius="xl" size={28}>
+          <Avatar color="initials" name={initials} radius="lg" size={28}>
             {initials}
           </Avatar>
         </ActionIcon>
