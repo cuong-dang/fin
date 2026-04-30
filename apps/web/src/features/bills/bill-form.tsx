@@ -48,7 +48,8 @@ const TYPE_HINT: Record<BillType, string> = {
     "Variable-amount essential service (electric, water, gas). The amount is left blank in the template — fill it in per charge.",
   subscription:
     "Fixed-amount recurring service (Netflix, software). Pause or cancel anytime.",
-  other: "Catch-all for taxes, fees, dues, and anything else periodic.",
+  other:
+    "Catch-all for periodic charges that aren't utilities or subscriptions — taxes, life or medical insurance premiums, HOA dues, payroll deductions, and the like.",
 };
 
 type LineFormValues = CategoryLineFormValues;
