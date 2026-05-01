@@ -15,7 +15,7 @@ import {
 } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 
 import {
   type CategoryLineFormValues,
@@ -168,6 +168,10 @@ function Form({
     (a) => a.type !== "loan" && a.id !== account.id,
   );
 
+  // Save / Cancel / Back return to wherever the user came from instead
+  // of dumping at /accounts. `navigate(-1)` pops one history entry.
+  const goBack = () => navigate(-1);
+
   const mutation = useMutation({
     mutationFn: (body: Parameters<typeof updateAccount>[1]) =>
       updateAccount(account.id, body),
@@ -177,12 +181,12 @@ function Form({
       qc.invalidateQueries({ queryKey: ["account-groups"] });
       qc.invalidateQueries({ queryKey: ["categories"] });
       qc.invalidateQueries({ queryKey: ["tags"] });
-      navigate("/accounts");
+      goBack();
     },
   });
 
   return (
-    <PageShell back="/accounts" title="Edit account">
+    <PageShell back={goBack} title="Edit account">
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -292,7 +296,7 @@ function Form({
             <Button loading={mutation.isPending} type="submit">
               Save
             </Button>
-            <Button component={Link} to="/accounts" variant="subtle">
+            <Button variant="subtle" onClick={goBack}>
               Cancel
             </Button>
           </Group>

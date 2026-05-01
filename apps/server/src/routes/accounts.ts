@@ -1,4 +1,5 @@
 import {
+  Account,
   type CreateAccountBody,
   createAccountBody,
   idParam,
@@ -23,8 +24,7 @@ import { nextSortKey } from "../lib/transactions-order";
 export const accountRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
 
-  // Pending = date IS NULL. Hard-deleted transactions take their legs
-  // with them, so we don't need a deleted_at filter here.
+  // Pending = date IS NULL.
   const presentBalanceSql = sql<string>`COALESCE(SUM(${schema.transactionLegs.amount}) FILTER (WHERE ${schema.transactions.date} IS NOT NULL), 0)`;
   const availableBalanceSql = sql<string>`COALESCE(SUM(${schema.transactionLegs.amount}), 0)`;
 
@@ -71,7 +71,7 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
   function rowToResponse(
     row: AccountRow,
     linesByPlan: Map<string, RecurringPlanDefaultLine[]>,
-  ) {
+  ): Account {
     const {
       planId,
       planAmountPerPeriod,
@@ -98,8 +98,17 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
     };
   }
 
-  /** List active accounts with present + available balance. */
-  app.get("/", async (req) => {
+  /**
+   * Shared select for both list and get-one. Caller passes a `where`
+   * that encodes ownership + filtering (e.g., `ownedActive` for list,
+   * `and(ownedActive, eq(id))` for get-one). Combining the ownership
+   * check into the same query lets the get-one path skip a separate
+   * `findOwned` round-trip — a missing/foreign row simply produces an
+   * empty result, which the caller turns into a 404.
+   */
+  async function fetchAccounts(
+    where: ReturnType<typeof and>,
+  ): Promise<Account[]> {
     const rows = await db
       .select({
         id: schema.accounts.id,
@@ -130,7 +139,7 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
         schema.recurringPlans,
         eq(schema.recurringPlans.id, schema.accounts.recurringPlanId),
       )
-      .where(ownedActive(schema.accounts, req.auth.groupId))
+      .where(where)
       .groupBy(schema.accounts.id, schema.recurringPlans.id)
       .orderBy(schema.accounts.name);
     const planIds = rows
@@ -138,49 +147,25 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
       .filter((id): id is string => id !== null);
     const linesByPlan = await fetchPlanDefaultLines(planIds);
     return rows.map((r) => rowToResponse(r, linesByPlan));
+  }
+
+  /** List active accounts with present + available balance. */
+  app.get("/", async (req): Promise<Account[]> => {
+    return fetchAccounts(ownedActive(schema.accounts, req.auth.groupId));
   });
 
   /** Fetch a single account (with balances). Used by the edit page. */
-  app.get("/:id", async (req, reply) => {
+  app.get("/:id", async (req, reply): Promise<Account> => {
     const { id } = idParam.parse(req.params);
-    const account = await findOwned(schema.accounts, id, req.auth.groupId);
-    if (!account) return reply.code(404).send({ error: "Not found" });
-    const [row] = await db
-      .select({
-        id: schema.accounts.id,
-        accountGroupId: schema.accounts.accountGroupId,
-        name: schema.accounts.name,
-        currency: schema.accounts.currency,
-        type: schema.accounts.type,
-        creditLimit: sql<
-          string | null
-        >`${schema.accounts.creditLimit}::text`.as("credit_limit"),
-        defaultPayFromAccountId: schema.accounts.defaultPayFromAccountId,
-        presentBalance: presentBalanceSql.as("present_balance"),
-        availableBalance: availableBalanceSql.as("available_balance"),
-        archivedAt: schema.accounts.archivedAt,
-        excludeFromNetWorth: schema.accounts.excludeFromNetWorth,
-        ...planSummary,
-      })
-      .from(schema.accounts)
-      .leftJoin(
-        schema.transactionLegs,
-        eq(schema.transactionLegs.accountId, schema.accounts.id),
-      )
-      .leftJoin(
-        schema.transactions,
-        eq(schema.transactions.id, schema.transactionLegs.transactionId),
-      )
-      .leftJoin(
-        schema.recurringPlans,
-        eq(schema.recurringPlans.id, schema.accounts.recurringPlanId),
-      )
-      .where(eq(schema.accounts.id, id))
-      .groupBy(schema.accounts.id, schema.recurringPlans.id);
-    const linesByPlan = row.planId
-      ? await fetchPlanDefaultLines([row.planId])
-      : new Map<string, RecurringPlanDefaultLine[]>();
-    return rowToResponse(row, linesByPlan);
+    const accounts = await fetchAccounts(
+      and(
+        ownedActive(schema.accounts, req.auth.groupId),
+        eq(schema.accounts.id, id),
+      ),
+    );
+    if (accounts.length === 0)
+      return reply.code(404).send({ error: "Not found" });
+    return accounts[0];
   });
 
   app.post("/", async (req, reply) => {

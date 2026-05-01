@@ -17,7 +17,6 @@ import {
   TextInput,
 } from "@mantine/core";
 import { useState } from "react";
-import { Link } from "react-router";
 
 import { AccountSelect } from "@/components/account-select";
 import {
@@ -80,6 +79,7 @@ export function BillForm({
   initialValues,
   submitLabel,
   onSubmit,
+  onCancel,
   pending,
   error,
 }: {
@@ -89,6 +89,7 @@ export function BillForm({
   initialValues?: InitialBillValues;
   submitLabel: string;
   onSubmit: (body: CreateBillBody) => void;
+  onCancel: () => void;
   pending: boolean;
   error: string | null;
 }) {
@@ -225,7 +226,7 @@ export function BillForm({
           <Button loading={pending} type="submit">
             {submitLabel}
           </Button>
-          <Button component={Link} to="/settings/bills" variant="subtle">
+          <Button variant="subtle" onClick={onCancel}>
             Cancel
           </Button>
         </Group>

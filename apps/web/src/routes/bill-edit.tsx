@@ -67,11 +67,15 @@ function Form({
   const navigate = useNavigate();
   const qc = useQueryClient();
 
+  // Save / Cancel / Back / Delete return to wherever the user came from
+  // instead of dumping at /settings/bills. `navigate(-1)` pops one
+  // history entry.
+  const goBack = () => navigate(-1);
   function go() {
     qc.invalidateQueries({ queryKey: ["bills"] });
     qc.invalidateQueries({ queryKey: ["bill", bill.id] });
     qc.invalidateQueries({ queryKey: ["tags"] });
-    navigate("/settings/bills");
+    goBack();
   }
 
   const mutation = useMutation({
@@ -100,7 +104,7 @@ function Form({
 
   return (
     <PageShell
-      back="/settings/bills"
+      back={goBack}
       subtitle={cancelled ? `Cancelled ${bill.cancelledAt}` : undefined}
       title="Edit bill"
     >
@@ -118,6 +122,7 @@ function Form({
         pending={mutation.isPending}
         submitLabel="Save"
         tags={tags}
+        onCancel={goBack}
         onSubmit={(body) => mutation.mutate(body)}
       />
       <DangerZone

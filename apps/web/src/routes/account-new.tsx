@@ -11,7 +11,7 @@ import {
 } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 
 import {
   type CategoryLineFormValues,
@@ -65,6 +65,11 @@ export function AccountNewRoute() {
   const [planLines, setPlanLines] = useState<CategoryLineFormValues[]>([]);
   const [excludeFromNetWorth, setExcludeFromNetWorth] = useState(false);
 
+  // Create / Cancel / Back all return to wherever the user came from
+  // (settings, sidebar, etc.) instead of dumping at /accounts.
+  // `navigate(-1)` pops one history entry.
+  const goBack = () => navigate(-1);
+
   const mutation = useMutation({
     mutationFn: createAccount,
     onSuccess: () => {
@@ -72,7 +77,7 @@ export function AccountNewRoute() {
       qc.invalidateQueries({ queryKey: ["account-groups"] });
       qc.invalidateQueries({ queryKey: ["categories"] });
       qc.invalidateQueries({ queryKey: ["tags"] });
-      navigate("/accounts");
+      goBack();
     },
   });
 
@@ -90,7 +95,7 @@ export function AccountNewRoute() {
   const hasGroups = groups.length > 0;
 
   return (
-    <PageShell back="/accounts" title="New account">
+    <PageShell back={goBack} title="New account">
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -229,7 +234,7 @@ export function AccountNewRoute() {
             <Button loading={mutation.isPending} type="submit">
               Create
             </Button>
-            <Button component={Link} to="/accounts" variant="subtle">
+            <Button variant="subtle" onClick={goBack}>
               Cancel
             </Button>
           </Group>

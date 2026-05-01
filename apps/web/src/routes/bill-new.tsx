@@ -21,12 +21,17 @@ export function BillNewRoute() {
   });
   const tagsQ = useQuery({ queryKey: ["tags"], queryFn: () => listTags() });
 
+  // Create / Cancel / Back all return to wherever the user came from
+  // (settings, charts, transactions list, etc.) instead of dumping at
+  // /settings/bills. `navigate(-1)` pops one history entry.
+  const goBack = () => navigate(-1);
+
   const mutation = useMutation({
     mutationFn: createBill,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bills"] });
       qc.invalidateQueries({ queryKey: ["tags"] });
-      navigate("/settings/bills");
+      goBack();
     },
   });
 
@@ -35,7 +40,7 @@ export function BillNewRoute() {
   }
 
   return (
-    <PageShell back="/settings/bills" title="New bill">
+    <PageShell back={goBack} title="New bill">
       <BillForm
         accounts={accountsQ.data ?? []}
         categories={categoriesQ.data ?? []}
@@ -43,6 +48,7 @@ export function BillNewRoute() {
         pending={mutation.isPending}
         submitLabel="Create"
         tags={tagsQ.data ?? []}
+        onCancel={goBack}
         onSubmit={(body) => mutation.mutate(body)}
       />
     </PageShell>

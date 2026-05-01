@@ -11,14 +11,12 @@ import {
  * Full recurring-plan payload embedded on the loan account row. Bundled
  * with the account so the sidebar (payments-remaining), the Payment > Loan
  * pre-fill, and the Edit form can all read what they need without a
- * second round-trip. The plan has no `name` of its own — the paired
- * account's `name` covers display.
+ * second round-trip.
  */
 export type AccountRecurringPlan = {
   id: string;
   amountPerPeriod: string; // stringified bigint
   frequency: RecurringFrequency;
-  firstPaymentDate: string;
   defaultAccountId: string | null;
   description: string | null;
   defaultLines: RecurringPlanDefaultLine[];
@@ -27,7 +25,6 @@ export type AccountRecurringPlan = {
 const nameField = z.string().trim().min(1).max(100);
 const newGroupField = z.string().trim().min(1).max(100).optional();
 
-// Loan accounts pair 1:1 with a `recurring_plans` row holding the schedule.
 export const accountType = z.enum(["checking_savings", "credit_card", "loan"]);
 export type AccountType = z.infer<typeof accountType>;
 
@@ -137,7 +134,7 @@ export type Account = {
   availableBalance: string;
   /** Set only when type='credit_card'. Stringified bigint, currency minor units. */
   creditLimit: string | null;
-  /** Set only when type='credit_card'. Optional. */
+  /** Set only when type='credit_card' or 'loan'. Optional. */
   defaultPayFromAccountId: string | null;
   /** Set only when type='loan'. Joined plan summary; null otherwise. */
   recurringPlan: AccountRecurringPlan | null;
