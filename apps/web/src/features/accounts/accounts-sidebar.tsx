@@ -47,15 +47,11 @@ export function AccountsSidebar() {
 
   const groups = groupsQ.data ?? [];
   // Filter archived accounts out of the sidebar — they live in the manage
-  // page only. Manage page passes the unfiltered list to its own query.
+  // page only.
   const accounts = (accountsQ.data ?? []).filter((a) => a.archivedAt === null);
   const byGroup = groupBy(accounts, (a) => a.accountGroupId);
-  // Hide groups that have no active accounts. Empty groups still exist in
-  // the DB and remain manageable from the settings page; they're just
-  // invisible noise in the sidebar.
-  const visibleGroups = groups.filter(
-    (g) => (byGroup.get(g.id) ?? []).length > 0,
-  );
+  // Hide groups that have no active accounts.
+  const visibleGroups = groups.filter((g) => byGroup.has(g.id));
   // Net-worth header sums only the accounts the user counts toward
   // their net worth; the rest stay visible (with balances + group
   // subtotals) but don't roll into the total.
@@ -63,11 +59,9 @@ export function AccountsSidebar() {
     accounts.filter((a) => !a.excludeFromNetWorth),
   );
 
-  // Collapsed-group state, persisted to localStorage so the sidebar
-  // remembers your preference across reloads. Default expanded; clicking
-  // a group's header toggles its presence in the set.
+  // Collapsed-group state, persisted to localStorage.
   const [collapsed, setCollapsed] = useState<Set<string>>(loadCollapsed);
-  const toggleGroup = (id: string) =>
+  const toggleCollapse = (id: string) =>
     setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -81,7 +75,7 @@ export function AccountsSidebar() {
     // height inside the navbar's flex column. Without it the default
     // `min-height: auto` on flex children pins the Stack to content
     // height and the ScrollArea below has no bounded height to scroll.
-    <Stack flex={1} gap={0} mih={0}>
+    <Stack gap={0} mih={0}>
       <Group justify="space-between" px="xs">
         <SectionHeader compact>Accounts</SectionHeader>
         <NetWorthSummary totals={netWorth} />
@@ -94,19 +88,30 @@ export function AccountsSidebar() {
           label="All transactions"
           to="/transactions"
         />
-        {visibleGroups.length === 0 ? (
-          <Text c="dimmed">No accounts yet.</Text>
+        {groupsQ.isLoading || accountsQ.isLoading ? (
+          <Text c="dimmed" px="xs">
+            Loading...
+          </Text>
+        ) : visibleGroups.length === 0 ? (
+          <Text c="dimmed" px="xs">
+            No accounts yet.
+          </Text>
         ) : (
           visibleGroups.map((g) => (
             <GroupSection
               key={g.id}
-              accounts={byGroup.get(g.id) ?? []}
+              accounts={byGroup.get(g.id)!}
               collapsed={collapsed.has(g.id)}
               group={g}
               selectedAccountId={selectedAccountId}
-              onToggle={() => toggleGroup(g.id)}
+              onToggle={() => toggleCollapse(g.id)}
             />
           ))
+        )}
+        {(groupsQ.error || accountsQ.error) && (
+          <Text c="red" px="xs">
+            Error loading groups or accounts.
+          </Text>
         )}
       </ScrollArea>
     </Stack>
@@ -194,7 +199,7 @@ function GroupSection({
     <Stack gap={0}>
       <UnstyledButton onClick={onToggle}>
         <Group justify="space-between" pr="xs">
-          <Group wrap="nowrap">
+          <Group>
             {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
             <SectionHeader>{group.name}</SectionHeader>
           </Group>
@@ -231,15 +236,11 @@ function AccountItem({
   const present = BigInt(account.presentBalance);
   const available = BigInt(account.availableBalance);
   const hasPending = present !== available;
-  const isCc = account.type === "credit_card" && account.creditLimit;
-  const isLoan = account.type === "loan" && account.recurringPlan;
+  const isCc = account.type === "credit_card";
+  const isLoan = account.type === "loan";
 
-  // Compose the label column ourselves so the credit-limit bar / loan
-  // remaining-payments hint render inline beneath the name. NavLink's
-  // `children` slot is for nested sub-NavLinks (collapsible), which isn't
-  // what we want here.
   const nameRow = (
-    <Group gap={4} wrap="nowrap">
+    <Group>
       {account.excludeFromNetWorth && (
         <Tooltip label="Excluded from net worth">
           <CircleOff
@@ -302,6 +303,33 @@ function AccountItem({
   );
 }
 
+function CreditLimitBar({
+  creditLimit,
+  limitRemaining,
+  currency,
+}: {
+  creditLimit: bigint;
+  limitRemaining: bigint;
+  currency: string;
+}) {
+  // limitRemaining can go negative (over-limit); clamp display only.
+  const clamped = limitRemaining < 0n ? 0n : limitRemaining;
+  const pctRemaining =
+    creditLimit > 0n ? Number((clamped * 100n) / creditLimit) : 0;
+  const color =
+    pctRemaining >= 75 ? "teal" : pctRemaining >= 50 ? "yellow" : "red";
+
+  return (
+    <Stack>
+      <Progress color={color} size="sm" value={pctRemaining} />
+      <Text c="dimmed" ff="monospace" size="xs">
+        {formatMoney(limitRemaining, currency)} of{" "}
+        {formatMoney(creditLimit, currency)} left
+      </Text>
+    </Stack>
+  );
+}
+
 const FREQUENCY_SUFFIX: Record<RecurringFrequency, string> = {
   weekly: "/wk",
   biweekly: "/2wk",
@@ -320,7 +348,6 @@ function LoanRemainingHint({
 }: {
   accountId: string;
   accountName: string;
-  /** Sum of all legs on the loan account (negative when there's debt). */
   balance: bigint;
   amountPerPeriod: bigint;
   currency: string;
@@ -332,7 +359,7 @@ function LoanRemainingHint({
   // a sidebar hint, prefixed with `~` to signal the approximation.
   if (balance >= 0n) {
     return (
-      <Group wrap="nowrap">
+      <Group>
         <Text c="dimmed" ff="monospace" size="xs">
           Paid off
         </Text>
@@ -392,33 +419,5 @@ function ArchiveLoanButton({
         <Archive size={12} />
       </ActionIcon>
     </Tooltip>
-  );
-}
-
-function CreditLimitBar({
-  creditLimit,
-  limitRemaining,
-  currency,
-}: {
-  creditLimit: bigint;
-  limitRemaining: bigint;
-  currency: string;
-}) {
-  // limitRemaining can go negative (over-limit); clamp display only.
-  const clamped = limitRemaining < 0n ? 0n : limitRemaining;
-  const pctRemaining =
-    creditLimit > 0n ? Number((clamped * 100n) / creditLimit) : 0;
-  // Green when most of the limit is free; shifts red as it depletes.
-  const color =
-    pctRemaining >= 75 ? "teal" : pctRemaining >= 50 ? "yellow" : "red";
-
-  return (
-    <Stack>
-      <Progress color={color} size="sm" value={pctRemaining} />
-      <Text c="dimmed" ff="monospace" size="xs">
-        {formatMoney(limitRemaining, currency)} of{" "}
-        {formatMoney(creditLimit, currency)} left
-      </Text>
-    </Stack>
   );
 }
