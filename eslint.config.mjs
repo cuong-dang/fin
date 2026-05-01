@@ -6,13 +6,7 @@ import tseslint from "typescript-eslint";
 
 export default [
   {
-    ignores: [
-      "**/node_modules/**",
-      "**/dist/**",
-      "**/build/**",
-      "**/.vite/**",
-      "drizzle/**",
-    ],
+    ignores: ["**/node_modules/**", "**/dist/**", "drizzle/**"],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

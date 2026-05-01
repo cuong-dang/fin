@@ -25,7 +25,7 @@ export function App() {
       <Route element={<SignInRoute />} path="/signin" />
       <Route element={<AuthCallbackRoute />} path="/auth/callback" />
       <Route element={<RequireAuth />}>
-        {/* In-chrome pages share AppLayout (header + nav + FAB). */}
+        {/* In-chrome pages share AppLayout (header + nav). */}
         <Route element={<AppLayoutRoute />}>
           <Route element={<Navigate replace to="/charts" />} path="/" />
           <Route element={<TransactionsRoute />} path="/transactions" />

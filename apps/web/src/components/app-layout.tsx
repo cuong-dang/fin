@@ -32,9 +32,8 @@ const PAGES: { to: string; label: string }[] = [
 ];
 
 /**
- * Multi-page chrome wrapper. Hosts the header (brand + page title + a
- * "+" create menu + user menu), the navbar (page nav + accounts
- * panel), and the Outlet for the current page.
+ * Multi-page chrome wrapper. Hosts the header (brand + page title + user menu),
+ * the navbar (page nav + accounts panel), and the Outlet for the current page.
  *
  * Form routes (account / transaction / bill edit etc.) sit
  * outside this layout so they get a focused, chrome-less view via
@@ -43,8 +42,9 @@ const PAGES: { to: string; label: string }[] = [
 export function AppLayoutRoute() {
   const location = useLocation();
   const [opened, { toggle, close }] = useDisclosure(false);
-  const pageLabel =
-    PAGES.find((p) => location.pathname.startsWith(p.to))?.label ?? "fin";
+  const pageLabel = PAGES.find((p) =>
+    location.pathname.startsWith(p.to),
+  )?.label;
 
   // Close the drawer after navigating on mobile so tapping a nav link
   // doesn't leave the drawer covering the page. We watch `location.key`
@@ -66,7 +66,7 @@ export function AppLayoutRoute() {
       }}
     >
       <AppShell.Header>
-        <Group h="100%" justify="space-between" px="xs">
+        <Group justify="space-between" p="xs">
           <Group>
             <Burger
               hiddenFrom="sm"
@@ -81,7 +81,7 @@ export function AppLayoutRoute() {
               {pageLabel}
             </Title>
           </Group>
-          <Group gap="xs">
+          <Group>
             <CreateMenu />
             <UserMenu />
           </Group>
@@ -93,11 +93,9 @@ export function AppLayoutRoute() {
             outer Stack collapses to content height and the accounts
             list overflows the viewport without scrolling. */}
         <Stack h="100%">
-          <Stack>
-            {PAGES.map((p) => (
-              <PageNavLink key={p.to} label={p.label} to={p.to} />
-            ))}
-          </Stack>
+          {PAGES.map((p) => (
+            <PageNavLink key={p.to} label={p.label} to={p.to} />
+          ))}
           <AccountsSidebar />
         </Stack>
       </AppShell.Navbar>
@@ -116,7 +114,7 @@ export function AppLayoutRoute() {
  */
 function CreateMenu() {
   return (
-    <Menu position="bottom-end" shadow="md" width={220}>
+    <Menu position="bottom-end" shadow="md" width={200}>
       <Menu.Target>
         <ActionIcon aria-label="Create" radius="lg" size="lg" variant="filled">
           <Plus size={18} />
@@ -178,13 +176,12 @@ function UserMenu() {
     name
       .split(/\s+/)
       .map((p) => p[0])
-      .filter(Boolean)
       .slice(0, 2)
       .join("")
       .toUpperCase() || "?";
 
   return (
-    <Menu position="bottom-end" shadow="md" width={240}>
+    <Menu position="bottom-end" shadow="md" width={200}>
       <Menu.Target>
         <ActionIcon aria-label="Account menu" radius="lg" size="lg">
           <Avatar color="initials" name={initials} radius="lg" size={28}>
