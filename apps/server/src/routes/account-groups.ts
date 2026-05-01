@@ -1,9 +1,10 @@
 import {
+  AccountGroup,
   createAccountGroupBody,
   idParam,
   updateAccountGroupBody,
 } from "@fin/schemas";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
 
 import { schema } from "../db";
@@ -13,7 +14,7 @@ import { findOwned, ownedActive } from "../lib/authz";
 export const accountGroupRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
 
-  app.get("/", async (req) => {
+  app.get("/", async (req): Promise<AccountGroup[]> => {
     return db
       .select({ id: schema.accountGroups.id, name: schema.accountGroups.name })
       .from(schema.accountGroups)
@@ -33,7 +34,7 @@ export const accountGroupRoutes: FastifyPluginAsync = async (app) => {
     return reply.code(201).send(row);
   });
 
-  app.patch("/:id", async (req, reply) => {
+  app.patch("/:id", async (req, reply): Promise<AccountGroup> => {
     const { id } = idParam.parse(req.params);
     const body = updateAccountGroupBody.parse(req.body);
 
@@ -71,12 +72,7 @@ export const accountGroupRoutes: FastifyPluginAsync = async (app) => {
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(schema.accounts)
-      .where(
-        and(
-          eq(schema.accounts.accountGroupId, id),
-          isNull(schema.accounts.deletedAt),
-        ),
-      );
+      .where(and(eq(schema.accounts.accountGroupId, id)));
     if (count > 0) {
       return reply.code(409).send({
         error: `Cannot delete group: ${count} active account(s) still reference it`,
