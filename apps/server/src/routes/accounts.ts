@@ -58,12 +58,12 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
     planId: string | null;
     planAmountPerPeriod: string | null;
     planFrequency:
-      | "weekly"
-      | "biweekly"
-      | "monthly"
-      | "quarterly"
-      | "yearly"
-      | null;
+    | "weekly"
+    | "biweekly"
+    | "monthly"
+    | "quarterly"
+    | "yearly"
+    | null;
     planDefaultAccountId: string | null;
     planDescription: string | null;
   };
@@ -87,13 +87,13 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
       recurringPlan:
         planId && planAmountPerPeriod && planFrequency
           ? {
-              id: planId,
-              amountPerPeriod: planAmountPerPeriod,
-              frequency: planFrequency,
-              defaultAccountId: planDefaultAccountId,
-              description: planDescription,
-              defaultLines: linesByPlan.get(planId) ?? [],
-            }
+            id: planId,
+            amountPerPeriod: planAmountPerPeriod,
+            frequency: planFrequency,
+            defaultAccountId: planDefaultAccountId,
+            description: planDescription,
+            defaultLines: linesByPlan.get(planId) ?? [],
+          }
           : null,
     };
   }
@@ -195,8 +195,8 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
     );
     if (ccFields === null) return;
 
-    // Loan: pre-validate plan's pay-from (must be checking_savings) before
-    // opening the write tx. The plan row itself is created inside the tx.
+    // Loan: pre-validate plan's pay-from (must be checking_savings or credit_card)
+    // before opening the write tx. The plan row itself is created inside the tx.
     if (body.type === "loan" && body.recurringPlan.defaultAccountId) {
       const payFrom = await findOwned(
         schema.accounts,
@@ -230,11 +230,11 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
       const recurringPlanId =
         body.type === "loan"
           ? await insertRecurringPlan(
-              tx,
-              body.recurringPlan,
-              body.currency,
-              req.auth.groupId,
-            )
+            tx,
+            body.recurringPlan,
+            body.currency,
+            req.auth.groupId,
+          )
           : null;
 
       const [accountRow] = await tx
@@ -480,8 +480,7 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
 
     // Soft-delete: existing transaction legs stay attached and historical
     // tx displays still resolve the account name. The account simply
-    // disappears from balances/sidebars/pickers. (No more "has tx" gate —
-    // soft-delete has no integrity issue with referencing legs.)
+    // disappears from balances/sidebars/pickers.
     await db
       .update(schema.accounts)
       .set({ deletedAt: new Date(), updatedAt: new Date() })
@@ -498,7 +497,7 @@ type CcFields = {
 // Validates the CC pay-from account: exists, owned, and is a
 // checking_savings account. Self-reference is implicitly rejected by the
 // type check (a CC pointing at itself fails the checking_savings test).
-async function validatePayFrom(
+async function validateCcPayFrom(
   payFromId: string,
   workspaceGroupId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -532,7 +531,7 @@ async function resolveCcFields(
     return null;
   }
   if (body.defaultPayFromAccountId) {
-    const result = await validatePayFrom(
+    const result = await validateCcPayFrom(
       body.defaultPayFromAccountId,
       workspaceGroupId,
     );
@@ -585,23 +584,23 @@ async function fetchPlanDefaultLines(
 
   const tagRows = lineRows.length
     ? await db
-        .select({
-          lineId: schema.recurringPlanDefaultLineTags.lineId,
-          tagId: schema.tags.id,
-          tagName: schema.tags.name,
-        })
-        .from(schema.recurringPlanDefaultLineTags)
-        .innerJoin(
-          schema.tags,
-          eq(schema.tags.id, schema.recurringPlanDefaultLineTags.tagId),
-        )
-        .where(
-          inArray(
-            schema.recurringPlanDefaultLineTags.lineId,
-            lineRows.map((l) => l.id),
-          ),
-        )
-        .orderBy(schema.tags.name)
+      .select({
+        lineId: schema.recurringPlanDefaultLineTags.lineId,
+        tagId: schema.tags.id,
+        tagName: schema.tags.name,
+      })
+      .from(schema.recurringPlanDefaultLineTags)
+      .innerJoin(
+        schema.tags,
+        eq(schema.tags.id, schema.recurringPlanDefaultLineTags.tagId),
+      )
+      .where(
+        inArray(
+          schema.recurringPlanDefaultLineTags.lineId,
+          lineRows.map((l) => l.id),
+        ),
+      )
+      .orderBy(schema.tags.name)
     : [];
   const tagsByLine = groupBy(tagRows, (t) => t.lineId);
 

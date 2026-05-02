@@ -242,3 +242,4 @@ POST             /api/subscriptions/:id/cancel
 - [ ] feature: Essential charts
 - [ ] feature: Budgeting
 - [ ] feature: Transaction search
+- [ ] feature: Annuity
