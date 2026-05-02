@@ -100,9 +100,26 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
    * leaving the source). Drill modes sum line amounts directly so the
    * per-category breakdown is correct for split-line transactions.
    */
-  app.get("/cash-flow", async (req): Promise<AnalyticsChartResponse> => {
-    const { granularity, start, end, currency, dimension, categoryId } =
-      cashFlowQuery.parse(req.query);
+  app.get("/cash-flow", async (req, reply): Promise<AnalyticsChartResponse> => {
+    const {
+      granularity,
+      start,
+      end,
+      currency,
+      dimension,
+      groupId,
+      categoryId,
+    } = cashFlowQuery.parse(req.query);
+
+    if (groupId) {
+      const group = await findOwned(
+        schema.accountGroups,
+        groupId,
+        req.auth.groupId,
+      );
+      if (!group) return reply.code(404).send({ error: "Not found" });
+    }
+
     const fmtLit = sql.raw(`'${PERIOD_FORMAT[granularity]}'`);
     const truncExpr = truncExprFor(
       granularity,
@@ -171,18 +188,18 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
             eq(schema.transactions.groupId, req.auth.groupId),
             eq(schema.transactionLines.currency, currency),
             eq(schema.transactions.type, "income"),
-            sql`${schema.accounts.type} IN ('checking_savings', 'credit_card')`,
             gte(schema.transactions.date, start),
             lte(schema.transactions.date, end),
+            groupId ? eq(schema.accounts.accountGroupId, groupId) : undefined,
           )
         : and(
             eq(schema.transactions.groupId, req.auth.groupId),
             eq(schema.transactionLines.currency, currency),
             eq(schema.transactions.type, "expense"),
             sql`${schema.transactions.billId} IS NULL`,
-            sql`${schema.accounts.type} IN ('checking_savings', 'credit_card')`,
             gte(schema.transactions.date, start),
             lte(schema.transactions.date, end),
+            groupId ? eq(schema.accounts.accountGroupId, groupId) : undefined,
           );
 
       rows = drilling
@@ -367,16 +384,28 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
       // expenses fall into "bill" rather than "expense" because the bill
       // branch comes first.
       const destTypeSubquery = sql<string>`(
-        SELECT a.type FROM transaction_legs ol
-        INNER JOIN accounts a ON a.id = ol.account_id
-        WHERE ol.transaction_id = ${schema.transactions.id}
-          AND ol.account_id <> ${schema.transactionLegs.accountId}
+        SELECT a.type FROM transaction_legs tl
+        INNER JOIN accounts a ON a.id = tl.account_id
+        WHERE tl.transaction_id = ${schema.transactions.id}
+          AND tl.account_id <> ${schema.transactionLegs.accountId}
+        LIMIT 1
+      )`;
+      const isGroupFilterOn = groupId ? sql`TRUE` : sql`FALSE`;
+      const destGroupSubquery = sql<string>`(
+        SELECT a.account_group_id FROM transaction_legs tl
+        INNER JOIN accounts a ON a.id = tl.account_id
+        WHERE tl.transaction_id = ${schema.transactions.id}
+          AND tl.account_id <> ${schema.transactionLegs.accountId}
         LIMIT 1
       )`;
       const bucketIdExpr = sql<string>`CASE
         WHEN ${schema.transactions.billId} IS NOT NULL THEN 'bill'
         WHEN ${schema.transactions.type} = 'transfer' AND ${destTypeSubquery} = 'loan' THEN 'loan'
-        WHEN ${schema.transactions.type} = 'expense' AND ${schema.accounts.type} IN ('checking_savings', 'credit_card') THEN 'expense'
+        WHEN ${schema.transactions.type} = 'expense' THEN 'expense'
+        WHEN ${schema.transactions.type} = 'transfer'
+          AND ${isGroupFilterOn}
+          AND ${destGroupSubquery} IS DISTINCT FROM ${schema.accounts.accountGroupId}
+          THEN 'extTransfers'
       END`;
       rows = await db
         .select({
@@ -402,6 +431,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
             ne(schema.transactions.type, "adjustment"),
             gte(schema.transactions.date, start),
             lte(schema.transactions.date, end),
+            groupId ? eq(schema.accounts.accountGroupId, groupId) : undefined,
           ),
         )
         .groupBy(truncExpr, bucketIdExpr)
@@ -437,6 +467,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
         { id: "expense", name: "Expenses" },
         { id: "loan", name: "Loans" },
         { id: "bill", name: "Bills" },
+        { id: "extTransfers", name: "External transfers" },
       ];
       items = ORDER.filter((o) => itemsById.has(o.id));
     } else if (

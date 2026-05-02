@@ -1,4 +1,5 @@
 import type {
+  AccountGroup,
   CashFlowDirection,
   ChartBucket,
   ChartItem,
@@ -10,7 +11,7 @@ import { useState } from "react";
 
 import { StackedBarChart } from "@/features/analytics/chart-shared";
 import { DivergingNetChart } from "@/features/analytics/diverging-net-chart";
-import { getCashFlow } from "@/lib/endpoints";
+import { getCashFlow, listAccountGroups } from "@/lib/endpoints";
 
 /**
  * Drill state — discriminated by the active direction. Each direction
@@ -34,6 +35,7 @@ type DrillState =
     }
   | { direction: "out"; dimension: "outLoans" }
   | { direction: "out"; dimension: "outBills" }
+  | { direction: "out"; dimension: "outExtTransfers" }
   | { direction: "in"; dimension: "inTop" }
   | {
       direction: "in";
@@ -50,13 +52,18 @@ const DIRECTION_TITLES: Record<CashFlowDirection, string> = {
 };
 
 const OUT_DRILL_LABELS: Record<
-  "outExpenses" | "outExpensesByCategory" | "outLoans" | "outBills",
+  | "outExpenses"
+  | "outExpensesByCategory"
+  | "outLoans"
+  | "outBills"
+  | "outExtTransfers",
   string
 > = {
   outExpenses: "Expenses",
   outExpensesByCategory: "Expenses",
   outLoans: "Loans",
   outBills: "Bills",
+  outExtTransfers: "External transfers",
 };
 
 const DIRECTION_OPTIONS = [
@@ -69,6 +76,13 @@ function defaultDrill(direction: CashFlowDirection): DrillState {
   if (direction === "out") return { direction: "out", dimension: "outTop" };
   if (direction === "in") return { direction: "in", dimension: "inTop" };
   return { direction: "net", dimension: "net" };
+}
+
+function groupOptions(groups: AccountGroup[]) {
+  return [
+    { value: "", label: "All groups" },
+    ...groups.map((g) => ({ value: g.id, label: g.name })),
+  ];
 }
 
 export function CashFlowChart({
@@ -110,6 +124,7 @@ export function CashFlowChart({
     }
     // Other dimensions are leaves — no further drill.
   }
+
   const resetToDirectionTop = () => setDrill(defaultDrill(drill.direction));
   const upToExpenses = () =>
     setDrill({ direction: "out", dimension: "outExpenses" });
@@ -122,6 +137,13 @@ export function CashFlowChart({
       ? drill.categoryId
       : undefined;
 
+  const groupsQ = useQuery({
+    queryKey: ["account-groups"],
+    queryFn: listAccountGroups,
+  });
+  const groups = groupsQ.data ?? [];
+  const [groupId, setGroupId] = useState("");
+
   const q = useQuery({
     queryKey: [
       "analytics",
@@ -132,6 +154,7 @@ export function CashFlowChart({
         end,
         currency,
         dimension: drill.dimension,
+        groupId: groupId || null,
         categoryId: categoryId ?? null,
       },
     ],
@@ -142,6 +165,7 @@ export function CashFlowChart({
         end,
         currency,
         dimension: drill.dimension,
+        groupId,
         categoryId,
       }),
     enabled: !!currency,
@@ -203,19 +227,42 @@ export function CashFlowChart({
             </>
           )}
         </Group>
-        {isAtTop && (
-          <NativeSelect
-            aria-label="Cash-flow direction"
-            data={DIRECTION_OPTIONS}
-            value={drill.direction}
-            onChange={(e) =>
-              onDirectionChange(e.target.value as CashFlowDirection)
-            }
-          />
+        {isAtTop ? (
+          <Group>
+            <NativeSelect
+              aria-label="Cash-flow direction"
+              data={DIRECTION_OPTIONS}
+              value={drill.direction}
+              onChange={(e) =>
+                onDirectionChange(e.target.value as CashFlowDirection)
+              }
+            />
+            <NativeSelect
+              aria-label="Account group"
+              data={groupOptions(groups)}
+              value={groupId}
+              onChange={(e) => setGroupId(e.target.value)}
+            />
+          </Group>
+        ) : (
+          <Group>
+            <NativeSelect
+              aria-label="Cash-flow direction"
+              data={DIRECTION_OPTIONS}
+              disabled={true}
+              value={drill.direction}
+            />
+            <NativeSelect
+              aria-label="Account group"
+              data={groupOptions(groups)}
+              disabled={true}
+              value={groupId}
+            />
+          </Group>
         )}
       </Group>
-      {q.isLoading && <Text c="dimmed">Loading…</Text>}
-      {q.error && <Text c="red">{(q.error as Error).message}</Text>}
+      {(q.isLoading || groupsQ.isLoading) && <Text c="dimmed">Loading…</Text>}
+      {(q.error || groupsQ.error) && <Text c="red">Error loading.</Text>}
       {q.data &&
         (drill.direction === "net" ? (
           <NetCashFlowChartView

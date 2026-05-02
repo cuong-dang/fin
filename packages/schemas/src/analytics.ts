@@ -104,6 +104,7 @@ export const cashFlowDimension = z.enum([
   "outExpensesByCategory", // drill further → subcategory stacks (within one category)
   "outLoans", // drill into Loan payments → per-loan stacks
   "outBills", // drill into Bills → per-bill stacks
+  "outExtTransfers",
   // direction=in
   "inTop", // income by category
   "inByCategory", // drill into a category → subcategory stacks
@@ -144,6 +145,7 @@ export const cashFlowQuery = z.object({
   end: dateString,
   currency: currencyField,
   dimension: cashFlowDimension,
+  groupId: z.uuid().optional(),
   categoryId: z.uuid().optional(),
 });
 export type CashFlowQuery = z.infer<typeof cashFlowQuery>;

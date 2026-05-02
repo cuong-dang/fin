@@ -190,6 +190,7 @@ export const getCashFlow = (q: CashFlowQuery) => {
     dimension: q.dimension,
   });
   if (q.categoryId) qs.set("categoryId", q.categoryId);
+  if (q.groupId) qs.set("groupId", q.groupId);
   return api<AnalyticsChartResponse>(`/api/analytics/cash-flow?${qs}`);
 };
 

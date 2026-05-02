@@ -58,12 +58,12 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
     planId: string | null;
     planAmountPerPeriod: string | null;
     planFrequency:
-    | "weekly"
-    | "biweekly"
-    | "monthly"
-    | "quarterly"
-    | "yearly"
-    | null;
+      | "weekly"
+      | "biweekly"
+      | "monthly"
+      | "quarterly"
+      | "yearly"
+      | null;
     planDefaultAccountId: string | null;
     planDescription: string | null;
   };
@@ -87,13 +87,13 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
       recurringPlan:
         planId && planAmountPerPeriod && planFrequency
           ? {
-            id: planId,
-            amountPerPeriod: planAmountPerPeriod,
-            frequency: planFrequency,
-            defaultAccountId: planDefaultAccountId,
-            description: planDescription,
-            defaultLines: linesByPlan.get(planId) ?? [],
-          }
+              id: planId,
+              amountPerPeriod: planAmountPerPeriod,
+              frequency: planFrequency,
+              defaultAccountId: planDefaultAccountId,
+              description: planDescription,
+              defaultLines: linesByPlan.get(planId) ?? [],
+            }
           : null,
     };
   }
@@ -230,11 +230,11 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
       const recurringPlanId =
         body.type === "loan"
           ? await insertRecurringPlan(
-            tx,
-            body.recurringPlan,
-            body.currency,
-            req.auth.groupId,
-          )
+              tx,
+              body.recurringPlan,
+              body.currency,
+              req.auth.groupId,
+            )
           : null;
 
       const [accountRow] = await tx
@@ -584,23 +584,23 @@ async function fetchPlanDefaultLines(
 
   const tagRows = lineRows.length
     ? await db
-      .select({
-        lineId: schema.recurringPlanDefaultLineTags.lineId,
-        tagId: schema.tags.id,
-        tagName: schema.tags.name,
-      })
-      .from(schema.recurringPlanDefaultLineTags)
-      .innerJoin(
-        schema.tags,
-        eq(schema.tags.id, schema.recurringPlanDefaultLineTags.tagId),
-      )
-      .where(
-        inArray(
-          schema.recurringPlanDefaultLineTags.lineId,
-          lineRows.map((l) => l.id),
-        ),
-      )
-      .orderBy(schema.tags.name)
+        .select({
+          lineId: schema.recurringPlanDefaultLineTags.lineId,
+          tagId: schema.tags.id,
+          tagName: schema.tags.name,
+        })
+        .from(schema.recurringPlanDefaultLineTags)
+        .innerJoin(
+          schema.tags,
+          eq(schema.tags.id, schema.recurringPlanDefaultLineTags.tagId),
+        )
+        .where(
+          inArray(
+            schema.recurringPlanDefaultLineTags.lineId,
+            lineRows.map((l) => l.id),
+          ),
+        )
+        .orderBy(schema.tags.name)
     : [];
   const tagsByLine = groupBy(tagRows, (t) => t.lineId);
 
