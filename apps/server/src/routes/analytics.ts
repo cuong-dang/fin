@@ -390,22 +390,10 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
           AND tl.account_id <> ${schema.transactionLegs.accountId}
         LIMIT 1
       )`;
-      const isGroupFilterOn = groupId ? sql`TRUE` : sql`FALSE`;
-      const destGroupSubquery = sql<string>`(
-        SELECT a.account_group_id FROM transaction_legs tl
-        INNER JOIN accounts a ON a.id = tl.account_id
-        WHERE tl.transaction_id = ${schema.transactions.id}
-          AND tl.account_id <> ${schema.transactionLegs.accountId}
-        LIMIT 1
-      )`;
       const bucketIdExpr = sql<string>`CASE
         WHEN ${schema.transactions.billId} IS NOT NULL THEN 'bill'
         WHEN ${schema.transactions.type} = 'transfer' AND ${destTypeSubquery} = 'loan' THEN 'loan'
         WHEN ${schema.transactions.type} = 'expense' THEN 'expense'
-        WHEN ${schema.transactions.type} = 'transfer'
-          AND ${isGroupFilterOn}
-          AND ${destGroupSubquery} IS DISTINCT FROM ${schema.accounts.accountGroupId}
-          THEN 'extTransfers'
       END`;
       rows = await db
         .select({
@@ -467,7 +455,6 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
         { id: "expense", name: "Expenses" },
         { id: "loan", name: "Loans" },
         { id: "bill", name: "Bills" },
-        { id: "extTransfers", name: "External transfers" },
       ];
       items = ORDER.filter((o) => itemsById.has(o.id));
     } else if (

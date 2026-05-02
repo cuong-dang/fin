@@ -35,7 +35,6 @@ type DrillState =
     }
   | { direction: "out"; dimension: "outLoans" }
   | { direction: "out"; dimension: "outBills" }
-  | { direction: "out"; dimension: "outExtTransfers" }
   | { direction: "in"; dimension: "inTop" }
   | {
       direction: "in";
@@ -52,18 +51,13 @@ const DIRECTION_TITLES: Record<CashFlowDirection, string> = {
 };
 
 const OUT_DRILL_LABELS: Record<
-  | "outExpenses"
-  | "outExpensesByCategory"
-  | "outLoans"
-  | "outBills"
-  | "outExtTransfers",
+  "outExpenses" | "outExpensesByCategory" | "outLoans" | "outBills",
   string
 > = {
   outExpenses: "Expenses",
   outExpensesByCategory: "Expenses",
   outLoans: "Loans",
   outBills: "Bills",
-  outExtTransfers: "External transfers",
 };
 
 const DIRECTION_OPTIONS = [

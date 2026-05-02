@@ -228,8 +228,7 @@ export function TransactionForm({
       ? []
       : categories.filter((c) => c.kind === categoryKindForType);
   // Source-account filter:
-  //   - Transfer: checking/savings only on both sides (CC and loan hidden;
-  //     those flows surface through Payment > Credit card / Loan).
+  //   - Transfer: All accounts. Targets must be checking/savings.
   //   - Payment > Credit card: source must be checking/savings.
   //   - Payment > Loan: source can be checking/savings or credit_card
   //     (paying a loan with a card is a real flow). Loan-as-source is
@@ -237,7 +236,7 @@ export function TransactionForm({
   //   - Other (expense/income): all account types — a CC charge is an
   //     expense from the CC, a refund/credit is income to it.
   const sourceAccountPool =
-    type === "transfer" || (type === "payment" && paymentKind === "creditCard")
+    type === "payment" && paymentKind === "creditCard"
       ? accounts.filter((a) => a.type === "checking_savings")
       : type === "payment" && paymentKind === "loan"
         ? accounts.filter((a) => a.type !== "loan")
