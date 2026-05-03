@@ -4,7 +4,8 @@
     "lib": ["ES2023"],
     "noEmit": false,
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    "moduleResolution": "NodeNext"
   },
   "include": ["src/**/*"]
 }

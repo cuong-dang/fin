@@ -137,7 +137,6 @@ async function handleOutTop(ctx: CashFlowQueryCtx): Promise<Row[]> {
     legAmountExpr,
   } = ctx;
 
-  // Assuming only 1 transfer within a tx.
   const destType = sql<string>`(
     SELECT a.type FROM transaction_legs tl
     JOIN accounts a ON a.id = tl.account_id
