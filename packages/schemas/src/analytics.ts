@@ -67,7 +67,7 @@ export type CategoryChartDirection = z.infer<typeof categoryChartDirection>;
  * adjustment legs):
  *   - omitted → no tag filter
  *   - a UUID → only lines tagged with that tag
- *   - "none" → only lines with no tags
+ *   - "__none__" → only lines with no tags
  * Multi-tag selection isn't supported.
  */
 export const categorySpendingQuery = z.object({
@@ -77,7 +77,7 @@ export const categorySpendingQuery = z.object({
   currency: currencyField,
   direction: categoryChartDirection.default("expense"),
   categoryId: z.uuid().optional(),
-  tagId: z.union([z.uuid(), z.literal("none")]).optional(),
+  tagId: z.union([z.uuid(), z.literal("__none__")]).optional(),
 });
 export type CategorySpendingQuery = z.infer<typeof categorySpendingQuery>;
 
@@ -104,7 +104,6 @@ export const cashFlowDimension = z.enum([
   "outExpensesByCategory", // drill further → subcategory stacks (within one category)
   "outLoans", // drill into Loan payments → per-loan stacks
   "outBills", // drill into Bills → per-bill stacks
-  "outExtTransfers",
   // direction=in
   "inTop", // income by category
   "inByCategory", // drill into a category → subcategory stacks

@@ -16,10 +16,10 @@ const DIRECTION_OPTIONS = [
   { value: "income", label: "Income" },
 ];
 
-// "none" is the server-accepted sentinel for the untagged-only filter
-// (matches `tagId: uuid | "none"` in the schema). The empty string is
+// "__none__" is the server-accepted sentinel for the untagged-only filter
+// (matches `tagId: uuid | "__none__"` in the schema). The empty string is
 // our client-only "no filter" value — left out of the request entirely.
-const UNTAGGED = "none";
+const UNTAGGED = "__none__";
 const ALL_TAGS = "";
 
 export function CategorySpendingChart({
@@ -52,7 +52,7 @@ export function CategorySpendingChart({
     tagFilter === ALL_TAGS
       ? undefined
       : tagFilter === UNTAGGED
-        ? "none"
+        ? "__none__"
         : tagFilter;
 
   const q = useQuery({
