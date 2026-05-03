@@ -585,7 +585,7 @@ export function buildNetWorthContext(
     truncFirstLeg: truncExprFor(granularity, sql`(SELECT d FROM first_leg)`),
     truncDate: truncExprFor(granularity, sql`date`),
 
-    periodExpr: sql<string>`to_char(period, ${fmtLit})`,
+    periodExpr: sql<string>`to_char(g.period, ${fmtLit})`,
     intervalLit,
   };
 }
@@ -620,7 +620,7 @@ export async function fetchNetWorthRows(
           ELSE 'liabilities'
         END AS bucket,
         legs.amount,
-        t.date,
+        t.date
       FROM ${schema.transactionLegs} legs
       JOIN ${schema.transactions} t ON t.id = legs.transaction_id
       JOIN ${schema.accounts} a ON a.id = legs.account_id

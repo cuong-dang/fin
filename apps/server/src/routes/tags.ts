@@ -48,13 +48,16 @@ export const tagRoutes: FastifyPluginAsync = async (app) => {
                 ),
               )
               .innerJoin(
-                schema.categories,
-                eq(schema.categories.id, schema.transactionLines.categoryId),
+                schema.transactions,
+                eq(
+                  schema.transactions.id,
+                  schema.transactionLines.transactionId,
+                ),
               )
               .where(
                 and(
                   eq(schema.transactionLineTags.tagId, schema.tags.id),
-                  eq(schema.categories.kind, kind),
+                  eq(schema.transactions.type, kind),
                 ),
               ),
           ),
