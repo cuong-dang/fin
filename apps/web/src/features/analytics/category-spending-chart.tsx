@@ -1,3 +1,6 @@
+import { StackedBarChart } from "@/features/analytics/chart-shared";
+import { getCategorySpending, listTags } from "@/lib/endpoints";
+
 import type {
   CategoryChartDirection,
   ChartItem,
@@ -7,9 +10,6 @@ import type {
 import { Anchor, Group, NativeSelect, Stack, Text, Title } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-
-import { StackedBarChart } from "@/features/analytics/chart-shared";
-import { getCategorySpending, listTags } from "@/lib/endpoints";
 
 const DIRECTION_OPTIONS = [
   { value: "expense", label: "Expense" },

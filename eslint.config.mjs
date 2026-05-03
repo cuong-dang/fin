@@ -5,38 +5,59 @@ import simpleImportSort from "eslint-plugin-simple-import-sort";
 import tseslint from "typescript-eslint";
 
 export default [
-  {
-    ignores: ["**/node_modules/**", "**/dist/**", "drizzle/**"],
-  },
+  { ignores: ["**/dist/**", "drizzle/**"] },
+
   js.configs.recommended,
   ...tseslint.configs.recommended,
+
   {
-    files: ["**/*.{ts,tsx,mjs,js}"],
+    files: ["**/*.{ts,tsx}"],
+    rules: {
+      "no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
+    },
+  },
+
+  {
+    files: ["**/*.{js,mjs}"],
+    rules: {
+      "no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
+    },
+  },
+
+  {
+    files: ["**/*.{ts,tsx,js,mjs}"],
     plugins: { "simple-import-sort": simpleImportSort },
     rules: {
       "simple-import-sort/imports": [
         "error",
         {
           groups: [
-            // Side-effect imports
-            ["^\\u0000"],
-            // Node builtins
-            ["^node:"],
-            // External packages (npm, scoped packages, workspace packages)
-            ["^@?\\w"],
-            // Internal alias (@/...)
-            ["^@/"],
-            // Relative
-            ["^\\."],
+            ["^\\u0000"], // side effects
+            ["^node:"], // node builtins
+            ["^@/"], // internal alias
+            ["^@?\\w"], // external packages
+            ["^\\."], // relative
           ],
         },
       ],
       "simple-import-sort/exports": "error",
+      "@typescript-eslint/consistent-type-imports": "error",
     },
   },
+
   {
     files: ["apps/web/**/*.{ts,tsx}"],
     plugins: { "react-hooks": reactHooks, react },
+    settings: {
+      react: { version: "detect" },
+    },
     rules: {
       ...reactHooks.configs.recommended.rules,
       "react/jsx-key": "error",

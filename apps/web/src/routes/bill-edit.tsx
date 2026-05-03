@@ -1,8 +1,3 @@
-import type { Bill } from "@fin/schemas";
-import { Alert, Box, Button, Divider, Group, Stack, Text } from "@mantine/core";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useParams } from "react-router";
-
 import { PageShell } from "@/components/page-shell";
 import { BillForm, type InitialBillValues } from "@/features/bills/bill-form";
 import {
@@ -16,6 +11,11 @@ import {
   updateBill,
 } from "@/lib/endpoints";
 import { formatMoneyPlain } from "@/lib/money";
+
+import type { Bill } from "@fin/schemas";
+import { Alert, Box, Button, Divider, Group, Stack, Text } from "@mantine/core";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate, useParams } from "react-router";
 
 import { NotFoundRoute } from "./not-found";
 

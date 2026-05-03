@@ -1,3 +1,12 @@
+import { SectionHeader } from "@/components/section-header";
+import { groupBy } from "@/lib/collections";
+import {
+  archiveAccount,
+  listAccountGroups,
+  listAccounts,
+} from "@/lib/endpoints";
+import { formatMoney } from "@/lib/money";
+
 import type { Account, AccountGroup, RecurringFrequency } from "@fin/schemas";
 import {
   ActionIcon,
@@ -15,15 +24,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, ChevronDown, ChevronRight, CircleOff } from "lucide-react";
 import { useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router";
-
-import { SectionHeader } from "@/components/section-header";
-import { groupBy } from "@/lib/collections";
-import {
-  archiveAccount,
-  listAccountGroups,
-  listAccounts,
-} from "@/lib/endpoints";
-import { formatMoney } from "@/lib/money";
 
 /**
  * Accounts panel rendered inside the AppLayout's navbar. Account links

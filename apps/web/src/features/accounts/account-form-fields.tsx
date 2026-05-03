@@ -1,3 +1,8 @@
+import { AccountSelect } from "@/components/account-select";
+import type { CategoryLineFormValues } from "@/components/category-selector";
+import { MultiLineEditor } from "@/components/line-editor";
+import { MoneyField } from "@/components/money-field";
+
 import type {
   Account,
   CategoryWithSubs,
@@ -6,11 +11,6 @@ import type {
 } from "@fin/schemas";
 import { NativeSelect, TextInput } from "@mantine/core";
 import type { Dispatch, SetStateAction } from "react";
-
-import { AccountSelect } from "@/components/account-select";
-import type { CategoryLineFormValues } from "@/components/category-selector";
-import { MultiLineEditor } from "@/components/line-editor";
-import { MoneyField } from "@/components/money-field";
 
 const FREQUENCY_OPTIONS: { value: RecurringFrequency; label: string }[] = [
   { value: "weekly", label: "Weekly" },

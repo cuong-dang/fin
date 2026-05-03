@@ -1,3 +1,7 @@
+import { AccountsSidebar } from "@/features/accounts/accounts-sidebar";
+import { clearAuth } from "@/lib/auth";
+import { me } from "@/lib/endpoints";
+
 import {
   ActionIcon,
   Anchor,
@@ -21,10 +25,6 @@ import {
   useLocation,
   useNavigate,
 } from "react-router";
-
-import { AccountsSidebar } from "@/features/accounts/accounts-sidebar";
-import { clearAuth } from "@/lib/auth";
-import { me } from "@/lib/endpoints";
 
 const PAGES: { to: string; label: string }[] = [
   { to: "/charts", label: "Charts" },

@@ -1,7 +1,7 @@
 import type { TransactionBody } from "@fin/schemas";
 
+import type { db } from "../db";
 import { schema } from "../db";
-import { db } from "../db";
 import { findOwned } from "./authz";
 import { resolveCategory } from "./categories-resolve";
 import { parseMoney } from "./money";

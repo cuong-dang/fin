@@ -1,21 +1,3 @@
-import type {
-  EnrichedTransaction,
-  TransactionsListResponse,
-} from "@fin/schemas";
-import {
-  Alert,
-  Box,
-  Button,
-  Divider,
-  Group,
-  Stack,
-  Text,
-  TextInput,
-} from "@mantine/core";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { useNavigate, useParams } from "react-router";
-
 import { MoneyField } from "@/components/money-field";
 import { PageShell } from "@/components/page-shell";
 import {
@@ -33,6 +15,24 @@ import {
   updateTransaction,
 } from "@/lib/endpoints";
 import { formatMoneyPlain } from "@/lib/money";
+
+import type {
+  EnrichedTransaction,
+  TransactionsListResponse,
+} from "@fin/schemas";
+import {
+  Alert,
+  Box,
+  Button,
+  Divider,
+  Group,
+  Stack,
+  Text,
+  TextInput,
+} from "@mantine/core";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useNavigate, useParams } from "react-router";
 
 import { NotFoundRoute } from "./not-found";
 

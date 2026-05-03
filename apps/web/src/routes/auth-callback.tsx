@@ -1,9 +1,9 @@
+import { getGroupId, getToken, setGroupId, setToken } from "@/lib/auth";
+import { me } from "@/lib/endpoints";
+
 import { Alert } from "@mantine/core";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-
-import { getGroupId, getToken, setGroupId, setToken } from "@/lib/auth";
-import { me } from "@/lib/endpoints";
 
 /**
  * Captures #token=... from the URL fragment set by the server's OAuth

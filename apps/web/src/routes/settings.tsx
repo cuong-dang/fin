@@ -1,7 +1,7 @@
+import { PageShell } from "@/components/page-shell";
+
 import { NavLink } from "@mantine/core";
 import { Link } from "react-router";
-
-import { PageShell } from "@/components/page-shell";
 
 export function SettingsRoute() {
   return (

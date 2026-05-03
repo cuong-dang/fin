@@ -1,8 +1,3 @@
-import type { Granularity } from "@fin/schemas";
-import { Group, NativeSelect, Stack } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
-
 import {
   defaultRange,
   GranularityToggle,
@@ -11,6 +6,11 @@ import { CashFlowChart } from "@/features/analytics/cash-flow-chart";
 import { CategorySpendingChart } from "@/features/analytics/category-spending-chart";
 import { NetWorthChart } from "@/features/analytics/net-worth-chart";
 import { listAccounts } from "@/lib/endpoints";
+
+import type { Granularity } from "@fin/schemas";
+import { Group, NativeSelect, Stack } from "@mantine/core";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 
 /**
  * Charts page. Hosts shared controls (granularity + currency) at the

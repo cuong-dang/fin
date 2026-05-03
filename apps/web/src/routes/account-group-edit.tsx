@@ -1,11 +1,11 @@
+import { PageShell } from "@/components/page-shell";
+import { listAccountGroups, updateAccountGroup } from "@/lib/endpoints";
+
 import type { AccountGroup } from "@fin/schemas";
 import { Alert, Button, Group, Stack, TextInput } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
-
-import { PageShell } from "@/components/page-shell";
-import { listAccountGroups, updateAccountGroup } from "@/lib/endpoints";
 
 import { NotFoundRoute } from "./not-found";
 

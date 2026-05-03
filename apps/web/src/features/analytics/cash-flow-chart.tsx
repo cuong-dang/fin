@@ -1,3 +1,7 @@
+import { StackedBarChart } from "@/features/analytics/chart-shared";
+import { DivergingNetChart } from "@/features/analytics/diverging-net-chart";
+import { getCashFlow, listAccountGroups } from "@/lib/endpoints";
+
 import type {
   AccountGroup,
   CashFlowDirection,
@@ -8,10 +12,6 @@ import type {
 import { Anchor, Group, NativeSelect, Stack, Text, Title } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-
-import { StackedBarChart } from "@/features/analytics/chart-shared";
-import { DivergingNetChart } from "@/features/analytics/diverging-net-chart";
-import { getCashFlow, listAccountGroups } from "@/lib/endpoints";
 
 /**
  * Drill state — discriminated by the active direction. Each direction

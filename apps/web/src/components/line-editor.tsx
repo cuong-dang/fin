@@ -1,7 +1,3 @@
-import type { CategoryWithSubs } from "@fin/schemas";
-import { ActionIcon, Button, Card, Group, Stack, Text } from "@mantine/core";
-import { Plus, Trash2 } from "lucide-react";
-
 import {
   type CategoryLineFormValues,
   CategorySelector,
@@ -9,6 +5,10 @@ import {
 import { MoneyField } from "@/components/money-field";
 import { SectionHeader } from "@/components/section-header";
 import { TagsField } from "@/components/tags-field";
+
+import type { CategoryWithSubs } from "@fin/schemas";
+import { ActionIcon, Button, Card, Group, Stack, Text } from "@mantine/core";
+import { Plus, Trash2 } from "lucide-react";
 
 /**
  * One-line editor: a single amount + category + tags. Used by transaction

@@ -1,3 +1,13 @@
+import { AccountSelect } from "@/components/account-select";
+import {
+  type CategoryLineFormValues,
+  packCategoryLine,
+} from "@/components/category-selector";
+import { MultiLineEditor, SingleLineEditor } from "@/components/line-editor";
+import { MoneyField } from "@/components/money-field";
+import { localDateKey } from "@/lib/dates";
+import { formatMoneyPlain } from "@/lib/money";
+
 import type {
   Account,
   Bill,
@@ -20,16 +30,6 @@ import {
 } from "@mantine/core";
 import { type ComponentProps, useState } from "react";
 import { Link } from "react-router";
-
-import { AccountSelect } from "@/components/account-select";
-import {
-  type CategoryLineFormValues,
-  packCategoryLine,
-} from "@/components/category-selector";
-import { MultiLineEditor, SingleLineEditor } from "@/components/line-editor";
-import { MoneyField } from "@/components/money-field";
-import { localDateKey } from "@/lib/dates";
-import { formatMoneyPlain } from "@/lib/money";
 
 type TxType = "income" | "expense" | "transfer" | "payment";
 

@@ -1,8 +1,8 @@
 import type { RecurringPlanBody } from "@fin/schemas";
 import { eq } from "drizzle-orm";
 
+import type { db } from "../db";
 import { schema } from "../db";
-import { db } from "../db";
 import { resolveCategory } from "./categories-resolve";
 import { parseMoney } from "./money";
 import { upsertTags } from "./tags-upsert";

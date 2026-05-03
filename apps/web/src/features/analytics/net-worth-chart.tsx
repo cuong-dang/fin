@@ -1,9 +1,9 @@
+import { DivergingNetChart } from "@/features/analytics/diverging-net-chart";
+import { getNetWorth } from "@/lib/endpoints";
+
 import type { ChartBucket, Granularity } from "@fin/schemas";
 import { Stack, Text, Title } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
-
-import { DivergingNetChart } from "@/features/analytics/diverging-net-chart";
-import { getNetWorth } from "@/lib/endpoints";
 
 /**
  * Net worth chart — diverging stacked-area + net-line. Assets render

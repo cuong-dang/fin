@@ -1,9 +1,9 @@
+import { listAccountGroups } from "@/lib/endpoints";
+
 import type { Account } from "@fin/schemas";
 import { Select } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-
-import { listAccountGroups } from "@/lib/endpoints";
 
 /**
  * Account picker that renders Mantine `Select` with options grouped by

@@ -15,8 +15,8 @@
     "@fastify/oauth2": "^8.0.0",
     "@fin/schemas": "workspace:*",
     "drizzle-orm": "^0.45.2",
-    "fastify": "^5.0.0",
     "fastify-plugin": "^5.0.0",
+    "fastify": "^5.0.0",
     "postgres": "^3.4.9",
     "zod": "^4.3.6"
   },

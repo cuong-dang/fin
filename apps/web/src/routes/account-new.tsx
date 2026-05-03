@@ -1,18 +1,3 @@
-import type { Account, AccountType, RecurringFrequency } from "@fin/schemas";
-import {
-  Alert,
-  Button,
-  Checkbox,
-  Group,
-  NativeSelect,
-  SegmentedControl,
-  Stack,
-  TextInput,
-} from "@mantine/core";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { useNavigate } from "react-router";
-
 import {
   type CategoryLineFormValues,
   packCategoryLine,
@@ -33,6 +18,21 @@ import {
   listCategories,
   listTags,
 } from "@/lib/endpoints";
+
+import type { Account, AccountType, RecurringFrequency } from "@fin/schemas";
+import {
+  Alert,
+  Button,
+  Checkbox,
+  Group,
+  NativeSelect,
+  SegmentedControl,
+  Stack,
+  TextInput,
+} from "@mantine/core";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useNavigate } from "react-router";
 
 export function AccountNewRoute() {
   const navigate = useNavigate();

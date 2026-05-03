@@ -1,5 +1,5 @@
+import type { Account } from "@fin/schemas";
 import {
-  Account,
   type CreateAccountBody,
   createAccountBody,
   idParam,

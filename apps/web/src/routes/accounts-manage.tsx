@@ -1,3 +1,15 @@
+import { DestructiveIconButton } from "@/components/destructive-icon-button";
+import { PageShell } from "@/components/page-shell";
+import { SectionHeader } from "@/components/section-header";
+import { groupBy } from "@/lib/collections";
+import {
+  deleteAccount,
+  deleteAccountGroup,
+  listAccountGroups,
+  listAccounts,
+  unarchiveAccount,
+} from "@/lib/endpoints";
+
 import type { Account, AccountGroup } from "@fin/schemas";
 import {
   ActionIcon,
@@ -11,18 +23,6 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArchiveRestore, Pencil } from "lucide-react";
 import { Link } from "react-router";
-
-import { DestructiveIconButton } from "@/components/destructive-icon-button";
-import { PageShell } from "@/components/page-shell";
-import { SectionHeader } from "@/components/section-header";
-import { groupBy } from "@/lib/collections";
-import {
-  deleteAccount,
-  deleteAccountGroup,
-  listAccountGroups,
-  listAccounts,
-  unarchiveAccount,
-} from "@/lib/endpoints";
 
 export function AccountsManageRoute() {
   const groupsQ = useQuery({

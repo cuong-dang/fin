@@ -1,7 +1,7 @@
+import { localDateKey } from "@/lib/dates";
+
 import type { Granularity } from "@fin/schemas";
 import { SegmentedControl } from "@mantine/core";
-
-import { localDateKey } from "@/lib/dates";
 
 // "Weekly (Sun)" makes the Sunday-start convention visible at the
 // granularity selector itself, so the X-axis ticks (each a week's

@@ -1,22 +1,3 @@
-import type {
-  Account,
-  AccountGroup,
-  CategoryWithSubs,
-  RecurringFrequency,
-  Tag,
-} from "@fin/schemas";
-import {
-  Alert,
-  Button,
-  Checkbox,
-  Group,
-  Stack,
-  TextInput,
-} from "@mantine/core";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { useNavigate, useParams } from "react-router";
-
 import {
   type CategoryLineFormValues,
   packCategoryLine,
@@ -38,6 +19,25 @@ import {
   updateAccount,
 } from "@/lib/endpoints";
 import { formatMoney, formatMoneyPlain } from "@/lib/money";
+
+import type {
+  Account,
+  AccountGroup,
+  CategoryWithSubs,
+  RecurringFrequency,
+  Tag,
+} from "@fin/schemas";
+import {
+  Alert,
+  Button,
+  Checkbox,
+  Group,
+  Stack,
+  TextInput,
+} from "@mantine/core";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useNavigate, useParams } from "react-router";
 
 import { NotFoundRoute } from "./not-found";
 

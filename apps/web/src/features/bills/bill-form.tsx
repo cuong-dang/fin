@@ -1,3 +1,11 @@
+import { AccountSelect } from "@/components/account-select";
+import {
+  type CategoryLineFormValues,
+  packCategoryLine,
+} from "@/components/category-selector";
+import { MultiLineEditor, SingleLineEditor } from "@/components/line-editor";
+import { COMMON_CURRENCIES } from "@/lib/currencies";
+
 import type {
   Account,
   BillType,
@@ -17,14 +25,6 @@ import {
   TextInput,
 } from "@mantine/core";
 import { useState } from "react";
-
-import { AccountSelect } from "@/components/account-select";
-import {
-  type CategoryLineFormValues,
-  packCategoryLine,
-} from "@/components/category-selector";
-import { MultiLineEditor, SingleLineEditor } from "@/components/line-editor";
-import { COMMON_CURRENCIES } from "@/lib/currencies";
 
 const FREQUENCY_OPTIONS: { value: RecurringFrequency; label: string }[] = [
   { value: "weekly", label: "Weekly" },

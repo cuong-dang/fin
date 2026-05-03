@@ -1,10 +1,10 @@
+import { TransactionsList } from "@/features/transactions/transactions-list";
+import { listAccounts } from "@/lib/endpoints";
+
 import { ActionIcon, Group, Text } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { Link, useSearchParams } from "react-router";
-
-import { TransactionsList } from "@/features/transactions/transactions-list";
-import { listAccounts } from "@/lib/endpoints";
 
 export function TransactionsRoute() {
   const [params] = useSearchParams();

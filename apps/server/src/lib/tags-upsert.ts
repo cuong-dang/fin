@@ -1,6 +1,7 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
-import { db, schema } from "../db";
+import type { db } from "../db";
+import { schema } from "../db";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 

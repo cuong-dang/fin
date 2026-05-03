@@ -1,5 +1,5 @@
+import type { AccountGroup } from "@fin/schemas";
 import {
-  AccountGroup,
   createAccountGroupBody,
   idParam,
   updateAccountGroupBody,

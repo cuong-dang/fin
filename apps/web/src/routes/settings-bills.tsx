@@ -1,12 +1,12 @@
-import type { Bill, BillType } from "@fin/schemas";
-import { Anchor, Badge, Button, Group, Stack, Text } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router";
-
 import { PageShell } from "@/components/page-shell";
 import { SectionHeader } from "@/components/section-header";
 import { listBills } from "@/lib/endpoints";
 import { formatMoney } from "@/lib/money";
+
+import type { Bill, BillType } from "@fin/schemas";
+import { Anchor, Badge, Button, Group, Stack, Text } from "@mantine/core";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router";
 
 const TYPE_LABEL: Record<BillType, string> = {
   utility: "Utility",

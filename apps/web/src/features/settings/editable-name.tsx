@@ -1,9 +1,9 @@
+import { DestructiveIconButton } from "@/components/destructive-icon-button";
+
 import { ActionIcon, Button, Group, Text, TextInput } from "@mantine/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
 import { useState } from "react";
-
-import { DestructiveIconButton } from "@/components/destructive-icon-button";
 
 /** Inline-editable name cell with delete. Controlled via callbacks. */
 export function EditableName({

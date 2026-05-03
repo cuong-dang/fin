@@ -1,7 +1,3 @@
-import type { CategoryKind, CategoryWithSubs, Tag } from "@fin/schemas";
-import { Box, Card, Stack, Text } from "@mantine/core";
-import { useQuery } from "@tanstack/react-query";
-
 import { PageShell } from "@/components/page-shell";
 import { SectionHeader } from "@/components/section-header";
 import { EditableName } from "@/features/settings/editable-name";
@@ -19,6 +15,10 @@ import {
   updateSubcategory,
   updateTag,
 } from "@/lib/endpoints";
+
+import type { CategoryKind, CategoryWithSubs, Tag } from "@fin/schemas";
+import { Box, Card, Stack, Text } from "@mantine/core";
+import { useQuery } from "@tanstack/react-query";
 
 const CATEGORIES_KEY = ["categories"];
 const TAGS_KEY = ["tags"];

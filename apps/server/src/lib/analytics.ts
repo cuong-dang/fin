@@ -1,10 +1,9 @@
-import {
+import type {
   CashFlowQuery,
   CategorySpendingQuery,
-  type ChartBucket,
-  type Granularity,
   NetWorthQuery,
 } from "@fin/schemas";
+import { type ChartBucket, type Granularity } from "@fin/schemas";
 import {
   aliasedTable,
   and,
