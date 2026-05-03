@@ -1,11 +1,14 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    // Node 20+ has every ES2023 runtime API (Array#findLast, #toSorted,
+    // etc.) even though our `target` stays at ES2022 for emitted syntax.
+    // Listing only "ES2023" also drops the implicit DOM types.
     "lib": ["ES2023"],
-    "noEmit": false,
+    "noEmit": false, // override
     "outDir": "dist",
     "rootDir": "src",
-    "moduleResolution": "NodeNext"
+    "module": "NodeNext"
   },
   "include": ["src/**/*"]
 }
