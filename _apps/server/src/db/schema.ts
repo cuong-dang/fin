@@ -49,15 +49,12 @@ export const categoryKindEnum = pgEnum("category_kind", ["income", "expense"]);
 //   - utility:      variable-amount essential service (electric, water).
 //   - subscription: fixed-amount discretionary service (Netflix). Pause/cancel.
 //   - other:        catch-all for taxes, fees, dues, etc.
-// Old data migrated 1:1 as `subscription` (the original semantic).
 export const billTypeEnum = pgEnum("bill_type", [
   "utility",
   "subscription",
   "other",
 ]);
 
-// `loan` is reserved — only `checking_savings` and `credit_card` are wired
-// today. Loan accounts will pair 1:1 with a recurring_plan when added.
 export const accountTypeEnum = pgEnum("account_type", [
   "checking_savings",
   "credit_card",
@@ -106,7 +103,7 @@ export const groupMembers = pgTable(
   (t) => [primaryKey({ columns: [t.groupId, t.userId] })],
 );
 
-// ─── Reference data (per-group) ────────────────────────────────────────────
+// ─── Accounts, Categories, Tags ────────────────────────────────────────────
 
 export const accountGroups = pgTable(
   "account_groups",
@@ -122,13 +119,9 @@ export const accountGroups = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
-    // Soft-delete: null = active. Set when the user "deletes" the row;
-    // historical references stay valid and pickers filter on this.
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (t) => [
-    // Active-only unique: a soft-deleted row may share its name with the
-    // current active row (or a future re-creation) without conflict.
     uniqueIndex("account_groups_group_name_unique")
       .on(t.groupId, t.name)
       .where(sql`${t.deletedAt} IS NULL`),
@@ -139,11 +132,6 @@ export const accounts = pgTable(
   "accounts",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    groupId: uuid("group_id")
-      .notNull()
-      .references(() => groups.id, { onDelete: "cascade" }),
-    // An account must belong to an AccountGroup. Deleting a group with
-    // accounts is blocked — user must move or delete the accounts first.
     accountGroupId: uuid("account_group_id")
       .notNull()
       .references(() => accountGroups.id, { onDelete: "restrict" }),
@@ -154,18 +142,13 @@ export const accounts = pgTable(
     // Limit-remaining = creditLimit + Σ legs.amount on this account
     // (charges are negative legs, payments are positive transfer-in legs).
     creditLimit: bigint("credit_limit", { mode: "bigint" }),
-    // Optional default source account for paying this CC. Must point to a
-    // checking_savings account in the same group; enforced at the route.
-    // RESTRICT to match the convention for FKs to soft-deletable parents.
+    // Optional default source account for paying CC/loans.
     defaultPayFromAccountId: uuid("default_pay_from_account_id").references(
       (): AnyPgColumn => accounts.id,
       { onDelete: "restrict" },
     ),
     // Set iff `type='loan'`. Pairs the loan account 1:1 with the
-    // recurring_plans row that holds the schedule (amount_per_period,
-    // total_periods, principal, frequency, default pay-from). RESTRICT —
-    // both rows are soft-deletable; the FK guards against accidental
-    // hard-deletes.
+    // recurring_plans.
     recurringPlanId: uuid("recurring_plan_id").references(
       (): AnyPgColumn => recurringPlans.id,
       { onDelete: "restrict" },
@@ -188,12 +171,14 @@ export const accounts = pgTable(
     // `deletedAt`: archived accounts remain visible in the manage page so
     // the user can unarchive; deletion soft-hides them entirely.
     archivedAt: timestamp("archived_at", { withTimezone: true }),
-    // Soft-delete: see account_groups.deleted_at.
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (t) => [
-    uniqueIndex("accounts_group_name_unique")
-      .on(t.groupId, t.name)
+    uniqueIndex("accounts_account_group_name_unique")
+      .on(t.accountGroupId, t.name)
+      .where(sql`${t.deletedAt} IS NULL`),
+    uniqueIndex("accounts_group_recurring_plan_unique")
+      .on(t.recurringPlanId)
       .where(sql`${t.deletedAt} IS NULL`),
   ],
 );
@@ -213,7 +198,6 @@ export const categories = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
-    // Soft-delete: see account_groups.deleted_at.
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (t) => [
@@ -229,7 +213,7 @@ export const subcategories = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     categoryId: uuid("category_id")
       .notNull()
-      .references(() => categories.id, { onDelete: "cascade" }),
+      .references(() => categories.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -237,7 +221,6 @@ export const subcategories = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
-    // Soft-delete: see account_groups.deleted_at.
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (t) => [
@@ -261,7 +244,6 @@ export const tags = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
-    // Soft-delete: see account_groups.deleted_at.
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (t) => [
@@ -278,24 +260,13 @@ export const tags = pgTable(
 //
 // Like bills, a recurring plan owns a set of default lines that act
 // as a categorization template. The actual amounts paid per period live on
-// the linked transactions (sum of principal-role line amounts → principal
+// the linked transactions (e.g., sum of principal-role line amounts → principal
 // reduction; sum of interest-role line amounts → total interest paid).
 // The fields here capture the loan *terms*, not running totals.
 export const recurringPlans = pgTable("recurring_plans", {
   id: uuid("id").primaryKey().defaultRandom(),
-  groupId: uuid("group_id")
-    .notNull()
-    .references(() => groups.id, { onDelete: "cascade" }),
-  // No `name`: a recurring plan is paired 1:1 with a loan account, so
-  // displays use the account's name. Adds a single source of truth.
   amountPerPeriod: bigint("amount_per_period", { mode: "bigint" }).notNull(),
-  currency: char("currency", { length: 3 }).notNull(),
-  // No `total_periods`: derivable as ceil(|currentBalance| / amountPerPeriod).
   frequency: recurringFrequencyEnum("frequency").notNull(),
-  // Default source account auto-fills the source on a new charge transaction.
-  defaultAccountId: uuid("default_account_id").references(() => accounts.id, {
-    onDelete: "restrict",
-  }),
   description: text("description"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -303,15 +274,13 @@ export const recurringPlans = pgTable("recurring_plans", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-  // Soft-delete: see account_groups.deleted_at.
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
 });
 
-// Default categorization template for a recurring plan. Mirrors
-// `bill_default_lines`. Amount is *nullable* on purpose: for
-// amortizing loans the principal/interest split changes per period, so
-// the template records categorization but leaves amounts to be entered
-// at transaction time. Set the amount only when it's actually fixed
+// Default categorization template for a recurring plan. Amount is *nullable*
+// on purpose: for amortizing loans the principal/interest split changes per
+// period, so the template records categorization but leaves amounts to be
+// entered at transaction time. Set the amount only when it's actually fixed
 // (e.g., flat BNPL).
 export const recurringPlanDefaultLines = pgTable(
   "recurring_plan_default_lines",
@@ -319,7 +288,7 @@ export const recurringPlanDefaultLines = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     recurringPlanId: uuid("recurring_plan_id")
       .notNull()
-      .references(() => recurringPlans.id, { onDelete: "cascade" }),
+      .references(() => recurringPlans.id, { onDelete: "restrict" }),
     categoryId: uuid("category_id")
       .notNull()
       .references(() => categories.id, { onDelete: "restrict" }),
