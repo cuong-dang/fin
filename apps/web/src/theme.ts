@@ -12,7 +12,6 @@ export const theme = createTheme({
     ActionIcon: ActionIcon.extend({
       defaultProps: {
         size: "xs",
-        color: "black",
         variant: "subtle",
       },
     }),

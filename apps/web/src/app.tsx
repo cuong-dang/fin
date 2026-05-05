@@ -1,38 +1,38 @@
-import { Navigate, Route, Routes } from "react-router";
+import { Route, Routes } from "react-router";
 
-import { AppLayoutRoute } from "./components/app-layout";
-import { AccountEditRoute } from "./routes/account-edit";
-import { AccountGroupEditRoute } from "./routes/account-group-edit";
-import { AccountNewRoute } from "./routes/account-new";
-import { AccountsManageRoute } from "./routes/accounts-manage";
-import { AuthCallbackRoute } from "./routes/auth-callback";
-import { BillEditRoute } from "./routes/bill-edit";
-import { BillNewRoute } from "./routes/bill-new";
-import { ChartsRoute } from "./routes/charts";
-import { NotFoundRoute } from "./routes/not-found";
-import { RequireAuth } from "./routes/require-auth";
-import { SettingsRoute } from "./routes/settings";
-import { SettingsBillsRoute } from "./routes/settings-bills";
-import { SettingsCategoriesRoute } from "./routes/settings-categories";
-import { SignInRoute } from "./routes/signin";
-import { TransactionEditRoute } from "./routes/transaction-edit";
-import { TransactionNewRoute } from "./routes/transaction-new";
-import { TransactionsRoute } from "./routes/transactions";
+// import { AppLayoutRoute } from "./components/app-layout";
+// import { AccountEditRoute } from "./routes/account-edit";
+// import { AccountGroupEditRoute } from "./routes/account-group-edit";
+// import { AccountNewRoute } from "./routes/account-new";
+// import { AccountsManageRoute } from "./routes/accounts-manage";
+// import { AuthCallbackRoute } from "./routes/auth-callback";
+// import { BillEditRoute } from "./routes/bill-edit";
+// import { BillNewRoute } from "./routes/bill-new";
+// import { ChartsRoute } from "./routes/charts";
+// import { NotFoundRoute } from "./routes/not-found";
+import { RequireAuth } from "./routes/require-auth.js";
+// import { SettingsRoute } from "./routes/settings";
+// import { SettingsBillsRoute } from "./routes/settings-bills";
+// import { SettingsCategoriesRoute } from "./routes/settings-categories";
+import { SignInRoute } from "./routes/signin.js";
+// import { TransactionEditRoute } from "./routes/transaction-edit";
+// import { TransactionNewRoute } from "./routes/transaction-new";
+// import { TransactionsRoute } from "./routes/transactions";
 
 export function App() {
   return (
     <Routes>
       <Route element={<SignInRoute />} path="/signin" />
-      <Route element={<AuthCallbackRoute />} path="/auth/callback" />
+      {/* <Route element={<AuthCallbackRoute />} path="/auth/callback" /> */}
       <Route element={<RequireAuth />}>
         {/* In-chrome pages share AppLayout (header + nav). */}
-        <Route element={<AppLayoutRoute />}>
+        {/* <Route element={<AppLayoutRoute />}>
           <Route element={<Navigate replace to="/charts" />} path="/" />
           <Route element={<TransactionsRoute />} path="/transactions" />
           <Route element={<ChartsRoute />} path="/charts" />
-        </Route>
+        </Route> */}
         {/* Form / detail routes render outside the chrome for focus. */}
-        <Route element={<AccountsManageRoute />} path="/accounts" />
+        {/* <Route element={<AccountsManageRoute />} path="/accounts" />
         <Route element={<AccountNewRoute />} path="/accounts/new" />
         <Route element={<AccountEditRoute />} path="/accounts/:id/edit" />
         <Route
@@ -51,9 +51,9 @@ export function App() {
         />
         <Route element={<SettingsBillsRoute />} path="/settings/bills" />
         <Route element={<BillNewRoute />} path="/bills/new" />
-        <Route element={<BillEditRoute />} path="/bills/:id/edit" />
+        <Route element={<BillEditRoute />} path="/bills/:id/edit" /> */}
       </Route>
-      <Route element={<NotFoundRoute />} path="*" />
+      {/* <Route element={<NotFoundRoute />} path="*" /> */}
     </Routes>
   );
 }

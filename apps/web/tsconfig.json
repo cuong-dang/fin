@@ -7,7 +7,11 @@
     "moduleResolution": "bundler",
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    // Ambient types for `*.css` / `*.svg` side-effect imports and
+    // `import.meta.env`. Vite handles these at bundle time; tsc needs
+    // the declarations to accept the imports.
+    "types": ["vite/client"]
   },
   "include": ["src/**/*"]
 }

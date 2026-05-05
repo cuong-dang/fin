@@ -1,4 +1,4 @@
-import { getGroupId, getToken } from "@/lib/auth";
+import { getGroupId, getToken } from "@/lib/auth.js";
 
 import { Navigate, Outlet } from "react-router";
 
