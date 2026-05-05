@@ -7,11 +7,7 @@ export const createAccountGroupBody = z
   .strict();
 export type CreateAccountGroupBody = z.infer<typeof createAccountGroupBody>;
 
-export const updateAccountGroupBody = z
-  .object({
-    name: z.string().trim().min(1).max(100),
-  })
-  .strict();
+export const updateAccountGroupBody = createAccountGroupBody;
 export type UpdateAccountGroupBody = z.infer<typeof updateAccountGroupBody>;
 
 export type AccountGroup = {
