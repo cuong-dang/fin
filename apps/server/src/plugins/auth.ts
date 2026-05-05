@@ -103,7 +103,6 @@ export const authPlugin = fp(async (app) => {
       }
 
       const headerVal = req.headers[WORKSPACE_HEADER];
-      // TODO: Support multiple workspaces.
       const workspaceId = Array.isArray(headerVal) ? headerVal[0] : headerVal;
       if (!workspaceId) {
         return reply.code(400).send({ error: "Missing X-Workspace-Id header" });
@@ -120,7 +119,9 @@ export const authPlugin = fp(async (app) => {
         )
         .limit(1);
       if (!membership) {
-        return reply.code(403).send({ error: "Not a member of this workspace" });
+        return reply
+          .code(403)
+          .send({ error: "Not a member of this workspace" });
       }
 
       req.user = payload;

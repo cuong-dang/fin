@@ -9,6 +9,7 @@ import {
   Burger,
   Group,
   Menu,
+  NavLink,
   Stack,
   Text,
   Title,
@@ -17,13 +18,7 @@ import { useDisclosure } from "@mantine/hooks";
 import { useQuery } from "@tanstack/react-query";
 import { LogOut, Plus, Receipt, Repeat, Settings, Wallet } from "lucide-react";
 import { useEffect } from "react";
-import {
-  Link,
-  NavLink as RouterNavLink,
-  Outlet,
-  useLocation,
-  useNavigate,
-} from "react-router";
+import { Link, Outlet, useLocation, useMatch, useNavigate } from "react-router";
 
 const PAGES: { to: string; label: string }[] = [
   { to: "/charts", label: "Charts" },
@@ -31,12 +26,8 @@ const PAGES: { to: string; label: string }[] = [
 ];
 
 /**
- * Multi-page chrome wrapper. Hosts the header (brand + page title + user menu),
- * the navbar (page nav + accounts panel), and the Outlet for the current page.
- *
- * Form routes (account / transaction / bill edit etc.) sit
- * outside this layout so they get a focused, chrome-less view via
- * PageShell + BackLink.
+ * Multi-page chrome wrapper. Hosts the header, the navbar, and the
+ * Outlet for the current page.
  */
 export function AppLayoutRoute() {
   const location = useLocation();
@@ -65,7 +56,7 @@ export function AppLayoutRoute() {
       }}
     >
       <AppShell.Header>
-        <Group justify="space-between" p="xs">
+        <Group justify="space-between" p="sm">
           <Group>
             <Burger
               hiddenFrom="sm"
@@ -73,7 +64,7 @@ export function AppLayoutRoute() {
               size="sm"
               onClick={toggle}
             />
-            <Anchor component={Link} fw={600} to="/charts" underline="never">
+            <Anchor component={Link} fw={600} to="/" underline="never">
               fin
             </Anchor>
             <Title c="dimmed" fw={500} order={4}>
@@ -91,7 +82,7 @@ export function AppLayoutRoute() {
             actually fill the remaining navbar height — without it the
             outer Stack collapses to content height and the accounts
             list overflows the viewport without scrolling. */}
-        <Stack h="100%">
+        <Stack gap={0} h="100%">
           {PAGES.map((p) => (
             <PageNavLink key={p.to} label={p.label} to={p.to} />
           ))}
@@ -105,17 +96,19 @@ export function AppLayoutRoute() {
   );
 }
 
+function PageNavLink({ to, label }: { to: string; label: string }) {
+  const match = useMatch(to);
+  return <NavLink active={!!match} component={Link} label={label} to={to} />;
+}
+
 /**
- * "+" dropdown next to the user menu — the entry point for creating a
- * new transaction, account, or bill. Replaces the old FAB.
- * Mantine doesn't ship a built-in +/× morph icon, so the trigger
- * stays a plain `+` per the "don't bother custom-building it" call.
+ * "+" dropdown next to the user menu.
  */
 function CreateMenu() {
   return (
-    <Menu position="bottom-end" shadow="md" width={200}>
+    <Menu position="bottom-end" shadow="md">
       <Menu.Target>
-        <ActionIcon aria-label="Create" radius="lg" size="lg" variant="filled">
+        <ActionIcon aria-label="Create">
           <Plus size={18} />
         </ActionIcon>
       </Menu.Target>
@@ -146,26 +139,6 @@ function CreateMenu() {
   );
 }
 
-/** React Router's NavLink wired up to look like a Mantine nav row. */
-function PageNavLink({ to, label }: { to: string; label: string }) {
-  return (
-    <RouterNavLink
-      style={({ isActive }) => ({
-        display: "block",
-        padding: "8px 12px",
-        borderRadius: 4,
-        textDecoration: "none",
-        color: "inherit",
-        background: isActive ? "var(--mantine-color-default-hover)" : undefined,
-        fontWeight: isActive ? 600 : 400,
-      })}
-      to={to}
-    >
-      {label}
-    </RouterNavLink>
-  );
-}
-
 function UserMenu() {
   const navigate = useNavigate();
   const meQ = useQuery({ queryKey: ["me"], queryFn: me });
@@ -180,19 +153,24 @@ function UserMenu() {
       .toUpperCase() || "?";
 
   return (
-    <Menu position="bottom-end" shadow="md" width={200}>
+    <Menu position="bottom-end" shadow="md">
       <Menu.Target>
-        <ActionIcon aria-label="Account menu" radius="lg" size="lg">
-          <Avatar color="initials" name={initials} radius="lg" size={28}>
+        <ActionIcon
+          aria-label="Account menu"
+          radius="lg"
+          size="md"
+          variant="light"
+        >
+          <Avatar color="initials" name={initials} size="sm">
             {initials}
           </Avatar>
         </ActionIcon>
       </Menu.Target>
       <Menu.Dropdown>
         <Menu.Label>
-          <Stack>
+          <Stack gap={0}>
             <Text fw={500}>{name}</Text>
-            <Text c="dimmed" size="xs">
+            <Text c="dimmed" size="sm">
               {email}
             </Text>
           </Stack>

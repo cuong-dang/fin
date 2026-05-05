@@ -1,4 +1,4 @@
-import { clearAuth, getGroupId, getToken } from "./auth.js";
+import { clearAuth, getToken, getWorkspaceId } from "./auth.js";
 
 class ApiError extends Error {
   constructor(
@@ -21,24 +21,36 @@ export async function api<T = unknown>(
   const headers = new Headers(init.headers);
   const token = getToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  const groupId = getGroupId();
-  if (groupId) headers.set("X-Workspace-Id", groupId);
+
+  const workspaceId = getWorkspaceId();
+  if (workspaceId) headers.set("X-Workspace-Id", workspaceId);
+
   let body = init.body;
   if (init.json !== undefined) {
     headers.set("content-type", "application/json");
     body = JSON.stringify(init.json);
   }
 
-  const res = await fetch(path, { ...init, headers, body });
+  // `body` may legitimately be undefined (GET requests). With
+  // `exactOptionalPropertyTypes`, RequestInit.body must be either
+  // omitted or `BodyInit | null` — assigning `undefined` is a violation.
+  // Conditional spread keeps the property out of the literal in that case.
+  const res = await fetch(path, {
+    ...init,
+    headers,
+    ...(body !== undefined && { body }),
+  });
 
   if (res.status === 401) {
     clearAuth();
     // Let the router handle redirect via a thrown error.
     throw new ApiError(401, "Unauthorized");
   }
+
   if (res.status === 204) {
     return undefined as T;
   }
+
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const msg =

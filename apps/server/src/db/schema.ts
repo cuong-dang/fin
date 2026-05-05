@@ -171,7 +171,7 @@ export const accounts = pgTable(
     uniqueIndex("accounts_account_group_name_unique")
       .on(t.accountGroupId, t.name)
       .where(sql`${t.deletedAt} IS NULL`),
-    uniqueIndex("accounts_loan_unique").on(t.loanId)
+    uniqueIndex("accounts_loan_unique").on(t.loanId),
   ],
 );
 

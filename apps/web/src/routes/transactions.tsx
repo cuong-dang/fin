@@ -1,4 +1,3 @@
-import { TransactionsList } from "@/features/transactions/transactions-list";
 import { listAccounts } from "@/lib/endpoints";
 
 import { ActionIcon, Group, Text } from "@mantine/core";
@@ -29,7 +28,7 @@ export function TransactionsRoute() {
           </ActionIcon>
         </Group>
       )}
-      <TransactionsList accountId={accountId} />
+      Hello, world.
     </>
   );
 }

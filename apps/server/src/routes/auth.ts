@@ -74,11 +74,11 @@ type BootstrappedUser = {
 
 /**
  * Resolve the user for a just-authenticated login. If new, create the user
- * row + a default "Personal" group with owner membership in a single
+ * row + a default "Personal" workspace with owner membership in a single
  * transaction. If existing, just look the user up.
  *
  * Concurrency: `ON CONFLICT DO NOTHING` on `users.email` serializes races.
- * The winner inserts user + group + membership atomically; the loser's
+ * The winner inserts user + workspace + membership atomically; the loser's
  * INSERT no-ops and its SELECT then sees the winner's committed row.
  */
 export async function bootstrapSession(
@@ -95,14 +95,16 @@ export async function bootstrapSession(
       .returning({ id: schema.users.id });
 
     if (winner) {
-      // Winner path: create Personal group + owner membership atomically.
-      const [group] = await tx
+      // Winner path: create Personal workspace + owner membership atomically.
+      const [workspace] = await tx
         .insert(schema.workspaces)
         .values({ name: "Personal" })
         .returning({ id: schema.workspaces.id });
-      await tx
-        .insert(schema.workspaceMembers)
-        .values({ userGroupId: group!.id, userId: winner.id, role: "owner" });
+      await tx.insert(schema.workspaceMembers).values({
+        workspaceId: workspace!.id,
+        userId: winner.id,
+        role: "owner",
+      });
       return { userId: winner.id, email, name };
     }
 

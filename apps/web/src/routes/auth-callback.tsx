@@ -1,4 +1,4 @@
-import { getGroupId, getToken, setGroupId, setToken } from "@/lib/auth";
+import { getToken, getWorkspaceId, setToken, setWorkspaceId } from "@/lib/auth";
 import { me } from "@/lib/endpoints";
 
 import { Alert } from "@mantine/core";
@@ -39,18 +39,20 @@ export function AuthCallbackRoute() {
     // /auth/callback after the first visit completed. Avoids a redundant
     // /me round-trip. (Doesn't apply to StrictMode's double-effect, since
     // both runs fire before the first's /me resolves.)
-    if (getGroupId()) {
+    if (getWorkspaceId()) {
       navigate("/", { replace: true });
       return;
     }
 
     me()
-      .then(({ groups }) => {
-        if (groups.length === 0) {
-          throw new Error("No workspace found for this user");
+      .then(({ workspaces }) => {
+        // TODO: Support multiple workspaces.
+        const [first] = workspaces;
+        if (!first) {
+          throw new Error("Invariant: /me returned a user with no workspace");
         }
-        setGroupId(groups[0].id);
-        navigate("/", { replace: true });
+        setWorkspaceId(first.id);
+        navigate("/transactions", { replace: true });
       })
       .catch((e: Error) => setError(e.message));
   }, [navigate]);
