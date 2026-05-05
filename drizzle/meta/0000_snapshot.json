@@ -1,5 +1,5 @@
 {
-  "id": "9a28d014-225b-4afd-b525-e2e5c90291df",
+  "id": "ac94c864-8131-4f07-836a-a9a8d0655923",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -15,8 +15,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "group_id": {
-          "name": "group_id",
+        "workspace_id": {
+          "name": "workspace_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -49,11 +49,11 @@
         }
       },
       "indexes": {
-        "account_groups_group_name_unique": {
-          "name": "account_groups_group_name_unique",
+        "account_groups_workspace_name_unique": {
+          "name": "account_groups_workspace_name_unique",
           "columns": [
             {
-              "expression": "group_id",
+              "expression": "workspace_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -73,12 +73,12 @@
         }
       },
       "foreignKeys": {
-        "account_groups_group_id_groups_id_fk": {
-          "name": "account_groups_group_id_groups_id_fk",
+        "account_groups_workspace_id_workspaces_id_fk": {
+          "name": "account_groups_workspace_id_workspaces_id_fk",
           "tableFrom": "account_groups",
-          "tableTo": "groups",
+          "tableTo": "workspaces",
           "columnsFrom": [
-            "group_id"
+            "workspace_id"
           ],
           "columnsTo": [
             "id"
@@ -141,8 +141,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "recurring_plan_id": {
-          "name": "recurring_plan_id",
+        "loan_id": {
+          "name": "loan_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
@@ -204,18 +204,17 @@
           "method": "btree",
           "with": {}
         },
-        "accounts_group_recurring_plan_unique": {
-          "name": "accounts_group_recurring_plan_unique",
+        "accounts_loan_unique": {
+          "name": "accounts_loan_unique",
           "columns": [
             {
-              "expression": "recurring_plan_id",
+              "expression": "loan_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             }
           ],
           "isUnique": true,
-          "where": "\"accounts\".\"deleted_at\" IS NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -248,12 +247,12 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "accounts_recurring_plan_id_recurring_plans_id_fk": {
-          "name": "accounts_recurring_plan_id_recurring_plans_id_fk",
+        "accounts_loan_id_loans_id_fk": {
+          "name": "accounts_loan_id_loans_id_fk",
           "tableFrom": "accounts",
-          "tableTo": "recurring_plans",
+          "tableTo": "loans",
           "columnsFrom": [
-            "recurring_plan_id"
+            "loan_id"
           ],
           "columnsTo": [
             "id"
@@ -439,8 +438,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "group_id": {
-          "name": "group_id",
+        "workspace_id": {
+          "name": "workspace_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -506,12 +505,12 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "bills_group_id_groups_id_fk": {
-          "name": "bills_group_id_groups_id_fk",
+        "bills_workspace_id_workspaces_id_fk": {
+          "name": "bills_workspace_id_workspaces_id_fk",
           "tableFrom": "bills",
-          "tableTo": "groups",
+          "tableTo": "workspaces",
           "columnsFrom": [
-            "group_id"
+            "workspace_id"
           ],
           "columnsTo": [
             "id"
@@ -550,8 +549,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "group_id": {
-          "name": "group_id",
+        "workspace_id": {
+          "name": "workspace_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -591,11 +590,11 @@
         }
       },
       "indexes": {
-        "categories_group_kind_name_unique": {
-          "name": "categories_group_kind_name_unique",
+        "categories_workspace_kind_name_unique": {
+          "name": "categories_workspace_kind_name_unique",
           "columns": [
             {
-              "expression": "group_id",
+              "expression": "workspace_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -621,12 +620,12 @@
         }
       },
       "foreignKeys": {
-        "categories_group_id_groups_id_fk": {
-          "name": "categories_group_id_groups_id_fk",
+        "categories_workspace_id_workspaces_id_fk": {
+          "name": "categories_workspace_id_workspaces_id_fk",
           "tableFrom": "categories",
-          "tableTo": "groups",
+          "tableTo": "workspaces",
           "columnsFrom": [
-            "group_id"
+            "workspace_id"
           ],
           "columnsTo": [
             "id"
@@ -641,122 +640,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.group_members": {
-      "name": "group_members",
-      "schema": "",
-      "columns": {
-        "group_id": {
-          "name": "group_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "role": {
-          "name": "role",
-          "type": "member_role",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "group_members_group_id_groups_id_fk": {
-          "name": "group_members_group_id_groups_id_fk",
-          "tableFrom": "group_members",
-          "tableTo": "groups",
-          "columnsFrom": [
-            "group_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "group_members_user_id_users_id_fk": {
-          "name": "group_members_user_id_users_id_fk",
-          "tableFrom": "group_members",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "group_members_group_id_user_id_pk": {
-          "name": "group_members_group_id_user_id_pk",
-          "columns": [
-            "group_id",
-            "user_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.groups": {
-      "name": "groups",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.recurring_plan_default_line_tags": {
-      "name": "recurring_plan_default_line_tags",
+    "public.loan_default_line_tags": {
+      "name": "loan_default_line_tags",
       "schema": "",
       "columns": {
         "line_id": {
@@ -774,10 +659,10 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "recurring_plan_default_line_tags_line_id_recurring_plan_default_lines_id_fk": {
-          "name": "recurring_plan_default_line_tags_line_id_recurring_plan_default_lines_id_fk",
-          "tableFrom": "recurring_plan_default_line_tags",
-          "tableTo": "recurring_plan_default_lines",
+        "loan_default_line_tags_line_id_loan_default_lines_id_fk": {
+          "name": "loan_default_line_tags_line_id_loan_default_lines_id_fk",
+          "tableFrom": "loan_default_line_tags",
+          "tableTo": "loan_default_lines",
           "columnsFrom": [
             "line_id"
           ],
@@ -787,9 +672,9 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "recurring_plan_default_line_tags_tag_id_tags_id_fk": {
-          "name": "recurring_plan_default_line_tags_tag_id_tags_id_fk",
-          "tableFrom": "recurring_plan_default_line_tags",
+        "loan_default_line_tags_tag_id_tags_id_fk": {
+          "name": "loan_default_line_tags_tag_id_tags_id_fk",
+          "tableFrom": "loan_default_line_tags",
           "tableTo": "tags",
           "columnsFrom": [
             "tag_id"
@@ -802,8 +687,8 @@
         }
       },
       "compositePrimaryKeys": {
-        "recurring_plan_default_line_tags_line_id_tag_id_pk": {
-          "name": "recurring_plan_default_line_tags_line_id_tag_id_pk",
+        "loan_default_line_tags_line_id_tag_id_pk": {
+          "name": "loan_default_line_tags_line_id_tag_id_pk",
           "columns": [
             "line_id",
             "tag_id"
@@ -815,8 +700,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.recurring_plan_default_lines": {
-      "name": "recurring_plan_default_lines",
+    "public.loan_default_lines": {
+      "name": "loan_default_lines",
       "schema": "",
       "columns": {
         "id": {
@@ -826,8 +711,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "recurring_plan_id": {
-          "name": "recurring_plan_id",
+        "loan_id": {
+          "name": "loan_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -852,11 +737,11 @@
         }
       },
       "indexes": {
-        "recurring_plan_default_lines_plan_idx": {
-          "name": "recurring_plan_default_lines_plan_idx",
+        "loan_default_lines_loan_idx": {
+          "name": "loan_default_lines_loan_idx",
           "columns": [
             {
-              "expression": "recurring_plan_id",
+              "expression": "loan_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -869,12 +754,12 @@
         }
       },
       "foreignKeys": {
-        "recurring_plan_default_lines_recurring_plan_id_recurring_plans_id_fk": {
-          "name": "recurring_plan_default_lines_recurring_plan_id_recurring_plans_id_fk",
-          "tableFrom": "recurring_plan_default_lines",
-          "tableTo": "recurring_plans",
+        "loan_default_lines_loan_id_loans_id_fk": {
+          "name": "loan_default_lines_loan_id_loans_id_fk",
+          "tableFrom": "loan_default_lines",
+          "tableTo": "loans",
           "columnsFrom": [
-            "recurring_plan_id"
+            "loan_id"
           ],
           "columnsTo": [
             "id"
@@ -882,9 +767,9 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "recurring_plan_default_lines_category_id_categories_id_fk": {
-          "name": "recurring_plan_default_lines_category_id_categories_id_fk",
-          "tableFrom": "recurring_plan_default_lines",
+        "loan_default_lines_category_id_categories_id_fk": {
+          "name": "loan_default_lines_category_id_categories_id_fk",
+          "tableFrom": "loan_default_lines",
           "tableTo": "categories",
           "columnsFrom": [
             "category_id"
@@ -895,9 +780,9 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "recurring_plan_default_lines_subcategory_id_subcategories_id_fk": {
-          "name": "recurring_plan_default_lines_subcategory_id_subcategories_id_fk",
-          "tableFrom": "recurring_plan_default_lines",
+        "loan_default_lines_subcategory_id_subcategories_id_fk": {
+          "name": "loan_default_lines_subcategory_id_subcategories_id_fk",
+          "tableFrom": "loan_default_lines",
           "tableTo": "subcategories",
           "columnsFrom": [
             "subcategory_id"
@@ -915,8 +800,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.recurring_plans": {
-      "name": "recurring_plans",
+    "public.loans": {
+      "name": "loans",
       "schema": "",
       "columns": {
         "id": {
@@ -926,8 +811,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "group_id": {
-          "name": "group_id",
+        "workspace_id": {
+          "name": "workspace_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -968,12 +853,12 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "recurring_plans_group_id_groups_id_fk": {
-          "name": "recurring_plans_group_id_groups_id_fk",
-          "tableFrom": "recurring_plans",
-          "tableTo": "groups",
+        "loans_workspace_id_workspaces_id_fk": {
+          "name": "loans_workspace_id_workspaces_id_fk",
+          "tableFrom": "loans",
+          "tableTo": "workspaces",
           "columnsFrom": [
-            "group_id"
+            "workspace_id"
           ],
           "columnsTo": [
             "id"
@@ -1088,8 +973,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "group_id": {
-          "name": "group_id",
+        "workspace_id": {
+          "name": "workspace_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -1122,11 +1007,11 @@
         }
       },
       "indexes": {
-        "tags_group_name_unique": {
-          "name": "tags_group_name_unique",
+        "tags_workspace_name_unique": {
+          "name": "tags_workspace_name_unique",
           "columns": [
             {
-              "expression": "group_id",
+              "expression": "workspace_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1146,12 +1031,12 @@
         }
       },
       "foreignKeys": {
-        "tags_group_id_groups_id_fk": {
-          "name": "tags_group_id_groups_id_fk",
+        "tags_workspace_id_workspaces_id_fk": {
+          "name": "tags_workspace_id_workspaces_id_fk",
           "tableFrom": "tags",
-          "tableTo": "groups",
+          "tableTo": "workspaces",
           "columnsFrom": [
-            "group_id"
+            "workspace_id"
           ],
           "columnsTo": [
             "id"
@@ -1470,8 +1355,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "group_id": {
-          "name": "group_id",
+        "workspace_id": {
+          "name": "workspace_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -1529,11 +1414,11 @@
         }
       },
       "indexes": {
-        "transactions_group_date_idx": {
-          "name": "transactions_group_date_idx",
+        "transactions_workspace_date_idx": {
+          "name": "transactions_workspace_date_idx",
           "columns": [
             {
-              "expression": "group_id",
+              "expression": "workspace_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1550,11 +1435,11 @@
           "method": "btree",
           "with": {}
         },
-        "transactions_group_date_sortkey_unique": {
-          "name": "transactions_group_date_sortkey_unique",
+        "transactions_workspace_date_sortkey_unique": {
+          "name": "transactions_workspace_date_sortkey_unique",
           "columns": [
             {
-              "expression": "group_id",
+              "expression": "workspace_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1580,12 +1465,12 @@
         }
       },
       "foreignKeys": {
-        "transactions_group_id_groups_id_fk": {
-          "name": "transactions_group_id_groups_id_fk",
+        "transactions_workspace_id_workspaces_id_fk": {
+          "name": "transactions_workspace_id_workspaces_id_fk",
           "tableFrom": "transactions",
-          "tableTo": "groups",
+          "tableTo": "workspaces",
           "columnsFrom": [
-            "group_id"
+            "workspace_id"
           ],
           "columnsTo": [
             "id"
@@ -1681,6 +1566,120 @@
           ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.workspace_members": {
+      "name": "workspace_members",
+      "schema": "",
+      "columns": {
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "member_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "workspace_members_workspace_id_workspaces_id_fk": {
+          "name": "workspace_members_workspace_id_workspaces_id_fk",
+          "tableFrom": "workspace_members",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "workspace_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "workspace_members_user_id_users_id_fk": {
+          "name": "workspace_members_user_id_users_id_fk",
+          "tableFrom": "workspace_members",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "workspace_members_workspace_id_user_id_pk": {
+          "name": "workspace_members_workspace_id_user_id_pk",
+          "columns": [
+            "workspace_id",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.workspaces": {
+      "name": "workspaces",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
