@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-import { currencyField, moneyString } from "./common";
-import { tagName } from "./tags";
+import { currencyField, moneyString } from "./common.js";
+import { tagName } from "./tags.js";
 
 export const recurringFrequency = z.enum([
   "monthly",

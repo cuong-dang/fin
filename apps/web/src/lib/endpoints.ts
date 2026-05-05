@@ -28,7 +28,7 @@ import type {
   UpdateTagBody,
 } from "@fin/schemas";
 
-import { api } from "./api";
+import { api } from "./api.js";
 
 // ─── Auth ─────────────────────────────────────────────────────────────────
 

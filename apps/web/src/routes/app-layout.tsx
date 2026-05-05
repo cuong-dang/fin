@@ -1,6 +1,5 @@
-import { AccountsSidebar } from "@/features/accounts/accounts-sidebar";
-import { clearAuth } from "@/lib/auth";
-import { me } from "@/lib/endpoints";
+import { clearAuth } from "@/lib/auth.js";
+import { me } from "@/lib/endpoints.js";
 
 import {
   ActionIcon,
@@ -96,7 +95,7 @@ export function AppLayoutRoute() {
           {PAGES.map((p) => (
             <PageNavLink key={p.to} label={p.label} to={p.to} />
           ))}
-          <AccountsSidebar />
+          {/* <AccountsSidebar /> */}
         </Stack>
       </AppShell.Navbar>
       <AppShell.Main>

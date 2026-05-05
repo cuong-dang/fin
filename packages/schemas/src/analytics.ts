@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { currencyField, dateString } from "./common";
+import { currencyField, dateString } from "./common.js";
 
 export const granularity = z.enum(["daily", "weekly", "monthly", "yearly"]);
 export type Granularity = z.infer<typeof granularity>;

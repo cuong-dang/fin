@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-import type { AccountType } from "./accounts";
-import { dateString, moneyString } from "./common";
-import { tagName } from "./tags";
+import type { AccountType } from "./accounts.js";
+import { dateString, moneyString } from "./common.js";
+import { tagName } from "./tags.js";
 
 // ─── Create / update (full: income / expense / transfer) ──────────────────
 

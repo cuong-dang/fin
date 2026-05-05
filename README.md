@@ -133,7 +133,7 @@ drizzle/       Generated migrations
   between server and clients via `@fin/schemas`
 - **Mantine 9** for UI primitives (styled, accessible, no Tailwind)
 - **dnd-kit** for drag-and-drop (same-day tx reorder, cross-day move)
-- Bearer-token auth (JWT in `Authorization: Bearer`) + `X-Group-Id`
+- Bearer-token auth (JWT in `Authorization: Bearer`) + `X-Workspace-Id`
   header for the active workspace. Mobile clients plug in identically —
   no cookies
 
@@ -197,7 +197,7 @@ Workspace-scoped routes require two headers:
 
 ```
 Authorization: Bearer <token>
-X-Group-Id:    <active-workspace-id>
+X-Workspace-Id:    <active-workspace-id>
 ```
 
 `/api/auth/*` is JWT-only; everything else requires both.

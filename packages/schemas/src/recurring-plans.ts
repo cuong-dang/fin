@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-import { type RecurringFrequency, recurringFrequency } from "./bills";
-import { moneyString } from "./common";
-import { tagName } from "./tags";
+import { type RecurringFrequency, recurringFrequency } from "./bills.js";
+import { moneyString } from "./common.js";
+import { tagName } from "./tags.js";
 
 // One default categorization line on a recurring plan. Mirrors
 // `billDefaultLineBody` except `amount` is *optional* — for

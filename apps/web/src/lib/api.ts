@@ -1,4 +1,4 @@
-import { clearAuth, getGroupId, getToken } from "./auth";
+import { clearAuth, getGroupId, getToken } from "./auth.js";
 
 class ApiError extends Error {
   constructor(
@@ -22,7 +22,7 @@ export async function api<T = unknown>(
   const token = getToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
   const groupId = getGroupId();
-  if (groupId) headers.set("X-Group-Id", groupId);
+  if (groupId) headers.set("X-Workspace-Id", groupId);
   let body = init.body;
   if (init.json !== undefined) {
     headers.set("content-type", "application/json");

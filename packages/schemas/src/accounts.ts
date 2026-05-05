@@ -1,11 +1,11 @@
 import { z } from "zod";
 
-import type { RecurringFrequency } from "./bills";
-import { currencyField, dateString, moneyString } from "./common";
+import type { RecurringFrequency } from "./bills.js";
+import { currencyField, dateString, moneyString } from "./common.js";
 import {
   recurringPlanBody,
   type RecurringPlanDefaultLine,
-} from "./recurring-plans";
+} from "./recurring-plans.js";
 
 /**
  * Full recurring-plan payload embedded on the loan account row. Bundled

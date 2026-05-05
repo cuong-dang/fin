@@ -7,15 +7,15 @@ export const userSummary = z.object({
 });
 export type UserSummary = z.infer<typeof userSummary>;
 
-export const groupMembership = z.object({
+export const workspaceMembership = z.object({
   id: z.uuid(),
   name: z.string(),
   role: z.enum(["owner", "member"]),
 });
-export type GroupMembership = z.infer<typeof groupMembership>;
+export type workspaceMembership = z.infer<typeof workspaceMembership>;
 
 export const meResponse = z.object({
   user: userSummary,
-  groups: z.array(groupMembership),
+  workspaces: z.array(workspaceMembership),
 });
 export type Me = z.infer<typeof meResponse>;

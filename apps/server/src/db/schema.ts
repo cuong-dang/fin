@@ -56,7 +56,7 @@ export const accountTypeEnum = pgEnum("account_type", [
   "loan",
 ]);
 
-// ─── Users & Groups ────────────────────────────────────────────────────────
+// ─── Users & Workspaces ────────────────────────────────────────────────────
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -70,7 +70,9 @@ export const users = pgTable("users", {
     .defaultNow(),
 });
 
-export const groups = pgTable("groups", {
+// A "workspace" is a shared scope for accounts, categories, transactions,
+// etc. One user can belong to many workspaces via `workspaceMembers`.
+export const workspaces = pgTable("workspaces", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -81,12 +83,12 @@ export const groups = pgTable("groups", {
     .defaultNow(),
 });
 
-export const groupMembers = pgTable(
-  "group_members",
+export const workspaceMembers = pgTable(
+  "workspace_members",
   {
-    groupId: uuid("group_id")
+    workspaceId: uuid("workspace_id")
       .notNull()
-      .references(() => groups.id, { onDelete: "cascade" }),
+      .references(() => workspaces.id, { onDelete: "cascade" }),
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
@@ -95,7 +97,7 @@ export const groupMembers = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.groupId, t.userId] })],
+  (t) => [primaryKey({ columns: [t.workspaceId, t.userId] })],
 );
 
 // ─── Accounts, Categories, Tags ────────────────────────────────────────────
@@ -104,9 +106,9 @@ export const accountGroups = pgTable(
   "account_groups",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    groupId: uuid("group_id")
+    workspaceId: uuid("workspace_id")
       .notNull()
-      .references(() => groups.id, { onDelete: "cascade" }),
+      .references(() => workspaces.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -117,8 +119,8 @@ export const accountGroups = pgTable(
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (t) => [
-    uniqueIndex("account_groups_group_name_unique")
-      .on(t.groupId, t.name)
+    uniqueIndex("account_groups_workspace_name_unique")
+      .on(t.workspaceId, t.name)
       .where(sql`${t.deletedAt} IS NULL`),
   ],
 );
@@ -142,12 +144,11 @@ export const accounts = pgTable(
       (): AnyPgColumn => accounts.id,
       { onDelete: "restrict" },
     ),
-    // Set iff `type='loan'`. Pairs the loan account 1:1 with the
-    // recurring_plans.
-    recurringPlanId: uuid("recurring_plan_id").references(
-      (): AnyPgColumn => recurringPlans.id,
-      { onDelete: "restrict" },
-    ),
+    // Set iff `type='loan'`. Pairs the loan account 1:1 with the loan
+    // terms (amount per period, frequency, default lines).
+    loanId: uuid("loan_id").references((): AnyPgColumn => loans.id, {
+      onDelete: "restrict",
+    }),
     // Per-account opt-out from net-worth aggregations (sidebar header
     // total + /analytics/net-worth chart).
     excludeFromNetWorth: boolean("exclude_from_net_worth")
@@ -170,9 +171,7 @@ export const accounts = pgTable(
     uniqueIndex("accounts_account_group_name_unique")
       .on(t.accountGroupId, t.name)
       .where(sql`${t.deletedAt} IS NULL`),
-    uniqueIndex("accounts_group_recurring_plan_unique")
-      .on(t.recurringPlanId)
-      .where(sql`${t.deletedAt} IS NULL`),
+    uniqueIndex("accounts_loan_unique").on(t.loanId)
   ],
 );
 
@@ -180,9 +179,9 @@ export const categories = pgTable(
   "categories",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    groupId: uuid("group_id")
+    workspaceId: uuid("workspace_id")
       .notNull()
-      .references(() => groups.id, { onDelete: "cascade" }),
+      .references(() => workspaces.id, { onDelete: "cascade" }),
     kind: categoryKindEnum("kind").notNull(),
     name: text("name").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -194,8 +193,8 @@ export const categories = pgTable(
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (t) => [
-    uniqueIndex("categories_group_kind_name_unique")
-      .on(t.groupId, t.kind, t.name)
+    uniqueIndex("categories_workspace_kind_name_unique")
+      .on(t.workspaceId, t.kind, t.name)
       .where(sql`${t.deletedAt} IS NULL`),
   ],
 );
@@ -227,9 +226,9 @@ export const tags = pgTable(
   "tags",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    groupId: uuid("group_id")
+    workspaceId: uuid("workspace_id")
       .notNull()
-      .references(() => groups.id, { onDelete: "cascade" }),
+      .references(() => workspaces.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -240,8 +239,8 @@ export const tags = pgTable(
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (t) => [
-    uniqueIndex("tags_group_name_unique")
-      .on(t.groupId, t.name)
+    uniqueIndex("tags_workspace_name_unique")
+      .on(t.workspaceId, t.name)
       .where(sql`${t.deletedAt} IS NULL`),
   ],
 );
@@ -252,9 +251,9 @@ export const transactions = pgTable(
   "transactions",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    groupId: uuid("group_id")
+    workspaceId: uuid("workspace_id")
       .notNull()
-      .references(() => groups.id, { onDelete: "cascade" }),
+      .references(() => workspaces.id, { onDelete: "cascade" }),
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
@@ -272,7 +271,7 @@ export const transactions = pgTable(
       onDelete: "restrict",
     }),
     // Same-day ordering, user-controlled via drag-and-drop. For processed
-    // transactions, values are {1..N} per (group_id, date). NULL when
+    // transactions, values are {1..N} per (workspace_id, date). NULL when
     // pending (date IS NULL). Largest key = newest within the day.
     sortKey: integer("sort_key"),
     description: text("description").notNull(),
@@ -285,9 +284,9 @@ export const transactions = pgTable(
     // Transactions are *not* soft-deleted.
   },
   (t) => [
-    index("transactions_group_date_idx").on(t.groupId, t.date.desc()),
-    uniqueIndex("transactions_group_date_sortkey_unique")
-      .on(t.groupId, t.date, t.sortKey)
+    index("transactions_workspace_date_idx").on(t.workspaceId, t.date.desc()),
+    uniqueIndex("transactions_workspace_date_sortkey_unique")
+      .on(t.workspaceId, t.date, t.sortKey)
       .where(sql`${t.date} IS NOT NULL`),
     check(
       "transactions_sort_key_matches_date",
@@ -368,9 +367,9 @@ export const transactionLineTags = pgTable(
 // user can edit per-charge (utilities especially vary period-to-period).
 export const bills = pgTable("bills", {
   id: uuid("id").primaryKey().defaultRandom(),
-  groupId: uuid("group_id")
+  workspaceId: uuid("workspace_id")
     .notNull()
-    .references(() => groups.id, { onDelete: "cascade" }),
+    .references(() => workspaces.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   type: billTypeEnum("type").notNull(),
   frequency: recurringFrequencyEnum("frequency").notNull(),
@@ -426,21 +425,23 @@ export const billDefaultLineTags = pgTable(
   (t) => [primaryKey({ columns: [t.lineId, t.tagId] })],
 );
 
-// ─── Recurring plans (installments) ────────────────────────────────────────
+// ─── Loans ─────────────────────────────────────────────────────────────────
 
-// Templated installment-style transactions with a cadence and (typically)
-// a known end — mortgages, car loans, BNPL.
+// Loan terms — paired 1:1 with a `accounts` row of `type='loan'` via
+// `accounts.loanId`. The account carries the running balance; this row
+// captures the *terms*: amount-per-period, cadence, and the default
+// categorization template for each payment (principal vs interest vs
+// fees, applied via `loanDefaultLines`).
 //
-// Like bills, a recurring plan owns a set of default lines that act
-// as a categorization template. The actual amounts paid per period live on
-// the linked transactions (e.g., sum of principal-role line amounts → principal
-// reduction; sum of interest-role line amounts → total interest paid).
-// The fields here capture the loan *terms*, not running totals.
-export const recurringPlans = pgTable("recurring_plans", {
+// Like bills, a loan owns a set of default lines. The actual amounts
+// paid per period live on the linked transactions (e.g., sum of
+// principal-role line amounts → principal reduction; sum of
+// interest-role line amounts → total interest paid).
+export const loans = pgTable("loans", {
   id: uuid("id").primaryKey().defaultRandom(),
-  groupId: uuid("group_id")
+  workspaceId: uuid("workspace_id")
     .notNull()
-    .references(() => groups.id, { onDelete: "cascade" }),
+    .references(() => workspaces.id, { onDelete: "cascade" }),
   amountPerPeriod: bigint("amount_per_period", { mode: "bigint" }).notNull(),
   frequency: recurringFrequencyEnum("frequency").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -452,13 +453,13 @@ export const recurringPlans = pgTable("recurring_plans", {
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
 });
 
-export const recurringPlanDefaultLines = pgTable(
-  "recurring_plan_default_lines",
+export const loanDefaultLines = pgTable(
+  "loan_default_lines",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    recurringPlanId: uuid("recurring_plan_id")
+    loanId: uuid("loan_id")
       .notNull()
-      .references(() => recurringPlans.id, { onDelete: "cascade" }),
+      .references(() => loans.id, { onDelete: "cascade" }),
     categoryId: uuid("category_id")
       .notNull()
       .references(() => categories.id, { onDelete: "restrict" }),
@@ -467,15 +468,15 @@ export const recurringPlanDefaultLines = pgTable(
     }),
     amount: bigint("amount", { mode: "bigint" }),
   },
-  (t) => [index("recurring_plan_default_lines_plan_idx").on(t.recurringPlanId)],
+  (t) => [index("loan_default_lines_loan_idx").on(t.loanId)],
 );
 
-export const recurringPlanDefaultLineTags = pgTable(
-  "recurring_plan_default_line_tags",
+export const loanDefaultLineTags = pgTable(
+  "loan_default_line_tags",
   {
     lineId: uuid("line_id")
       .notNull()
-      .references(() => recurringPlanDefaultLines.id, { onDelete: "cascade" }),
+      .references(() => loanDefaultLines.id, { onDelete: "cascade" }),
     tagId: uuid("tag_id")
       .notNull()
       .references(() => tags.id, { onDelete: "restrict" }),
