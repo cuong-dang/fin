@@ -1,11 +1,10 @@
 import { z } from "zod";
 
-import type { RecurringFrequency } from "./bills.js";
-import { currencyField, dateString, moneyString } from "./common.js";
+import { currencyField, dateString, moneyString, RecurringFrequency } from "./common.js";
 import {
-  recurringPlanBody,
-  type RecurringPlanDefaultLine,
-} from "./recurring-plans.js";
+  loanBody,
+  type LoanDefaultLine,
+} from "./loans.js";
 
 /**
  * Full recurring-plan payload embedded on the loan account row. Bundled
@@ -13,17 +12,16 @@ import {
  * pre-fill, and the Edit form can all read what they need without a
  * second round-trip.
  */
-export type AccountRecurringPlan = {
+export type AccountLoan = {
   id: string;
   amountPerPeriod: string; // stringified bigint
   frequency: RecurringFrequency;
-  defaultAccountId: string | null;
-  description: string | null;
-  defaultLines: RecurringPlanDefaultLine[];
+  defaultPayFromAccountId: string | null;
+  defaultLines: LoanDefaultLine[];
 };
 
 const nameField = z.string().trim().min(1).max(100);
-const newGroupField = z.string().trim().min(1).max(100).optional();
+const newAccountGroupField = z.string().trim().min(1).max(100).optional();
 
 export const accountType = z.enum(["checking_savings", "credit_card", "loan"]);
 export type AccountType = z.infer<typeof accountType>;
@@ -35,7 +33,7 @@ const baseCreate = z.object({
   name: nameField,
   currency: currencyField,
   accountGroupId: z.uuid().optional(),
-  newGroupName: newGroupField,
+  newAccountGroupName: newAccountGroupField,
   startingBalance: moneyString.optional(),
   adjustmentDate: dateString.optional(),
   excludeFromNetWorth: z.boolean().optional(),
@@ -58,13 +56,12 @@ const creditCardCreate = baseCreate
   })
   .strict();
 
-// Loan create embeds the recurring-plan params; server creates the plan
-// row and the account row atomically and links them via
-// accounts.recurring_plan_id.
+// Loan create embeds the loan params; server creates the loan row and the
+// account row atomically and links them via accounts.loan_id.
 const loanCreate = baseCreate
   .extend({
     type: z.literal("loan"),
-    recurringPlan: recurringPlanBody,
+    loan: loanBody,
   })
   .strict();
 
@@ -85,7 +82,7 @@ export type CreateAccountBody = z.infer<typeof createAccountBody>;
 const baseUpdate = z.object({
   name: nameField,
   accountGroupId: z.uuid().optional(),
-  newGroupName: newGroupField,
+  newGroupName: newAccountGroupField,
   newBalance: moneyString.optional(),
   adjustmentDate: dateString.optional(),
   excludeFromNetWorth: z.boolean().optional(),
@@ -111,7 +108,7 @@ const creditCardUpdate = baseUpdate
 const loanUpdate = baseUpdate
   .extend({
     type: z.literal("loan"),
-    recurringPlan: recurringPlanBody,
+    loan: loanBody,
   })
   .strict();
 
@@ -137,7 +134,7 @@ export type Account = {
   /** Set only when type='credit_card' or 'loan'. Optional. */
   defaultPayFromAccountId: string | null;
   /** Set only when type='loan'. Joined plan summary; null otherwise. */
-  recurringPlan: AccountRecurringPlan | null;
+  loan: AccountLoan | null;
   /**
    * ISO timestamp when archived; null = active. Distinct from
    * soft-delete — archived rows still surface in the manage page so
