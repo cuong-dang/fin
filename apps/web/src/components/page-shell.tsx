@@ -1,7 +1,7 @@
 import { Container, Group, Stack, Text, Title } from "@mantine/core";
 import type { ReactNode } from "react";
 
-import { BackLink } from "./back-link";
+import { BackLink } from "./back-link.js";
 
 /**
  * Standard form-page layout: BackLink + Title (+ optional subtitle / right
@@ -9,31 +9,23 @@ import { BackLink } from "./back-link";
  * route.
  */
 export function PageShell({
-  back,
   title,
+  children,
   subtitle,
   right,
-  children,
 }: {
-  /** Either a destination URL (string) or a callback (typically
-   *  `() => navigate(-1)` to go back in history). */
-  back: string | (() => void);
   title: string;
+  children: ReactNode;
   subtitle?: ReactNode;
   right?: ReactNode;
-  children: ReactNode;
 }) {
   return (
-    <Container p="xs" size="xs">
-      <Stack>
-        {typeof back === "string" ? (
-          <BackLink to={back} />
-        ) : (
-          <BackLink onClick={back} />
-        )}
-        <Stack>
+    <Container size="xs">
+      <Stack align="flex-start">
+        <BackLink />
+        <Stack w="100%">
           <Group justify="space-between">
-            <Title order={2}>{title}</Title>
+            <Title order={4}>{title}</Title>
             {right}
           </Group>
           {subtitle && <Text c="dimmed">{subtitle}</Text>}

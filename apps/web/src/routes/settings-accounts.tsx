@@ -1,7 +1,7 @@
-import { DestructiveIconButton } from "@/components/destructive-icon-button";
-import { PageShell } from "@/components/page-shell";
-import { SectionHeader } from "@/components/section-header";
-import { groupBy } from "@/lib/collections";
+import { DestructiveIconButton } from "@/components/destructive-icon-button.js";
+import { PageShell } from "@/components/page-shell.js";
+import { SectionHeader } from "@/components/section-header.js";
+import { groupBy } from "@/lib/collections.js";
 import {
   deleteAccount,
   deleteAccountGroup,
@@ -24,7 +24,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArchiveRestore, Pencil } from "lucide-react";
 import { Link } from "react-router";
 
-export function AccountsManageRoute() {
+export function SettingsAccountsRoute() {
   const groupsQ = useQuery({
     queryKey: ["account-groups"],
     queryFn: listAccountGroups,
@@ -42,16 +42,15 @@ export function AccountsManageRoute() {
 
   return (
     <PageShell
-      back="/settings"
       right={
         <Button component={Link} to="/accounts/new">
           New account
         </Button>
       }
-      title="Manage accounts"
+      title="Accounts"
     >
       {groups.length === 0 ? (
-        <Text c="dimmed">No accounts yet.</Text>
+        <Text c="dimmed">No accounts.</Text>
       ) : (
         <Stack>
           {groups.map((g) => (
@@ -65,58 +64,6 @@ export function AccountsManageRoute() {
         </Stack>
       )}
     </PageShell>
-  );
-}
-
-function ArchivedSection({ accounts }: { accounts: Account[] }) {
-  return (
-    <Box component="section">
-      <SectionHeader>Archived</SectionHeader>
-      <Divider />
-      <Stack>
-        {accounts.map((a) => (
-          <ArchivedRow key={a.id} account={a} />
-        ))}
-      </Stack>
-    </Box>
-  );
-}
-
-function ArchivedRow({ account }: { account: Account }) {
-  const qc = useQueryClient();
-  const unarchive = useMutation({
-    mutationFn: () => unarchiveAccount(account.id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["accounts"] }),
-    onError: (e) => alert((e as Error).message),
-  });
-  const del = useMutation({
-    mutationFn: () => deleteAccount(account.id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["accounts"] }),
-    onError: (e) => alert((e as Error).message),
-  });
-  return (
-    <Group justify="space-between">
-      <Text c="dimmed">
-        <b>{account.name}</b>{" "}
-        <Text c="dimmed" component="span">
-          {account.currency}
-        </Text>
-      </Text>
-      <Group>
-        <ActionIcon
-          aria-label={`Unarchive ${account.name}`}
-          loading={unarchive.isPending}
-          onClick={() => unarchive.mutate()}
-        >
-          <ArchiveRestore size={14} />
-        </ActionIcon>
-        <DestructiveIconButton
-          confirmMessage={`Delete account "${account.name}"? This cannot be undone.`}
-          label={`Delete account ${account.name}`}
-          onConfirm={() => del.mutate()}
-        />
-      </Group>
-    </Group>
   );
 }
 
@@ -193,6 +140,58 @@ function AccountRowItem({ account }: { account: Account }) {
           to={`/accounts/${account.id}/edit`}
         >
           <Pencil size={14} />
+        </ActionIcon>
+        <DestructiveIconButton
+          confirmMessage={`Delete account "${account.name}"? This cannot be undone.`}
+          label={`Delete account ${account.name}`}
+          onConfirm={() => del.mutate()}
+        />
+      </Group>
+    </Group>
+  );
+}
+
+function ArchivedSection({ accounts }: { accounts: Account[] }) {
+  return (
+    <Box component="section">
+      <SectionHeader>Archived</SectionHeader>
+      <Divider />
+      <Stack>
+        {accounts.map((a) => (
+          <ArchivedRow key={a.id} account={a} />
+        ))}
+      </Stack>
+    </Box>
+  );
+}
+
+function ArchivedRow({ account }: { account: Account }) {
+  const qc = useQueryClient();
+  const unarchive = useMutation({
+    mutationFn: () => unarchiveAccount(account.id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["accounts"] }),
+    onError: (e) => alert((e as Error).message),
+  });
+  const del = useMutation({
+    mutationFn: () => deleteAccount(account.id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["accounts"] }),
+    onError: (e) => alert((e as Error).message),
+  });
+  return (
+    <Group justify="space-between">
+      <Text c="dimmed">
+        <b>{account.name}</b>{" "}
+        <Text c="dimmed" component="span">
+          {account.currency}
+        </Text>
+      </Text>
+      <Group>
+        <ActionIcon
+          aria-label={`Unarchive ${account.name}`}
+          loading={unarchive.isPending}
+          onClick={() => unarchive.mutate()}
+        >
+          <ArchiveRestore size={14} />
         </ActionIcon>
         <DestructiveIconButton
           confirmMessage={`Delete account "${account.name}"? This cannot be undone.`}

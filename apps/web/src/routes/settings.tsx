@@ -1,16 +1,16 @@
-import { PageShell } from "@/components/page-shell";
+import { PageShell } from "@/components/page-shell.js";
 
 import { NavLink } from "@mantine/core";
 import { Link } from "react-router";
 
 export function SettingsRoute() {
   return (
-    <PageShell back="/" title="Settings">
+    <PageShell title="Settings">
       <NavLink
         component={Link}
         description="Manage accounts and account groups, archive paid-off loans"
         label="Accounts"
-        to="/accounts"
+        to="/settings/accounts"
       />
       <NavLink
         component={Link}

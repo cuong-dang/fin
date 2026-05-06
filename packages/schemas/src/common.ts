@@ -18,5 +18,5 @@ export const currencyField = z
   .length(3)
   .transform((s) => s.toUpperCase());
 
-export const idParam = z.object({ id: z.uuid() });
+export const idParam = z.object({ id: z.uuid() }).strict();
 export type IdParam = z.infer<typeof idParam>;

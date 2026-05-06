@@ -1,3 +1,4 @@
+import type { SQL } from "drizzle-orm";
 import { and, eq, type InferSelectModel, isNull } from "drizzle-orm";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 
@@ -38,6 +39,11 @@ type OwnedActiveTable = PgTable & {
   deletedAt: PgColumn;
 };
 
+type ActiveTable = PgTable & {
+  id: PgColumn;
+  deletedAt: PgColumn;
+};
+
 /**
  * Where-clause for "rows owned by this workspace AND not soft-deleted".
  * Use when the list query needs a custom projection or joins (so the
@@ -49,8 +55,15 @@ type OwnedActiveTable = PgTable & {
 export function ownedActive<T extends OwnedActiveTable>(
   table: T,
   workspaceId: string,
-) {
+): SQL | undefined {
   return and(eq(table.workspaceId, workspaceId), isNull(table.deletedAt));
+}
+
+export function isActive<T extends ActiveTable>(
+  table: T,
+  id: string,
+): SQL | undefined {
+  return and(eq(table.id, id), isNull(table.deletedAt));
 }
 
 /**

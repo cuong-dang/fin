@@ -1,4 +1,4 @@
-import { createTheme, Group } from "@mantine/core";
+import { createTheme, Group, Stack } from "@mantine/core";
 
 export const theme = createTheme({
   components: {
@@ -19,11 +19,11 @@ export const theme = createTheme({
         gap: "xs",
       },
     }),
-    // Stack: Stack.extend({
-    //   defaultProps: {
-    //     gap: "xs",
-    //   },
-    // }),
+    Stack: Stack.extend({
+      defaultProps: {
+        gap: "xs",
+      },
+    }),
     // Text: Text.extend({
     //   defaultProps: {
     //     size: "sm",
