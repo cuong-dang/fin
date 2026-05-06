@@ -1,46 +1,71 @@
-import type { SQL } from "drizzle-orm";
-import { and, eq, type InferSelectModel, isNull } from "drizzle-orm";
+import {
+  and,
+  eq,
+  type GetColumnData,
+  inArray,
+  type InferSelectModel,
+  isNull,
+  type SQL,
+} from "drizzle-orm";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 
 import { db } from "../db/index.js";
 
 type OwnedTable = PgTable & {
-  id: PgColumn;
   workspaceId: PgColumn;
 };
 
 /**
- * Look up a row by id and verify it belongs to the given workspace group.
- * If the table is soft-deletable (has a `deletedAt` column), rows with
- * `deletedAt IS NOT NULL` are also treated as missing. Transactions are
- * the one user-facing entity that's hard-deleted and lacks the column.
+ * Look up rows by any column value, scoped to the caller's workspace.
+ * The workspace check is part of the SQL (not a post-filter), so any
+ * row returned is guaranteed to belong to `workspaceId`. If the table
+ * is soft-deletable (has a `deletedAt` column), rows with
+ * `deletedAt IS NOT NULL` are excluded.
+ *
+ * Single-value form returns `Row | null` (404-style). Array form
+ * returns `Row[]` — possibly a partial subset of the input list, since
+ * any non-owned or soft-deleted ids are filtered by the SQL.
+ *
+ * Common patterns:
+ *   findOwned(schema.users, schema.users.id, userId, ws)         // by id
+ *   findOwned(schema.users, schema.users.email, email, ws)       // by other column
+ *   findOwned(schema.accounts, schema.accounts.id, ids, ws)      // batch by id
  */
-export async function findOwned<T extends OwnedTable>(
+export function findOwned<T extends OwnedTable, C extends PgColumn>(
   table: T,
-  id: string,
+  column: C,
+  value: GetColumnData<C>,
   workspaceId: string,
-): Promise<InferSelectModel<T> | null> {
-  const conditions = [eq(table.id, id)];
+): Promise<InferSelectModel<T> | null>;
+export function findOwned<T extends OwnedTable, C extends PgColumn>(
+  table: T,
+  column: C,
+  values: GetColumnData<C>[],
+  workspaceId: string,
+): Promise<InferSelectModel<T>[]>;
+export async function findOwned<T extends OwnedTable, C extends PgColumn>(
+  table: T,
+  column: C,
+  valueOrValues: GetColumnData<C> | GetColumnData<C>[],
+  workspaceId: string,
+): Promise<InferSelectModel<T> | InferSelectModel<T>[] | null> {
+  const isBatch = Array.isArray(valueOrValues);
+  const conditions: (SQL | undefined)[] = [
+    isBatch ? inArray(column, valueOrValues) : eq(column, valueOrValues),
+    eq(table.workspaceId, workspaceId),
+  ];
   if ("deletedAt" in table) {
     conditions.push(isNull((table as { deletedAt: PgColumn }).deletedAt));
   }
-  const [row] = (await db
+  const rows = (await db
     .select()
     .from(table as PgTable)
-    .where(and(...conditions))
-    .limit(1)) as Array<InferSelectModel<T> & { workspaceId: string }>;
-  if (!row) return null;
-  if (row.workspaceId !== workspaceId) return null;
-  return row;
+    .where(and(...conditions))) as InferSelectModel<T>[];
+  return isBatch ? rows : (rows[0] ?? null);
 }
 
 type OwnedActiveTable = PgTable & {
   workspaceId: PgColumn;
-  deletedAt: PgColumn;
-};
-
-type ActiveTable = PgTable & {
-  id: PgColumn;
   deletedAt: PgColumn;
 };
 
@@ -58,6 +83,11 @@ export function ownedActive<T extends OwnedActiveTable>(
 ): SQL | undefined {
   return and(eq(table.workspaceId, workspaceId), isNull(table.deletedAt));
 }
+
+type ActiveTable = PgTable & {
+  id: PgColumn;
+  deletedAt: PgColumn;
+};
 
 export function isActive<T extends ActiveTable>(
   table: T,
