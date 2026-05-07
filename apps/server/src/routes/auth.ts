@@ -101,7 +101,7 @@ export async function bootstrapSession(
         .values({ name: "Personal" })
         .returning({ id: schema.workspaces.id });
       await tx.insert(schema.workspaceMembers).values({
-        workspaceId: workspace!.id,
+        workspaceId: workspace.id,
         userId: winner.id,
         role: "owner",
       });
@@ -118,6 +118,6 @@ export async function bootstrapSession(
       .from(schema.users)
       .where(eq(schema.users.email, email))
       .limit(1);
-    return { userId: user!.id, email: user!.email, name: user!.name };
+    return { userId: user.id, email: user.email, name: user.name };
   });
 }

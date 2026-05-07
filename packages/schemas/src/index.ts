@@ -5,6 +5,6 @@ export * from "./auth.js";
 export * from "./bills.js";
 export * from "./categories.js";
 export * from "./common.js";
-export * from "./recurring-plans.js";
+export * from "./loans.js";
 export * from "./tags.js";
 export * from "./transactions.js";

@@ -1,24 +1,8 @@
 import { z } from "zod";
 
-import { currencyField, dateString, moneyString, RecurringFrequency } from "./common.js";
-import {
-  loanBody,
-  type LoanDefaultLine,
-} from "./loans.js";
-
-/**
- * Full recurring-plan payload embedded on the loan account row. Bundled
- * with the account so the sidebar (payments-remaining), the Payment > Loan
- * pre-fill, and the Edit form can all read what they need without a
- * second round-trip.
- */
-export type AccountLoan = {
-  id: string;
-  amountPerPeriod: string; // stringified bigint
-  frequency: RecurringFrequency;
-  defaultPayFromAccountId: string | null;
-  defaultLines: LoanDefaultLine[];
-};
+import { currencyField, dateString, moneyString } from "./common.js";
+import type { Loan } from "./loans.js";
+import { loanBody } from "./loans.js";
 
 const nameField = z.string().trim().min(1).max(100);
 const newAccountGroupField = z.string().trim().min(1).max(100).optional();
@@ -61,6 +45,7 @@ const creditCardCreate = baseCreate
 const loanCreate = baseCreate
   .extend({
     type: z.literal("loan"),
+    defaultPayFromAccountId: z.uuid().optional(),
     loan: loanBody,
   })
   .strict();
@@ -108,6 +93,7 @@ const creditCardUpdate = baseUpdate
 const loanUpdate = baseUpdate
   .extend({
     type: z.literal("loan"),
+    defaultPayFromAccountId: z.uuid().optional(),
     loan: loanBody,
   })
   .strict();
@@ -134,7 +120,7 @@ export type Account = {
   /** Set only when type='credit_card' or 'loan'. Optional. */
   defaultPayFromAccountId: string | null;
   /** Set only when type='loan'. Joined plan summary; null otherwise. */
-  loan: AccountLoan | null;
+  loan: Loan | null;
   /**
    * ISO timestamp when archived; null = active. Distinct from
    * soft-delete — archived rows still surface in the manage page so

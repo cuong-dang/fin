@@ -274,7 +274,7 @@ export const transactions = pgTable(
     // transactions, values are {1..N} per (workspace_id, date). NULL when
     // pending (date IS NULL). Largest key = newest within the day.
     sortKey: integer("sort_key"),
-    description: text("description").notNull(),
+    description: text("description"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

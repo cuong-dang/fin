@@ -1,4 +1,5 @@
-import { schema, type Tx } from "../db/index.js";
+import type { schema } from "../db/index.js";
+import { type Tx } from "../db/index.js";
 import { upsertTags } from "./tags-upsert.js";
 
 // Each "line" (transaction line / bill default line / loan default line) has

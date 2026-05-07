@@ -139,7 +139,7 @@ CREATE TABLE "transactions" (
 	"type" "transaction_type" NOT NULL,
 	"bill_id" uuid,
 	"sort_key" integer,
-	"description" text NOT NULL,
+	"description" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "transactions_sort_key_matches_date" CHECK (("transactions"."date" IS NULL) = ("transactions"."sort_key" IS NULL))

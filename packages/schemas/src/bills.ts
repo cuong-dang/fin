@@ -1,16 +1,12 @@
 import { z } from "zod";
 
-import { currencyField, moneyString } from "./common.js";
-import { tagName } from "./tags.js";
-
-export const recurringFrequency = z.enum([
-  "monthly",
-  "biweekly",
-  "weekly",
-  "quarterly",
-  "yearly",
-]);
-export type RecurringFrequency = z.infer<typeof recurringFrequency>;
+import {
+  currencyField,
+  moneyString,
+  type RecurringFrequency,
+  recurringFrequency,
+} from "./common.js";
+import { lineBaseBody } from "./transactions.js";
 
 // Three flavors of recurring bill, distinguished mostly by UX hints (the
 // underlying mechanism — periodic charge with a default categorization
@@ -30,15 +26,8 @@ export type BillType = z.infer<typeof billType>;
 // category/subcategory path so users don't have to hop to /settings to
 // set up a new bill. `amount` is optional: utilities (and some bills with
 // variable totals) leave amount blank in the template.
-export const billDefaultLineBody = z
-  .object({
-    amount: moneyString.optional(),
-    categoryId: z.uuid().optional(),
-    newCategoryName: z.string().trim().min(1).max(100).optional(),
-    subcategoryId: z.uuid().optional(),
-    newSubcategoryName: z.string().trim().min(1).max(100).optional(),
-    tagNames: z.array(tagName).max(20).optional(),
-  })
+export const billDefaultLineBody = lineBaseBody
+  .extend({ amount: moneyString.optional() })
   .strict();
 export type BillDefaultLineBody = z.infer<typeof billDefaultLineBody>;
 

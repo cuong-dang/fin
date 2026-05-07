@@ -9,10 +9,14 @@ export async function resolveCategory(
   workspaceId: string,
 ): Promise<{ categoryId: string; subcategoryId: string | null }> {
   if (Boolean(input.categoryId) === Boolean(input.newCategoryName)) {
-    throw new Error("Invariant: Expect either category id or new category name.");
+    throw new Error(
+      "Invariant: Expect either category id or new category name.",
+    );
   }
   if (Boolean(input.subcategoryId) && Boolean(input.newSubcategoryName)) {
-    throw new Error("Invariant: Expect either subcategory id or new subcategory name.");
+    throw new Error(
+      "Invariant: Expect either subcategory id or new subcategory name.",
+    );
   }
 
   let categoryId = input.categoryId;

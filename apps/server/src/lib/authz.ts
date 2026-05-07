@@ -2,6 +2,7 @@ import {
   and,
   eq,
   type GetColumnData,
+  getTableName,
   inArray,
   type InferSelectModel,
   isNull,
@@ -64,8 +65,39 @@ export async function findOwned<T extends OwnedTable, C extends PgColumn>(
   return isBatch ? rows : (rows[0] ?? null);
 }
 
+export async function findOwnedParent<
+  T extends ActiveTable,
+  P extends OwnedActiveTable,
+  PC extends PgColumn,
+  TC extends PgColumn,
+>(
+  table: T,
+  parent: P,
+  tableJoinColumn: TC,
+  parentJoinColumn: PC,
+  id: string,
+  workspaceId: string,
+): Promise<InferSelectModel<T> | null> {
+  // `select()` after a join returns rows keyed by SQL table name —
+  // `{ [tableName]: TRow, [parentName]: PRow }`. We strip the parent
+  // half post-query so the caller gets just the T row.
+  const rows = (await db
+    .select()
+    .from(table as PgTable)
+    .innerJoin(parent as PgTable, eq(parentJoinColumn, tableJoinColumn))
+    .where(and(ownedParentActive(table, parent, workspaceId), eq(table.id, id)))
+    .limit(1)) as Array<Record<string, InferSelectModel<T>>>;
+  const row = rows[0];
+  return row ? (row[getTableName(table)] ?? null) : null;
+}
+
 type OwnedActiveTable = PgTable & {
   workspaceId: PgColumn;
+  deletedAt: PgColumn;
+};
+
+type ActiveTable = PgTable & {
+  id: PgColumn;
   deletedAt: PgColumn;
 };
 
@@ -84,10 +116,18 @@ export function ownedActive<T extends OwnedActiveTable>(
   return and(eq(table.workspaceId, workspaceId), isNull(table.deletedAt));
 }
 
-type ActiveTable = PgTable & {
-  id: PgColumn;
-  deletedAt: PgColumn;
-};
+export function ownedParentActive<
+  P extends OwnedActiveTable,
+  T extends ActiveTable,
+>(table: T, parent: P, workspaceId: string): SQL | undefined {
+  // We also have assertions somewhere else that parents cannot be
+  // soft-deleted if they contain active children.
+  return and(
+    eq(parent.workspaceId, workspaceId),
+    isNull(parent.deletedAt),
+    isNull(table.deletedAt),
+  );
+}
 
 export function isActive<T extends ActiveTable>(
   table: T,

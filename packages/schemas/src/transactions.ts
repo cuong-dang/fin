@@ -1,24 +1,27 @@
 import { z } from "zod";
 
 import type { AccountType } from "./accounts.js";
+import { categoryResolverInput } from "./categories.js";
 import { dateString, moneyString } from "./common.js";
 import { tagName } from "./tags.js";
 
 // ─── Create / update (full: income / expense / transfer) ──────────────────
 
+// Shared shape for any "line" body — a category split that may carry tags.
+// Bill and loan default-line schemas extend this with an *optional* amount
+// (templates may leave amount blank for variable charges); transaction
+// lines extend with a *required* amount.
+export const lineBaseBody = categoryResolverInput.extend({
+  tagNames: z.array(tagName).max(20).optional(),
+});
+export type LineBaseBody = z.infer<typeof lineBaseBody>;
+
 // One split of an income/expense transaction into a single category. A
 // transaction always has at least one line; multi-line means the user split
 // the amount across multiple categories. Leg amount = sum of line amounts.
 // Each line can carry zero or more tags; tags are upserted by name.
-export const transactionLineBody = z
-  .object({
-    amount: moneyString,
-    categoryId: z.uuid().optional(),
-    newCategoryName: z.string().trim().min(1).max(100).optional(),
-    subcategoryId: z.uuid().optional(),
-    newSubcategoryName: z.string().trim().min(1).max(100).optional(),
-    tagNames: z.array(tagName).max(20).optional(),
-  })
+export const transactionLineBody = lineBaseBody
+  .extend({ amount: moneyString })
   .strict();
 export type TransactionLineBody = z.infer<typeof transactionLineBody>;
 

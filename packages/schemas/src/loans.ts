@@ -1,17 +1,14 @@
 import { z } from "zod";
 
-import { moneyString, type RecurringFrequency, recurringFrequency } from "./common.js";
-import { tagName } from "./tags.js";
+import {
+  moneyString,
+  type RecurringFrequency,
+  recurringFrequency,
+} from "./common.js";
+import { lineBaseBody } from "./transactions.js";
 
-export const loanDefaultLineBody = z
-  .object({
-    categoryId: z.uuid().optional(),
-    newCategoryName: z.string().trim().min(1).max(100).optional(),
-    subcategoryId: z.uuid().optional(),
-    newSubcategoryName: z.string().trim().min(1).max(100).optional(),
-    amount: moneyString.optional(),
-    tagNames: z.array(tagName).max(20).optional(),
-  })
+export const loanDefaultLineBody = lineBaseBody
+  .extend({ amount: moneyString.optional() })
   .strict();
 export type LoanDefaultLineBody = z.infer<typeof loanDefaultLineBody>;
 
@@ -19,7 +16,6 @@ export const loanBody = z
   .object({
     amountPerPeriod: moneyString,
     frequency: recurringFrequency,
-    defaultPayFromAccountId: z.uuid().optional(),
     defaultLines: z.array(loanDefaultLineBody),
   })
   .strict();
@@ -34,15 +30,12 @@ export type LoanDefaultLine = {
   subcategoryId: string | null;
   subcategoryName: string | null;
   amount: string | null;
-  currency: string;
   tags: { id: string; name: string }[];
 };
 
 export type Loan = {
   id: string;
-  amountPerPeriod: string; // stringified bigint
-  currency: string;
+  amountPerPeriod: string;
   frequency: RecurringFrequency;
-  defaultPayFromAccountId: string | null;
   defaultLines: LoanDefaultLine[];
 };

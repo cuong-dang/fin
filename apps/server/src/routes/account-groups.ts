@@ -31,7 +31,7 @@ export const accountGroupRoutes: FastifyPluginAsync = async (app) => {
         id: schema.accountGroups.id,
         name: schema.accountGroups.name,
       });
-    return reply.code(201).send(row!);
+    return reply.code(201).send(row);
   });
 
   app.patch("/:id", async (req, reply): Promise<AccountGroup> => {
@@ -40,6 +40,7 @@ export const accountGroupRoutes: FastifyPluginAsync = async (app) => {
 
     const existing = await findOwned(
       schema.accountGroups,
+      schema.accountGroups.id,
       id,
       req.auth.workspaceId,
     );
@@ -53,7 +54,7 @@ export const accountGroupRoutes: FastifyPluginAsync = async (app) => {
         id: schema.accountGroups.id,
         name: schema.accountGroups.name,
       });
-    return row!;
+    return row;
   });
 
   app.delete("/:id", async (req, reply): Promise<FastifyReply> => {
@@ -61,6 +62,7 @@ export const accountGroupRoutes: FastifyPluginAsync = async (app) => {
 
     const existing = await findOwned(
       schema.accountGroups,
+      schema.accountGroups.id,
       id,
       req.auth.workspaceId,
     );
@@ -73,9 +75,9 @@ export const accountGroupRoutes: FastifyPluginAsync = async (app) => {
       .select({ count: sql<number>`count(*)::int` })
       .from(schema.accounts)
       .where(isActive(schema.accounts, id));
-    if (countRow!.count > 0) {
+    if (countRow.count > 0) {
       return reply.code(409).send({
-        error: `Cannot delete group: ${countRow!.count} active account(s) still reference it`,
+        error: `Cannot delete group: ${countRow.count} active account(s) still reference it`,
       });
     }
 

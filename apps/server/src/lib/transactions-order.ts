@@ -1,7 +1,7 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 
-import { type PgTx } from "../db";
-import { schema } from "../db";
+import { type Tx } from "../db/index.js";
+import { schema } from "../db/index.js";
 
 /**
  * Invariant: for every (group_id, date) with N completed transactions, their
@@ -15,8 +15,8 @@ import { schema } from "../db";
 
 /** Next sort_key for an append to the end (newest) of a (group, date) bucket. */
 export async function nextSortKey(
-  tx: PgTx,
-  groupId: string,
+  tx: Tx,
+  workspaceId: string,
   date: string,
 ): Promise<number> {
   const [{ max }] = await tx
@@ -26,7 +26,7 @@ export async function nextSortKey(
     .from(schema.transactions)
     .where(
       and(
-        eq(schema.transactions.groupId, groupId),
+        eq(schema.transactions.workspaceId, workspaceId),
         eq(schema.transactions.date, date),
       ),
     );
@@ -42,8 +42,8 @@ export async function nextSortKey(
  * unique index during the rewrite.
  */
 export async function compactSortKeys(
-  tx: PgTx,
-  groupId: string,
+  tx: Tx,
+  workspaceId: string,
   date: string,
 ): Promise<void> {
   const rows = await tx
@@ -51,7 +51,7 @@ export async function compactSortKeys(
     .from(schema.transactions)
     .where(
       and(
-        eq(schema.transactions.groupId, groupId),
+        eq(schema.transactions.workspaceId, workspaceId),
         eq(schema.transactions.date, date),
       ),
     )
@@ -65,7 +65,7 @@ export async function compactSortKeys(
     .set({ sortKey: sql`-${schema.transactions.sortKey}` })
     .where(
       and(
-        eq(schema.transactions.groupId, groupId),
+        eq(schema.transactions.workspaceId, workspaceId),
         eq(schema.transactions.date, date),
       ),
     );
@@ -167,8 +167,8 @@ export function mergeReorderIds(
  * Caller is responsible for verifying all ids are owned and same-date.
  */
 export async function reassignSortKeys(
-  tx: PgTx,
-  groupId: string,
+  tx: Tx,
+  workspaceId: string,
   date: string,
   idsNewestFirst: string[],
 ): Promise<void> {
@@ -181,7 +181,7 @@ export async function reassignSortKeys(
     .set({ sortKey: sql`-${schema.transactions.sortKey}` })
     .where(
       and(
-        eq(schema.transactions.groupId, groupId),
+        eq(schema.transactions.workspaceId, workspaceId),
         eq(schema.transactions.date, date),
       ),
     );

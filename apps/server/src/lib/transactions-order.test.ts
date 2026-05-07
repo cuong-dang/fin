@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { anchorsPreserveOrder, mergeReorderIds } from "./transactions-order";
+import { anchorsPreserveOrder, mergeReorderIds } from "./transactions-order.js";
 
 // Contract: one transaction moves per request, identified by `movingId`.
 // Other ids in bodyIds must be on body.date and in their existing order.

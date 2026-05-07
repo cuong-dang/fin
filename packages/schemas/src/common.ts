@@ -20,3 +20,12 @@ export const currencyField = z
 
 export const idParam = z.object({ id: z.uuid() }).strict();
 export type IdParam = z.infer<typeof idParam>;
+
+export const recurringFrequency = z.enum([
+  "weekly",
+  "biweekly",
+  "monthly",
+  "quarterly",
+  "yearly",
+]);
+export type RecurringFrequency = z.infer<typeof recurringFrequency>;
