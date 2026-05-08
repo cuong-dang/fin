@@ -25,7 +25,7 @@ export function PageShell({
         <BackLink />
         <Stack w="100%">
           <Group justify="space-between">
-            <Title order={4}>{title}</Title>
+            <Title order={3}>{title}</Title>
             {right}
           </Group>
           {subtitle && <Text c="dimmed">{subtitle}</Text>}

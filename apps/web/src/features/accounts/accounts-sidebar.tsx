@@ -52,9 +52,6 @@ export function AccountsSidebar() {
   const byGroup = groupBy(accounts, (a) => a.accountGroupId);
   // Hide groups that have no active accounts.
   const visibleGroups = groups.filter((g) => byGroup.has(g.id));
-  // Net-worth header sums only the accounts the user counts toward
-  // their net worth; the rest stay visible (with balances + group
-  // subtotals) but don't roll into the total.
   const netWorth = totalsByCurrency(
     accounts.filter((a) => !a.excludeFromNetWorth),
   );
@@ -118,62 +115,12 @@ export function AccountsSidebar() {
   );
 }
 
-const COLLAPSED_KEY = "fin:sidebar.collapsedGroups";
-
-function loadCollapsed(): Set<string> {
-  // Tolerate any localStorage failure (private mode, quota, JSON shape
-  // drift) by falling back to an empty set — collapsed state is a UX
-  // nicety, not load-bearing.
-  try {
-    const raw = localStorage.getItem(COLLAPSED_KEY);
-    if (!raw) return new Set();
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return new Set();
-    return new Set(parsed.filter((v): v is string => typeof v === "string"));
-  } catch {
-    return new Set();
-  }
-}
-
-function saveCollapsed(set: Set<string>) {
-  try {
-    localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...set]));
-  } catch {
-    // ignore — see loadCollapsed
-  }
-}
-
-function groupSubtotal(
-  items: Account[],
-): { amount: bigint; currency: string } | null {
-  if (items.length === 0) return null;
-  const currency = items[0].currency;
-  if (items.some((i) => i.currency !== currency)) return null;
-  const total = items.reduce((sum, i) => sum + BigInt(i.presentBalance), 0n);
-  return { amount: total, currency };
-}
-
-// Net-worth summary for the sidebar header. Sums present balances per
-// currency — credit-card and loan balances are negative, so the total
-// nets debt against assets correctly. Multi-currency users see one line
-// per currency (no FX conversion done here).
-function totalsByCurrency(items: Account[]): Map<string, bigint> {
-  const totals = new Map<string, bigint>();
-  for (const a of items) {
-    totals.set(
-      a.currency,
-      (totals.get(a.currency) ?? 0n) + BigInt(a.presentBalance),
-    );
-  }
-  return totals;
-}
-
 function NetWorthSummary({ totals }: { totals: Map<string, bigint> }) {
   if (totals.size === 0) return null;
   return (
     <Stack align="flex-end" gap={0}>
       {[...totals].map(([currency, amount]) => (
-        <Text key={currency} ff="monospace" fw={600}>
+        <Text key={currency} ff="monospace">
           {formatMoney(amount, currency)}
         </Text>
       ))}
@@ -197,19 +144,24 @@ function GroupSection({
   const subtotal = groupSubtotal(accounts);
   return (
     <Stack gap={0}>
-      <UnstyledButton onClick={onToggle}>
-        <Group justify="space-between" pr="xs">
+      <NavLink
+        component={UnstyledButton}
+        label={
           <Group>
             {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-            <SectionHeader>{group.name}</SectionHeader>
+            <SectionHeader compact>{group.name}</SectionHeader>
           </Group>
-          {subtotal && (
+        }
+        pl={0}
+        rightSection={
+          subtotal && (
             <Text c="dimmed" ff="monospace">
               {formatMoney(subtotal.amount, subtotal.currency)}
             </Text>
-          )}
-        </Group>
-      </UnstyledButton>
+          )
+        }
+        onClick={onToggle}
+      />
       {!collapsed &&
         (accounts.length === 0 ? (
           <Text c="dimmed">No accounts yet.</Text>
@@ -272,10 +224,10 @@ function AccountItem({
         <LoanRemainingHint
           accountId={account.id}
           accountName={account.name}
-          amountPerPeriod={BigInt(account.recurringPlan!.amountPerPeriod)}
+          amountPerPeriod={BigInt(account.loan!.amountPerPeriod)}
           balance={available}
           currency={account.currency}
-          frequency={account.recurringPlan!.frequency}
+          frequency={account.loan!.frequency}
         />
       </Stack>
     );
@@ -329,14 +281,6 @@ function CreditLimitBar({
     </Stack>
   );
 }
-
-const FREQUENCY_SUFFIX: Record<RecurringFrequency, string> = {
-  weekly: "/wk",
-  biweekly: "/2wk",
-  monthly: "/mo",
-  quarterly: "/qtr",
-  yearly: "/yr",
-};
 
 function LoanRemainingHint({
   accountId,
@@ -420,4 +364,60 @@ function ArchiveLoanButton({
       </ActionIcon>
     </Tooltip>
   );
+}
+
+// Net-worth summary for the sidebar header. Multi-currency users see one line
+// per currency (no FX conversion done here).
+function totalsByCurrency(items: Account[]): Map<string, bigint> {
+  const totals = new Map<string, bigint>();
+  for (const a of items) {
+    totals.set(
+      a.currency,
+      (totals.get(a.currency) ?? 0n) + BigInt(a.presentBalance),
+    );
+  }
+  return totals;
+}
+
+function groupSubtotal(
+  items: Account[],
+): { amount: bigint; currency: string } | null {
+  if (items.length === 0) return null;
+  const currency = items[0].currency;
+  if (items.some((i) => i.currency !== currency)) return null;
+  const total = items.reduce((sum, i) => sum + BigInt(i.presentBalance), 0n);
+  return { amount: total, currency };
+}
+
+const FREQUENCY_SUFFIX: Record<RecurringFrequency, string> = {
+  weekly: "/wk",
+  biweekly: "/2wk",
+  monthly: "/mo",
+  quarterly: "/qtr",
+  yearly: "/yr",
+};
+
+const COLLAPSED_KEY = "fin:sidebar.collapsedGroups";
+
+function loadCollapsed(): Set<string> {
+  // Tolerate any localStorage failure (private mode, quota, JSON shape
+  // drift) by falling back to an empty set — collapsed state is a UX
+  // nicety, not load-bearing.
+  try {
+    const raw = localStorage.getItem(COLLAPSED_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((v): v is string => typeof v === "string"));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveCollapsed(set: Set<string>) {
+  try {
+    localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...set]));
+  } catch {
+    // ignore — see loadCollapsed
+  }
 }

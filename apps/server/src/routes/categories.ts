@@ -9,15 +9,14 @@ import {
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
 
-import { schema } from "../db";
-import { db } from "../db";
-import { findOwned, ownedActive } from "../lib/authz";
-import { groupBy } from "../lib/collections";
+import { schema } from "../db/index.js";
+import { db } from "../db/index.js";
+import { findOwned, findOwnedParent, ownedActive } from "../lib/authz.js";
+import { groupBy } from "../lib/collections.js";
 
 export const categoryRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
 
-  /** List active categories for the workspace with active subcategories nested. */
   app.get("/", async (req): Promise<CategoryWithSubs[]> => {
     const catRows = await db
       .select({
@@ -26,7 +25,7 @@ export const categoryRoutes: FastifyPluginAsync = async (app) => {
         name: schema.categories.name,
       })
       .from(schema.categories)
-      .where(ownedActive(schema.categories, req.auth.groupId))
+      .where(ownedActive(schema.categories, req.auth.workspaceId))
       .orderBy(schema.categories.name);
 
     const catIds = catRows.map((c) => c.id);
@@ -64,7 +63,7 @@ export const categoryRoutes: FastifyPluginAsync = async (app) => {
     const [row] = await db
       .insert(schema.categories)
       .values({
-        groupId: req.auth.groupId,
+        workspaceId: req.auth.workspaceId,
         kind: body.kind,
         name: body.name,
       })
@@ -79,7 +78,11 @@ export const categoryRoutes: FastifyPluginAsync = async (app) => {
   app.patch("/:id", async (req, reply) => {
     const { id } = idParam.parse(req.params);
     const body = updateCategoryBody.parse(req.body);
-    const existing = await findOwned(schema.categories, id, req.auth.groupId);
+    const existing = await findOwned(
+      schema.categories,
+      id,
+      req.auth.workspaceId,
+    );
     if (!existing) return reply.code(404).send({ error: "Not found" });
 
     await db
@@ -91,13 +94,14 @@ export const categoryRoutes: FastifyPluginAsync = async (app) => {
 
   app.delete("/:id", async (req, reply) => {
     const { id } = idParam.parse(req.params);
-    const existing = await findOwned(schema.categories, id, req.auth.groupId);
+    const existing = await findOwned(
+      schema.categories,
+      id,
+      req.auth.workspaceId,
+    );
     if (!existing) return reply.code(404).send({ error: "Not found" });
 
-    // Soft-delete: subcategories aren't cascaded; the list query filters
-    // them out via their parent's deleted_at, and they remain individually
-    // available for manual restoration if needed. tx_lines that reference
-    // this category stay intact and still display its name on history.
+    // Soft-delete
     await db
       .update(schema.categories)
       .set({ deletedAt: new Date(), updatedAt: new Date() })
@@ -113,7 +117,7 @@ export const categoryRoutes: FastifyPluginAsync = async (app) => {
     const parent = await findOwned(
       schema.categories,
       categoryId,
-      req.auth.groupId,
+      req.auth.workspaceId,
     );
     if (!parent) return reply.code(404).send({ error: "Category not found" });
 
@@ -135,38 +139,17 @@ export const categoryRoutes: FastifyPluginAsync = async (app) => {
 export const subcategoryRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
 
-  /**
-   * Subcategories don't carry their own group_id — they inherit via parent
-   * category. We also enforce that both the subcategory and its parent are
-   * not soft-deleted (a subcategory under a deleted category is hidden).
-   */
-  async function findOwnedSubcategory(id: string, workspaceGroupId: string) {
-    const [row] = await db
-      .select({
-        id: schema.subcategories.id,
-        parentGroupId: schema.categories.groupId,
-      })
-      .from(schema.subcategories)
-      .innerJoin(
-        schema.categories,
-        eq(schema.categories.id, schema.subcategories.categoryId),
-      )
-      .where(
-        and(
-          eq(schema.subcategories.id, id),
-          isNull(schema.subcategories.deletedAt),
-          isNull(schema.categories.deletedAt),
-        ),
-      )
-      .limit(1);
-    if (!row || row.parentGroupId !== workspaceGroupId) return null;
-    return row;
-  }
-
   app.patch("/:id", async (req, reply) => {
     const { id } = idParam.parse(req.params);
     const body = updateSubcategoryBody.parse(req.body);
-    const existing = await findOwnedSubcategory(id, req.auth.groupId);
+    const existing = await findOwnedParent(
+      schema.subcategories,
+      schema.categories,
+      schema.subcategories.categoryId,
+      schema.categories.id,
+      id,
+      req.auth.workspaceId,
+    );
     if (!existing) return reply.code(404).send({ error: "Not found" });
 
     await db
@@ -178,7 +161,14 @@ export const subcategoryRoutes: FastifyPluginAsync = async (app) => {
 
   app.delete("/:id", async (req, reply) => {
     const { id } = idParam.parse(req.params);
-    const existing = await findOwnedSubcategory(id, req.auth.groupId);
+    const existing = await findOwnedParent(
+      schema.subcategories,
+      schema.categories,
+      schema.subcategories.categoryId,
+      schema.categories.id,
+      id,
+      req.auth.workspaceId,
+    );
     if (!existing) return reply.code(404).send({ error: "Not found" });
 
     await db

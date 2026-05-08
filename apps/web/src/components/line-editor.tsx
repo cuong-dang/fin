@@ -12,10 +12,9 @@ import { Plus, Trash2 } from "lucide-react";
 
 /**
  * One-line editor: a single amount + category + tags. Used by transaction
- * forms (income/expense single line) and bill forms (one default
- * line) and later recurring-plan default lines. The "Split across
- * categories" button promotes the host form into multi-line mode by
- * appending a second empty line.
+ * forms (income/expense single line), bill forms (one default
+ * line), and loan default lines. The "Add line" button promotes the host
+ * form into multi-line mode by appending a second empty line.
  *
  * `amountOptional` mirrors `MultiLineEditor` — for sub default lines
  * whose amount may vary per period, the field is rendered without the
@@ -50,11 +49,11 @@ export function SingleLineEditor({
         categoryId={line.categoryId}
         newCategoryName={line.newCategoryName}
         newSubcategoryName={line.newSubcategoryName}
+        setCategoryId={(v) => onUpdate({ categoryId: v })}
+        setNewCategoryName={(v) => onUpdate({ newCategoryName: v })}
+        setNewSubcategoryName={(v) => onUpdate({ newSubcategoryName: v })}
+        setSubcategoryId={(v) => onUpdate({ subcategoryId: v })}
         subcategoryId={line.subcategoryId}
-        onCategoryChange={(v) => onUpdate({ categoryId: v })}
-        onNewCategoryNameChange={(v) => onUpdate({ newCategoryName: v })}
-        onNewSubcategoryNameChange={(v) => onUpdate({ newSubcategoryName: v })}
-        onSubcategoryChange={(v) => onUpdate({ subcategoryId: v })}
       />
       <TagsField
         allTags={allTags}
@@ -118,7 +117,7 @@ export function MultiLineEditor({
     <Stack>
       {lines.map((line, i) => (
         <Card key={i}>
-          <Stack>
+          <Stack gap={0}>
             <Group justify="space-between">
               <SectionHeader compact>Line {i + 1}</SectionHeader>
               <ActionIcon
@@ -141,15 +140,13 @@ export function MultiLineEditor({
               categoryId={line.categoryId}
               newCategoryName={line.newCategoryName}
               newSubcategoryName={line.newSubcategoryName}
-              subcategoryId={line.subcategoryId}
-              onCategoryChange={(v) => onUpdate(i, { categoryId: v })}
-              onNewCategoryNameChange={(v) =>
-                onUpdate(i, { newCategoryName: v })
-              }
-              onNewSubcategoryNameChange={(v) =>
+              setCategoryId={(v) => onUpdate(i, { categoryId: v })}
+              setNewCategoryName={(v) => onUpdate(i, { newCategoryName: v })}
+              setNewSubcategoryName={(v) =>
                 onUpdate(i, { newSubcategoryName: v })
               }
-              onSubcategoryChange={(v) => onUpdate(i, { subcategoryId: v })}
+              setSubcategoryId={(v) => onUpdate(i, { subcategoryId: v })}
+              subcategoryId={line.subcategoryId}
             />
             <TagsField
               allTags={allTags}
@@ -167,7 +164,7 @@ export function MultiLineEditor({
         w="fit-content"
         onClick={onAdd}
       >
-        Add line
+        Add expense line
       </Button>
       {!amountOptional && (
         <Card>

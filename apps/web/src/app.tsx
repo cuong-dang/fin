@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router";
 
+import { AccountNewRoute } from "./routes/account-new.js";
 import { AppLayoutRoute } from "./routes/app-layout.js";
 import { AuthCallbackRoute } from "./routes/auth-callback.js";
 import { RequireAuth } from "./routes/require-auth.js";
@@ -19,6 +20,7 @@ export function App() {
           <Route element={<TransactionsRoute />} path="/transactions" />
         </Route>
       </Route>
+      <Route element={<AccountNewRoute />} path="/accounts/new" />
       <Route element={<SettingsRoute />} path="/settings" />
       <Route element={<SettingsAccountsRoute />} path="/settings/accounts" />
     </Routes>

@@ -1,3 +1,4 @@
+import { AccountsSidebar } from "@/features/accounts/accounts-sidebar";
 import { clearAuth } from "@/lib/auth.js";
 import { me } from "@/lib/endpoints.js";
 
@@ -50,7 +51,7 @@ export function AppLayoutRoute() {
     <AppShell
       header={{ height: 50 }}
       navbar={{
-        width: 320,
+        width: 350,
         breakpoint: "sm",
         collapsed: { mobile: !opened },
       }}
@@ -86,7 +87,7 @@ export function AppLayoutRoute() {
           {PAGES.map((p) => (
             <PageNavLink key={p.to} label={p.label} to={p.to} />
           ))}
-          {/* <AccountsSidebar /> */}
+          <AccountsSidebar />
         </Stack>
       </AppShell.Navbar>
       <AppShell.Main>
@@ -170,7 +171,7 @@ function UserMenu() {
         <Menu.Label>
           <Stack gap={0}>
             <Text fw={500}>{name}</Text>
-            <Text c="dimmed" size="sm">
+            <Text c="dimmed" size="xs">
               {email}
             </Text>
           </Stack>

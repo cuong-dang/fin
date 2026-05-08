@@ -12,15 +12,6 @@ import { useMemo } from "react";
  * the UI presentation — fetching the account-group names, building the
  * grouped data, and surfacing search.
  *
- * Data construction iterates over `groupsQ.data` (not over accounts) so
- * the picker can't fall back to a synthetic "(no group)" label: every
- * rendered section is named after a real group. Accounts referencing a
- * group that isn't in the response (shouldn't happen — `accountGroupId`
- * is `NOT NULL` and routes filter to active groups) are dropped silently
- * rather than shown under a fallback header. Until `groupsQ.data`
- * arrives, the dropdown stays empty — better than briefly rendering a
- * "(no group)" bucket that confuses the search filter.
- *
  * The cached `["accountGroups"]` query is shared across instances —
  * callers don't need to wire up an extra `useQuery`.
  *
@@ -35,13 +26,11 @@ export function AccountSelect({
   label,
   description,
   placeholder = "Select…",
-  required,
-  allowNone,
-  disabled,
+  required = false,
+  allowNone = false,
+  disabled = false,
 }: {
   accounts: Account[];
-  /** Empty string means "nothing selected"; we map to/from null at the
-   *  Mantine boundary since `Select` uses null for the cleared state. */
   value: string;
   onChange: (id: string) => void;
   label?: string;
@@ -57,7 +46,6 @@ export function AccountSelect({
     queryKey: ["accountGroups"],
     queryFn: listAccountGroups,
   });
-
   const data = useMemo(() => {
     const groupsList = groupsQ.data;
     if (!groupsList) return [];
@@ -88,8 +76,6 @@ export function AccountSelect({
       placeholder={placeholder}
       required={required}
       searchable
-      // Mantine uses `null` for the cleared state; map to/from "" so the
-      // parent's string-typed state stays simple.
       value={value || null}
       onChange={(v) => onChange(v ?? "")}
     />

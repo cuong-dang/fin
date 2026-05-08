@@ -40,7 +40,6 @@ export const accountGroupRoutes: FastifyPluginAsync = async (app) => {
 
     const existing = await findOwned(
       schema.accountGroups,
-      schema.accountGroups.id,
       id,
       req.auth.workspaceId,
     );
@@ -62,7 +61,6 @@ export const accountGroupRoutes: FastifyPluginAsync = async (app) => {
 
     const existing = await findOwned(
       schema.accountGroups,
-      schema.accountGroups.id,
       id,
       req.auth.workspaceId,
     );

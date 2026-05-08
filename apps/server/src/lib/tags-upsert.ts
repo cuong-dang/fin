@@ -1,5 +1,5 @@
 import { schema, type Tx } from "../db/index.js";
-import { findOwned } from "./authz.js";
+import { findOwnedByValues } from "./authz.js";
 
 /**
  * Upsert each tag name for the workspace and return a `name → id` map.
@@ -13,7 +13,7 @@ export async function upsertTags(
     throw new Error("upsertTags called with no tag names.");
   const unique = [...new Set(names)];
 
-  const existing = await findOwned(
+  const existing = await findOwnedByValues(
     schema.tags,
     schema.tags.name,
     names,

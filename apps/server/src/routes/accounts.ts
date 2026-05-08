@@ -177,7 +177,6 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
     if (body.accountGroupId) {
       const targetGroup = await findOwned(
         schema.accountGroups,
-        schema.accountGroups.id,
         body.accountGroupId,
         req.auth.workspaceId,
       );
@@ -445,8 +444,7 @@ const availableBalanceSql = sql<string>`COALESCE(SUM(${schema.transactionLegs.am
 async function fetchLoanDefaultLines(
   loanIds: string[],
 ): Promise<Map<string, LoanDefaultLine[]>> {
-  if (loanIds.length === 0)
-    throw new Error("fetchLoanDefaultLines called with empty loanIds.");
+  if (loanIds.length === 0) return new Map();
 
   const lineRows = await db
     .select({

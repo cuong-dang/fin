@@ -16,6 +16,16 @@ type OwnedTable = PgTable & {
   workspaceId: PgColumn;
 };
 
+type OwnedActiveTable = PgTable & {
+  workspaceId: PgColumn;
+  deletedAt: PgColumn;
+};
+
+type ActiveTableWithId = PgTable & {
+  deletedAt: PgColumn;
+  id: PgColumn;
+};
+
 /**
  * Look up rows by any column value, scoped to the caller's workspace.
  * The workspace check is part of the SQL (not a post-filter), so any
@@ -28,23 +38,25 @@ type OwnedTable = PgTable & {
  * any non-owned or soft-deleted ids are filtered by the SQL.
  *
  * Common patterns:
- *   findOwned(schema.users, schema.users.id, userId, ws)         // by id
- *   findOwned(schema.users, schema.users.email, email, ws)       // by other column
- *   findOwned(schema.accounts, schema.accounts.id, ids, ws)      // batch by id
+ *   findOwnedByValues(schema.users, schema.users.email, email, ws)       // by other column
+ *   findOwnedByValues(schema.accounts, schema.accounts.id, ids, ws)      // batch by id
  */
-export function findOwned<T extends OwnedTable, C extends PgColumn>(
+export function findOwnedByValues<T extends OwnedTable, C extends PgColumn>(
   table: T,
   column: C,
   value: GetColumnData<C>,
   workspaceId: string,
 ): Promise<InferSelectModel<T> | null>;
-export function findOwned<T extends OwnedTable, C extends PgColumn>(
+export function findOwnedByValues<T extends OwnedTable, C extends PgColumn>(
   table: T,
   column: C,
   values: GetColumnData<C>[],
   workspaceId: string,
 ): Promise<InferSelectModel<T>[]>;
-export async function findOwned<T extends OwnedTable, C extends PgColumn>(
+export async function findOwnedByValues<
+  T extends OwnedTable,
+  C extends PgColumn,
+>(
   table: T,
   column: C,
   valueOrValues: GetColumnData<C> | GetColumnData<C>[],
@@ -65,8 +77,16 @@ export async function findOwned<T extends OwnedTable, C extends PgColumn>(
   return isBatch ? rows : (rows[0] ?? null);
 }
 
+export async function findOwned<T extends OwnedTable & ActiveTableWithId>(
+  table: T,
+  id: string,
+  workspaceId: string,
+) {
+  return findOwnedByValues(table, table.id, id, workspaceId);
+}
+
 export async function findOwnedParent<
-  T extends ActiveTable,
+  T extends ActiveTableWithId,
   P extends OwnedActiveTable,
   PC extends PgColumn,
   TC extends PgColumn,
@@ -91,16 +111,6 @@ export async function findOwnedParent<
   return row ? (row[getTableName(table)] ?? null) : null;
 }
 
-type OwnedActiveTable = PgTable & {
-  workspaceId: PgColumn;
-  deletedAt: PgColumn;
-};
-
-type ActiveTable = PgTable & {
-  id: PgColumn;
-  deletedAt: PgColumn;
-};
-
 /**
  * Where-clause for "rows owned by this workspace AND not soft-deleted".
  * Use when the list query needs a custom projection or joins (so the
@@ -118,7 +128,7 @@ export function ownedActive<T extends OwnedActiveTable>(
 
 export function ownedParentActive<
   P extends OwnedActiveTable,
-  T extends ActiveTable,
+  T extends ActiveTableWithId,
 >(table: T, parent: P, workspaceId: string): SQL | undefined {
   // We also have assertions somewhere else that parents cannot be
   // soft-deleted if they contain active children.
@@ -129,7 +139,7 @@ export function ownedParentActive<
   );
 }
 
-export function isActive<T extends ActiveTable>(
+export function isActive<T extends ActiveTableWithId>(
   table: T,
   id: string,
 ): SQL | undefined {

@@ -9,7 +9,7 @@ import type {
   RecurringFrequency,
   Tag,
 } from "@fin/schemas";
-import { NativeSelect, TextInput } from "@mantine/core";
+import { Select } from "@mantine/core";
 import type { Dispatch, SetStateAction } from "react";
 
 const FREQUENCY_OPTIONS: { value: RecurringFrequency; label: string }[] = [
@@ -34,8 +34,7 @@ const emptyLine = (): CategoryLineFormValues => ({
  * the new and edit account forms (state and submit dispatch live in the
  * parent — this is presentation only).
  *
- * `payFromAccounts` is pre-filtered by the caller (checking_savings only,
- * and excluding the current account in the edit case).
+ * `payFromAccounts` is pre-filtered by the caller.
  */
 export function CcFields({
   creditLimit,
@@ -58,38 +57,27 @@ export function CcFields({
         value={creditLimit}
         onChange={setCreditLimit}
       />
-      <AccountSelect
-        accounts={payFromAccounts}
-        allowNone
-        description="Pre-fills the source account when paying this card."
-        label="Default pay-from account (optional)"
-        value={defaultPayFromAccountId}
-        onChange={setDefaultPayFromAccountId}
-      />
+      {payFromAccounts.length > 0 && (
+        <AccountSelect
+          accounts={payFromAccounts}
+          allowNone
+          description="Pre-fills the source account when paying this card."
+          label="Default pay-from account (optional)"
+          value={defaultPayFromAccountId}
+          onChange={setDefaultPayFromAccountId}
+        />
+      )}
     </>
   );
 }
 
-/**
- * Loan-plan fields: amount/frequency/first-payment-date + default
- * pay-from + description + default-line templates. Used by the new and
- * edit account forms.
- *
- * `payFromAccounts` is pre-filtered by the caller (any non-loan account,
- * minus the current account in the edit case). Categories and tags are
- * passed raw; this component filters categories to expense kind (loan
- * default lines always categorize expenses) and derives the tag names
- * for the line editor's autocomplete.
- */
 export function LoanPlanFields({
   amountPerPeriod,
   setAmountPerPeriod,
   frequency,
   setFrequency,
-  payFromId,
-  setPayFromId,
-  description,
-  setDescription,
+  defaultPayFromAccountId,
+  setDefaultPayFromAccountId,
   lines,
   setLines,
   payFromAccounts,
@@ -100,10 +88,8 @@ export function LoanPlanFields({
   setAmountPerPeriod: (v: string) => void;
   frequency: RecurringFrequency;
   setFrequency: (v: RecurringFrequency) => void;
-  payFromId: string;
-  setPayFromId: (v: string) => void;
-  description: string;
-  setDescription: (v: string) => void;
+  defaultPayFromAccountId: string;
+  setDefaultPayFromAccountId: (v: string) => void;
   lines: CategoryLineFormValues[];
   setLines: Dispatch<SetStateAction<CategoryLineFormValues[]>>;
   payFromAccounts: Account[];
@@ -133,26 +119,23 @@ export function LoanPlanFields({
         value={amountPerPeriod}
         onChange={setAmountPerPeriod}
       />
-      <NativeSelect
+      <Select
         data={FREQUENCY_OPTIONS}
         label="Frequency"
+        required
         value={frequency}
-        onChange={(e) => setFrequency(e.target.value as RecurringFrequency)}
+        onChange={(v: RecurringFrequency | null) => v && setFrequency(v)}
       />
-      <AccountSelect
-        accounts={payFromAccounts}
-        allowNone
-        description="Pre-fills the source when paying this loan."
-        label="Default pay-from account (optional)"
-        value={payFromId}
-        onChange={setPayFromId}
-      />
-      <TextInput
-        label="Description (optional)"
-        maxLength={500}
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-      />
+      {payFromAccounts.length > 0 && (
+        <AccountSelect
+          accounts={payFromAccounts}
+          allowNone
+          description="Pre-fills the source when paying this loan."
+          label="Default pay-from account (optional)"
+          value={defaultPayFromAccountId}
+          onChange={setDefaultPayFromAccountId}
+        />
+      )}
       <MultiLineEditor
         allTags={allTagNames}
         amountOptional
