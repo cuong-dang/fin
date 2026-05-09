@@ -16,7 +16,7 @@ export function TransactionsRoute() {
   return (
     <>
       {accountName && (
-        <Group p="xs">
+        <Group>
           <Text c="dimmed">Filtered by:</Text>
           <Text fw={500}>{accountName}</Text>
           <ActionIcon

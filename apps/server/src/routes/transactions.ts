@@ -20,19 +20,19 @@ import {
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 
-import { schema } from "../db";
-import { db } from "../db";
-import { findOwned } from "../lib/authz";
-import { parseMoney } from "../lib/money";
+import { schema } from "../db/index.js";
+import { db } from "../db/index.js";
+import { findOwned } from "../lib/authz.js";
+import { parseMoney } from "../lib/money.js";
 import {
   anchorsPreserveOrder,
   compactSortKeys,
   mergeReorderIds,
   nextSortKey,
   reassignSortKeys,
-} from "../lib/transactions-order";
-import { enrichTx, fetchLegsAndLines } from "../lib/transactions-read";
-import { insertLegsAndLines } from "../lib/transactions-write";
+} from "../lib/transactions-order.js";
+import { enrichTx, fetchLegsAndLines } from "../lib/transactions-read.js";
+import { insertLegsAndLines } from "../lib/transactions-write.js";
 
 const PAGE_LIMIT = 100;
 
