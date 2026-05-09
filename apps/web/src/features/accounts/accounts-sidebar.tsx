@@ -26,11 +26,7 @@ import { useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router";
 
 /**
- * Accounts panel rendered inside the AppLayout's navbar. Account links
- * always navigate to /transactions filtered by that account; "All
- * transactions" clears the filter. Active state only lights up when
- * we're on /transactions — other pages (Charts, etc.) leave all rows
- * inactive even though clicking them still works.
+ * Accounts panel rendered inside the AppLayout's navbar.
  */
 export function AccountsSidebar() {
   const [params] = useSearchParams();
@@ -46,8 +42,7 @@ export function AccountsSidebar() {
   const accountsQ = useQuery({ queryKey: ["accounts"], queryFn: listAccounts });
 
   const groups = groupsQ.data ?? [];
-  // Filter archived accounts out of the sidebar — they live in the manage
-  // page only.
+  // Filter archived accounts out of the sidebar.
   const accounts = (accountsQ.data ?? []).filter((a) => a.archivedAt === null);
   const byGroup = groupBy(accounts, (a) => a.accountGroupId);
   // Hide groups that have no active accounts.
@@ -73,11 +68,14 @@ export function AccountsSidebar() {
     // `min-height: auto` on flex children pins the Stack to content
     // height and the ScrollArea below has no bounded height to scroll.
     <Stack gap={0} mih={0}>
+      {/* "Accounts" + net worth */}
       <Group justify="space-between" px="xs">
         <SectionHeader compact>Accounts</SectionHeader>
         <NetWorthSummary totals={netWorth} />
       </Group>
       <Divider />
+
+      {/* Account groups and accounts */}
       <ScrollArea flex={1}>
         <NavLink
           active={onTransactions && !selectedAccountId}
@@ -105,6 +103,7 @@ export function AccountsSidebar() {
             />
           ))
         )}
+
         {(groupsQ.error || accountsQ.error) && (
           <Text c="red" px="xs">
             Error loading groups or accounts.
@@ -163,16 +162,12 @@ function GroupSection({
         onClick={onToggle}
       />
       {!collapsed &&
-        (accounts.length === 0 ? (
-          <Text c="dimmed">No accounts yet.</Text>
-        ) : (
-          accounts.map((a) => (
-            <AccountItem
-              key={a.id}
-              account={a}
-              active={a.id === selectedAccountId}
-            />
-          ))
+        accounts.map((a) => (
+          <AccountItem
+            key={a.id}
+            account={a}
+            active={a.id === selectedAccountId}
+          />
         ))}
     </Stack>
   );
@@ -205,7 +200,8 @@ function AccountItem({
       <Text>{account.name}</Text>
     </Group>
   );
-  let label: React.ReactNode = nameRow;
+
+  let label = nameRow;
   if (isCc) {
     label = (
       <Stack gap={0}>
@@ -311,7 +307,7 @@ function LoanRemainingHint({
       </Group>
     );
   }
-  if (amountPerPeriod <= 0n) return null;
+
   const debt = -balance;
   // ceil(debt / amountPerPeriod), with a 1-cent tolerance: amortizing
   // loans' final installment commonly absorbs sub-cent rounding, so a
@@ -341,15 +337,16 @@ function ArchiveLoanButton({
     onSuccess: () => qc.invalidateQueries({ queryKey: ["accounts"] }),
     onError: (e) => alert((e as Error).message),
   });
+
   return (
     <Tooltip label="Archive">
       <ActionIcon
         aria-label={`Archive ${accountName}`}
         loading={archive.isPending}
         onClick={(e) => {
-          // The label sits inside a NavLink (which is a Link); without
-          // these, clicking the button also navigates to /transactions.
           e.preventDefault();
+          // The label sits inside a NavLink (which is a Link); without
+          // this, clicking the button also navigates to /transactions.
           e.stopPropagation();
           if (
             confirm(
@@ -365,6 +362,14 @@ function ArchiveLoanButton({
     </Tooltip>
   );
 }
+
+const FREQUENCY_SUFFIX: Record<RecurringFrequency, string> = {
+  weekly: "/wk",
+  biweekly: "/2wk",
+  monthly: "/mo",
+  quarterly: "/qtr",
+  yearly: "/yr",
+};
 
 // Net-worth summary for the sidebar header. Multi-currency users see one line
 // per currency (no FX conversion done here).
@@ -382,20 +387,11 @@ function totalsByCurrency(items: Account[]): Map<string, bigint> {
 function groupSubtotal(
   items: Account[],
 ): { amount: bigint; currency: string } | null {
-  if (items.length === 0) return null;
   const currency = items[0].currency;
   if (items.some((i) => i.currency !== currency)) return null;
   const total = items.reduce((sum, i) => sum + BigInt(i.presentBalance), 0n);
   return { amount: total, currency };
 }
-
-const FREQUENCY_SUFFIX: Record<RecurringFrequency, string> = {
-  weekly: "/wk",
-  biweekly: "/2wk",
-  monthly: "/mo",
-  quarterly: "/qtr",
-  yearly: "/yr",
-};
 
 const COLLAPSED_KEY = "fin:sidebar.collapsedGroups";
 
