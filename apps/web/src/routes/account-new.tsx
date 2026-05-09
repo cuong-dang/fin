@@ -1,7 +1,3 @@
-import {
-  type CategoryLineFormValues,
-  packCategoryLine,
-} from "@/components/category-selector";
 import { CreatableSelect } from "@/components/creatable-select";
 import { MoneyField } from "@/components/money-field";
 import { PageShell } from "@/components/page-shell";
@@ -19,7 +15,12 @@ import {
   listTags,
 } from "@/lib/endpoints";
 
-import type { Account, AccountType, RecurringFrequency } from "@fin/schemas";
+import type {
+  Account,
+  AccountType,
+  LoanDefaultLineBody,
+  RecurringFrequency,
+} from "@fin/schemas";
 import {
   Alert,
   Button,
@@ -60,7 +61,7 @@ export function AccountNewRoute() {
   // Loan-specific state (mirrors loanBody)
   const [amountPerPeriod, setAmountPerPeriod] = useState("");
   const [frequency, setFrequency] = useState<RecurringFrequency>("monthly");
-  const [loanLines, setloanLines] = useState<CategoryLineFormValues[]>([]);
+  const [loanLines, setloanLines] = useState<LoanDefaultLineBody[]>([]);
   const [excludeFromNetWorth, setExcludeFromNetWorth] = useState(false);
 
   const goBack = () => navigate(-1);
@@ -128,7 +129,7 @@ export function AccountNewRoute() {
               loan: {
                 amountPerPeriod,
                 frequency,
-                defaultLines: loanLines.map(packCategoryLine),
+                defaultLines: loanLines,
               },
             });
           } else {

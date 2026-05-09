@@ -1,11 +1,11 @@
 import { AccountSelect } from "@/components/account-select";
-import type { CategoryLineFormValues } from "@/components/category-selector";
 import { MultiLineEditor } from "@/components/line-editor";
 import { MoneyField } from "@/components/money-field";
 
 import type {
   Account,
   CategoryWithSubs,
+  LoanDefaultLineBody,
   RecurringFrequency,
   Tag,
 } from "@fin/schemas";
@@ -20,7 +20,7 @@ const FREQUENCY_OPTIONS: { value: RecurringFrequency; label: string }[] = [
   { value: "yearly", label: "Yearly" },
 ];
 
-const emptyLine = (): CategoryLineFormValues => ({
+const emptyLine = (): LoanDefaultLineBody => ({
   amount: "",
   categoryId: "",
   newCategoryName: "",
@@ -90,8 +90,8 @@ export function LoanPlanFields({
   setFrequency: (v: RecurringFrequency) => void;
   defaultPayFromAccountId: string;
   setDefaultPayFromAccountId: (v: string) => void;
-  lines: CategoryLineFormValues[];
-  setLines: Dispatch<SetStateAction<CategoryLineFormValues[]>>;
+  lines: LoanDefaultLineBody[];
+  setLines: Dispatch<SetStateAction<LoanDefaultLineBody[]>>;
   payFromAccounts: Account[];
   categories: CategoryWithSubs[];
   tags: Tag[];
@@ -99,7 +99,7 @@ export function LoanPlanFields({
   const expenseCategories = categories.filter((c) => c.kind === "expense");
   const allTagNames = tags.map((t) => t.name);
 
-  function updateLine(i: number, patch: Partial<CategoryLineFormValues>) {
+  function updateLine(i: number, patch: Partial<LoanDefaultLineBody>) {
     setLines((prev) =>
       prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)),
     );

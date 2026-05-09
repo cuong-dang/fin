@@ -1,12 +1,13 @@
-import {
-  type CategoryLineFormValues,
-  CategorySelector,
-} from "@/components/category-selector";
+import { CategorySelector } from "@/components/category-selector";
 import { MoneyField } from "@/components/money-field";
 import { SectionHeader } from "@/components/section-header";
 import { TagsField } from "@/components/tags-field";
 
-import type { CategoryWithSubs } from "@fin/schemas";
+import type {
+  CategoryWithSubs,
+  LoanDefaultLineBody,
+  TransactionLineBody,
+} from "@fin/schemas";
 import { ActionIcon, Button, Card, Group, Stack, Text } from "@mantine/core";
 import { Plus, Trash2 } from "lucide-react";
 
@@ -28,11 +29,11 @@ export function SingleLineEditor({
   onUpdate,
   onSplit,
 }: {
-  line: CategoryLineFormValues;
+  line: TransactionLineBody;
   categories: CategoryWithSubs[];
   allTags: string[];
   amountOptional?: boolean;
-  onUpdate: (patch: Partial<CategoryLineFormValues>) => void;
+  onUpdate: (patch: Partial<TransactionLineBody>) => void;
   onSplit: () => void;
 }) {
   return (
@@ -44,21 +45,22 @@ export function SingleLineEditor({
         value={line.amount}
         onChange={(v) => onUpdate({ amount: v })}
       />
+      {/* TODO: Check the following type assertions. */}
       <CategorySelector
         categories={categories}
-        categoryId={line.categoryId}
-        newCategoryName={line.newCategoryName}
-        newSubcategoryName={line.newSubcategoryName}
+        categoryId={line.categoryId!}
+        newCategoryName={line.newCategoryName!}
+        newSubcategoryName={line.newSubcategoryName!}
         setCategoryId={(v) => onUpdate({ categoryId: v })}
         setNewCategoryName={(v) => onUpdate({ newCategoryName: v })}
         setNewSubcategoryName={(v) => onUpdate({ newSubcategoryName: v })}
         setSubcategoryId={(v) => onUpdate({ subcategoryId: v })}
-        subcategoryId={line.subcategoryId}
+        subcategoryId={line.subcategoryId!}
       />
       <TagsField
         allTags={allTags}
         label="Tags (optional)"
-        value={line.tagNames}
+        value={line.tagNames!}
         onChange={(v) => onUpdate({ tagNames: v })}
       />
       <Button
@@ -99,10 +101,13 @@ export function MultiLineEditor({
   amountOptional = false,
   summary,
 }: {
-  lines: CategoryLineFormValues[];
+  lines: (TransactionLineBody | LoanDefaultLineBody)[];
   categories: CategoryWithSubs[];
   allTags: string[];
-  onUpdate: (index: number, patch: Partial<CategoryLineFormValues>) => void;
+  onUpdate: (
+    index: number,
+    patch: Partial<TransactionLineBody | LoanDefaultLineBody>,
+  ) => void;
   onAdd: () => void;
   onRemove: (index: number) => void;
   amountOptional?: boolean;
@@ -132,26 +137,28 @@ export function MultiLineEditor({
               label={amountOptional ? "Amount (optional)" : "Amount"}
               min={0}
               required={!amountOptional}
-              value={line.amount}
+              value={line.amount!}
               onChange={(v) => onUpdate(i, { amount: v })}
             />
+            {/* All the following type assertions are guaranteed by `emptyLine` in
+            account-form-fields. */}
             <CategorySelector
               categories={categories}
-              categoryId={line.categoryId}
-              newCategoryName={line.newCategoryName}
-              newSubcategoryName={line.newSubcategoryName}
+              categoryId={line.categoryId!}
+              newCategoryName={line.newCategoryName!}
+              newSubcategoryName={line.newSubcategoryName!}
               setCategoryId={(v) => onUpdate(i, { categoryId: v })}
               setNewCategoryName={(v) => onUpdate(i, { newCategoryName: v })}
               setNewSubcategoryName={(v) =>
                 onUpdate(i, { newSubcategoryName: v })
               }
               setSubcategoryId={(v) => onUpdate(i, { subcategoryId: v })}
-              subcategoryId={line.subcategoryId}
+              subcategoryId={line.subcategoryId!}
             />
             <TagsField
               allTags={allTags}
               label="Tags (optional)"
-              value={line.tagNames}
+              value={line.tagNames!}
               onChange={(v) => onUpdate(i, { tagNames: v })}
             />
           </Stack>

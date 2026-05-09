@@ -20,7 +20,7 @@ const baseCreate = z.object({
   newAccountGroupName: newAccountGroupField,
   startingBalance: moneyString.optional(),
   adjustmentDate: dateString.optional(),
-  excludeFromNetWorth: z.boolean().optional(),
+  excludeFromNetWorth: z.boolean(),
 });
 
 const checkingSavingsCreate = baseCreate
@@ -30,8 +30,6 @@ const checkingSavingsCreate = baseCreate
   .strict();
 
 // `creditLimit` is required (drives the sidebar progress bar).
-// `defaultPayFromAccountId` is optional and validated server-side to point
-// at a checking_savings account.
 const creditCardCreate = baseCreate
   .extend({
     type: z.literal("credit_card"),
@@ -40,8 +38,6 @@ const creditCardCreate = baseCreate
   })
   .strict();
 
-// Loan create embeds the loan params; server creates the loan row and the
-// account row atomically and links them via accounts.loan_id.
 const loanCreate = baseCreate
   .extend({
     type: z.literal("loan"),
@@ -50,10 +46,6 @@ const loanCreate = baseCreate
   })
   .strict();
 
-/**
- * Create request. Exactly one of accountGroupId or newGroupName must be
- * present. Validated in the route (Zod + in-action check).
- */
 export const createAccountBody = z.discriminatedUnion("type", [
   checkingSavingsCreate,
   creditCardCreate,
@@ -61,9 +53,7 @@ export const createAccountBody = z.discriminatedUnion("type", [
 ]);
 export type CreateAccountBody = z.infer<typeof createAccountBody>;
 
-// Fields shared by every account-update variant. Currency is fixed at
-// creation, so it doesn't appear here. `newBalance` covers user-driven
-// reconciliations and is recorded as an adjustment leg server-side.
+// Currency is fixed at creation, so it doesn't appear here.
 const baseUpdate = z.object({
   name: nameField,
   accountGroupId: z.uuid().optional(),
@@ -89,7 +79,7 @@ const creditCardUpdate = baseUpdate
 
 // Loan-account update: rewrites the paired recurring_plan along with the
 // account fields (mirrors bill update — full replacement, not a
-// patch). Currency and type stay sticky.
+// patch).
 const loanUpdate = baseUpdate
   .extend({
     type: z.literal("loan"),
@@ -111,22 +101,11 @@ export type Account = {
   name: string;
   currency: string;
   type: AccountType;
-  /** Settled legs only. */
   presentBalance: string;
-  /** All legs, including pending. */
   availableBalance: string;
-  /** Set only when type='credit_card'. Stringified bigint, currency minor units. */
   creditLimit: string | null;
-  /** Set only when type='credit_card' or 'loan'. Optional. */
   defaultPayFromAccountId: string | null;
-  /** Set only when type='loan'. Joined plan summary; null otherwise. */
   loan: Loan | null;
-  /**
-   * ISO timestamp when archived; null = active. Distinct from
-   * soft-delete — archived rows still surface in the manage page so
-   * the user can unarchive.
-   */
   archivedAt: string | null;
-  /** When true, this account is omitted from net-worth aggregations. */
   excludeFromNetWorth: boolean;
 };

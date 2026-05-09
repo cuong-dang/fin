@@ -2,8 +2,6 @@ import type { CategoryWithSubs } from "@fin/schemas";
 
 import { CreatableSelect } from "./creatable-select";
 
-const CREATE_NEW = "__new__";
-
 /**
  * Category + subcategory picker with implicit-create UX. Each axis
  * renders a `Combobox` (search-as-you-type + dropdown):
@@ -36,7 +34,7 @@ export function CategorySelector({
   newSubcategoryName: string;
   setNewSubcategoryName: (v: string) => void;
 }) {
-  const creatingNewCategory = categoryId === CREATE_NEW;
+  const creatingNewCategory = categoryId === "";
 
   const categoryText =
     categories.find((c) => c.id === categoryId)?.name ?? newCategoryName;
@@ -47,7 +45,7 @@ export function CategorySelector({
       setCategoryId(match.id);
       setNewCategoryName("");
     } else {
-      setCategoryId(text ? CREATE_NEW : "");
+      setCategoryId("");
       setNewCategoryName(text);
     }
     // Switching the category invalidates any subcategory selection
@@ -76,7 +74,7 @@ export function CategorySelector({
       setSubcategoryId(match.id);
       setNewSubcategoryName("");
     } else {
-      setSubcategoryId(text ? CREATE_NEW : "");
+      setSubcategoryId("");
       setNewSubcategoryName(text);
     }
   }
@@ -104,60 +102,4 @@ export function CategorySelector({
       )}
     </>
   );
-}
-
-/**
- * The form state for one categorizable line. Both transaction lines and
- * bill default lines (and later recurring-plan default lines)
- * use this exact shape.
- */
-export type CategoryLineFormValues = {
-  amount: string;
-  categoryId: string; // may be CREATE_NEW
-  newCategoryName: string;
-  subcategoryId: string; // may be CREATE_NEW
-  newSubcategoryName: string;
-  tagNames: string[];
-};
-
-/**
- * Server-bound shape for one line — `categoryId`/`subcategoryId` UUIDs
- * when picking existing rows, `newCategoryName`/`newSubcategoryName`
- * strings when the user typed a new name. `tagNames` are upserted
- * server-side. Mirrors `transactionLineBody` and
- * `billDefaultLineBody`. `amount` is optional here so empty
- * values pack cleanly for sub / loan default lines whose Zod schemas
- * mark amount optional; required-amount schemas (transactions) reject
- * the missing field at parse time with a clear required-field error.
- */
-type CategoryLineBody = {
-  amount?: string | undefined;
-  categoryId?: string | undefined;
-  newCategoryName?: string | undefined;
-  subcategoryId?: string | undefined;
-  newSubcategoryName?: string | undefined;
-  tagNames?: string[] | undefined;
-};
-
-/**
- * Convert a form line to its request-body shape. Encapsulates the
- * `CREATE_NEW` sentinel handling so each form doesn't reinvent it.
- */
-export function packCategoryLine(l: CategoryLineFormValues): CategoryLineBody {
-  const creatingCategory = l.categoryId === CREATE_NEW;
-  return {
-    amount: l.amount || undefined,
-    categoryId: creatingCategory ? undefined : l.categoryId || undefined,
-    newCategoryName: creatingCategory ? l.newCategoryName.trim() : undefined,
-    subcategoryId:
-      creatingCategory || l.subcategoryId === CREATE_NEW
-        ? undefined
-        : l.subcategoryId || undefined,
-    newSubcategoryName: creatingCategory
-      ? l.newSubcategoryName.trim() || undefined
-      : l.subcategoryId === CREATE_NEW
-        ? l.newSubcategoryName.trim()
-        : undefined,
-    tagNames: l.tagNames.length > 0 ? l.tagNames : undefined,
-  };
 }
