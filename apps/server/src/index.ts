@@ -5,16 +5,15 @@ import { env } from "./env.js";
 import { authPlugin } from "./plugins/auth.js";
 import { accountGroupRoutes } from "./routes/account-groups.js";
 import { accountRoutes } from "./routes/accounts.js";
+import { authRoutes } from "./routes/auth.js";
 // import { accountGroupRoutes } from "./routes/account-groups";
 // import { accountRoutes } from "./routes/accounts";
 // import { analyticsRoutes } from "./routes/analytics";
-import { authRoutes } from "./routes/auth.js";
 import { categoryRoutes, subcategoryRoutes } from "./routes/categories.js";
 import { tagRoutes } from "./routes/tags.js";
 // import { billRoutes } from "./routes/bills";
 // import { categoryRoutes, subcategoryRoutes } from "./routes/categories";
-// import { tagRoutes } from "./routes/tags";
-// import { transactionRoutes } from "./routes/transactions";
+import { transactionRoutes } from "./routes/transactions.js";
 
 const app = Fastify({ logger: true });
 
@@ -28,7 +27,7 @@ await app.register(accountRoutes, { prefix: "/api/accounts" });
 await app.register(categoryRoutes, { prefix: "/api/categories" });
 await app.register(subcategoryRoutes, { prefix: "/api/subcategories" });
 await app.register(tagRoutes, { prefix: "/api/tags" });
-// await app.register(transactionRoutes, { prefix: "/api/transactions" });
+await app.register(transactionRoutes, { prefix: "/api/transactions" });
 // await app.register(billRoutes, { prefix: "/api/bills" });
 // await app.register(analyticsRoutes, { prefix: "/api/analytics" });
 

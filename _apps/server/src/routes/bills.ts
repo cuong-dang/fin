@@ -256,7 +256,7 @@ async function insertDefaultLines(
   billId: string,
   lines: BillDefaultLineBody[],
   currency: string,
-  workspaceGroupId: string,
+  workspaceId: string,
 ): Promise<void> {
   if (lines.length === 0) {
     throw new Error("At least one default line is required");
@@ -278,7 +278,7 @@ async function insertDefaultLines(
       tx,
       line,
       "expense",
-      workspaceGroupId,
+      workspaceId,
     );
     const [row] = await tx
       .insert(schema.billDefaultLines)
@@ -292,7 +292,7 @@ async function insertDefaultLines(
       .returning({ id: schema.billDefaultLines.id });
 
     if (line.tagNames && line.tagNames.length > 0) {
-      const byName = await upsertTags(tx, line.tagNames, workspaceGroupId);
+      const byName = await upsertTags(tx, line.tagNames, workspaceId);
       const unique = [...new Set(line.tagNames)];
       await tx.insert(schema.billDefaultLineTags).values(
         unique.map((name) => {
@@ -328,9 +328,9 @@ function toResponse(
 // that bills your mortgage for Netflix.
 async function validateBillDefaultAccount(
   accountId: string,
-  workspaceGroupId: string,
+  workspaceId: string,
 ): Promise<string | null> {
-  const account = await findOwned(schema.accounts, accountId, workspaceGroupId);
+  const account = await findOwned(schema.accounts, accountId, workspaceId);
   if (!account) return "Default account not found in this workspace";
   if (account.type === "loan") {
     return "Default account cannot be a loan account";

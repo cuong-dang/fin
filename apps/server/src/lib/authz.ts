@@ -22,7 +22,7 @@ type OwnedActiveTable = PgTable & {
 };
 
 type ActiveTableWithId = PgTable & {
-  deletedAt: PgColumn;
+  deletedAt?: PgColumn;
   id: PgColumn;
 };
 
@@ -135,7 +135,7 @@ export function ownedParentActive<
   return and(
     eq(parent.workspaceId, workspaceId),
     isNull(parent.deletedAt),
-    isNull(table.deletedAt),
+    table.deletedAt ? isNull(table.deletedAt) : undefined,
   );
 }
 
@@ -143,7 +143,10 @@ export function isActive<T extends ActiveTableWithId>(
   table: T,
   id: string,
 ): SQL | undefined {
-  return and(eq(table.id, id), isNull(table.deletedAt));
+  return and(
+    eq(table.id, id),
+    table.deletedAt ? isNull(table.deletedAt) : undefined,
+  );
 }
 
 /**

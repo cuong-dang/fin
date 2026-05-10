@@ -7,7 +7,7 @@ import { Link, useSearchParams } from "react-router";
 
 export function TransactionsRoute() {
   const [params] = useSearchParams();
-  const accountId = params.get("account") ?? undefined;
+  const accountId = params.get("accountId") ?? undefined;
   const accountsQ = useQuery({ queryKey: ["accounts"], queryFn: listAccounts });
   const accountName = accountId
     ? accountsQ.data?.find((a) => a.id === accountId)?.name

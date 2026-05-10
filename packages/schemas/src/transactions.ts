@@ -9,8 +9,7 @@ import { tagName } from "./tags.js";
 
 // Shared shape for any "line" body — a category split that may carry tags.
 // Bill and loan default-line schemas extend this with an *optional* amount
-// (templates may leave amount blank for variable charges); transaction
-// lines extend with a *required* amount.
+// transaction lines extend with a *required* amount.
 export const lineBaseBody = categoryResolverInput.extend({
   tagNames: z.array(tagName).max(20).optional(),
 });
@@ -40,11 +39,9 @@ const incomeFields = commonFields
   .strict();
 
 // Expense optionally carries a bill link — bill charges are stored as
-// expenses (no balance-reducing leg, no principal); the `billId` just
-// marks the source. The "Payment" tab in the form is a UX portal that
-// produces this shape with `billId` set when the user picks a bill from
-// the grouped picker. Loan/credit-card payments will get their own type
-// when they land (hybrid transfer + expense lines).
+// expenses; the `billId` just marks the source. The "Payment" tab in the
+// form is a UX portal that produces this shape with `billId` set when the
+// user picks a bill from the grouped picker.
 const expenseFields = commonFields
   .extend({
     type: z.literal("expense"),
@@ -140,19 +137,18 @@ export type TxLine = {
 export type EnrichedTransaction = {
   id: string;
   date: string | null; // null = pending
-  createdAt: string; // ISO
+  createdAt: string;
   type: "income" | "expense" | "transfer" | "adjustment";
   description: string | null;
   billId: string | null;
   // Joined from `bills` so the row can render "↻ Netflix" without a
-  // second client fetch. Resolves even if the bill was soft-deleted, since
-  // historical fidelity matters for past payments.
+  // second client fetch.
   billName: string | null;
   legs: TxLeg[];
   lines: TxLine[];
   // Present only when the list is filtered by accountId and this is a
   // completed row: account balance immediately after this transaction
-  // posts. Stringified bigint in the account's minor units.
+  // posts.
   balanceAfter?: string;
 };
 

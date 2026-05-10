@@ -246,7 +246,7 @@ function AccountItem({
           )}
         </Stack>
       }
-      to={`/transactions?account=${account.id}`}
+      to={`/transactions?accountId=${account.id}`}
     />
   );
 }

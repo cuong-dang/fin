@@ -39,7 +39,7 @@ async function insertLoanDefaultLines(
   loanId: string,
   lines: LoanBody["defaultLines"],
   currency: string,
-  workspaceGroupId: string,
+  workspaceId: string,
 ): Promise<void> {
   const lineAmounts = lines.map((l) =>
     l.amount ? parseMoney(l.amount, currency) : null,
@@ -54,7 +54,7 @@ async function insertLoanDefaultLines(
       tx,
       line,
       "expense",
-      workspaceGroupId,
+      workspaceId,
     );
     const [lineRow] = await tx
       .insert(schema.loanDefaultLines)
@@ -71,7 +71,7 @@ async function insertLoanDefaultLines(
       schema.loanDefaultLineTags,
       lineRow.id,
       line.tagNames,
-      workspaceGroupId,
+      workspaceId,
     );
   }
 }
@@ -81,7 +81,7 @@ export async function updateRecurringPlan(
   loanId: string,
   body: LoanBody,
   currency: string,
-  workspaceGroupId: string,
+  workspaceId: string,
 ): Promise<void> {
   // No ownership check because this is only called from updating accounts.
   const amountPerPeriodMinor = parseAmountPerPeriod(body, currency);
@@ -103,7 +103,7 @@ export async function updateRecurringPlan(
     loanId,
     body.defaultLines,
     currency,
-    workspaceGroupId,
+    workspaceId,
   );
 }
 

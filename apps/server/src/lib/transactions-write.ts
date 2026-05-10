@@ -1,13 +1,11 @@
 import type { TransactionBody } from "@fin/schemas";
 
-import type { db } from "../db";
-import { schema } from "../db";
-import { findOwned } from "./authz";
-import { resolveCategory } from "./categories-resolve";
-import { parseMoney } from "./money";
-import { upsertTags } from "./tags-upsert";
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+import type { Tx } from "../db/index.js";
+import { schema } from "../db/index.js";
+import { findOwnedParent } from "./authz.js";
+import { resolveCategory } from "./categories-resolve.js";
+import { parseMoney } from "./money.js";
+import { upsertTags } from "./tags-upsert.js";
 
 type SourceAccount = { currency: string; type: string };
 
@@ -31,7 +29,7 @@ export async function insertLegsAndLines(
   transactionId: string,
   parsed: TransactionBody,
   sourceAccount: SourceAccount,
-  workspaceGroupId: string,
+  workspaceId: string,
 ): Promise<void> {
   if (parsed.type === "income" || parsed.type === "expense") {
     if (parsed.lines.length === 0) {
@@ -61,7 +59,7 @@ export async function insertLegsAndLines(
         tx,
         line,
         parsed.type,
-        workspaceGroupId,
+        workspaceId,
       );
       const [lineRow] = await tx
         .insert(schema.transactionLines)
@@ -73,7 +71,7 @@ export async function insertLegsAndLines(
           currency: sourceAccount.currency,
         })
         .returning({ id: schema.transactionLines.id });
-      await linkTagsToLine(tx, lineRow.id, line.tagNames, workspaceGroupId);
+      await linkTagsToLine(tx, lineRow.id, line.tagNames, workspaceId);
     }
     return;
   }
@@ -87,10 +85,13 @@ export async function insertLegsAndLines(
   if (sourceAccount.type === "loan") {
     throw new Error("Source account cannot be a loan");
   }
-  const destAccount = await findOwned(
+  const destAccount = await findOwnedParent(
     schema.accounts,
+    schema.accountGroups,
+    schema.accounts.accountGroupId,
+    schema.accountGroups.id,
     parsed.destinationAccountId,
-    workspaceGroupId,
+    workspaceId,
   );
   if (!destAccount) throw new Error("Destination account not found");
   if (destAccount.currency !== sourceAccount.currency) {
@@ -133,7 +134,7 @@ export async function insertLegsAndLines(
       tx,
       line,
       "expense",
-      workspaceGroupId,
+      workspaceId,
     );
     const [lineRow] = await tx
       .insert(schema.transactionLines)
@@ -145,7 +146,7 @@ export async function insertLegsAndLines(
         currency: sourceAccount.currency,
       })
       .returning({ id: schema.transactionLines.id });
-    await linkTagsToLine(tx, lineRow.id, line.tagNames, workspaceGroupId);
+    await linkTagsToLine(tx, lineRow.id, line.tagNames, workspaceId);
   }
 }
 
@@ -157,10 +158,10 @@ async function linkTagsToLine(
   tx: Tx,
   lineId: string,
   tagNames: string[] | undefined,
-  workspaceGroupId: string,
+  workspaceId: string,
 ): Promise<void> {
   if (!tagNames || tagNames.length === 0) return;
-  const byName = await upsertTags(tx, tagNames, workspaceGroupId);
+  const byName = await upsertTags(tx, tagNames, workspaceId);
   const unique = [...new Set(tagNames)];
   await tx.insert(schema.transactionLineTags).values(
     unique.map((name) => {

@@ -1,8 +1,8 @@
 import type { EnrichedTransaction } from "@fin/schemas";
 import { eq, inArray } from "drizzle-orm";
 
-import { db, schema } from "../db";
-import { groupBy } from "./collections";
+import { db, schema } from "../db/index.js";
+import { groupBy } from "./collections.js";
 
 async function fetchLegs(txIds: string[]) {
   if (txIds.length === 0) return [];
