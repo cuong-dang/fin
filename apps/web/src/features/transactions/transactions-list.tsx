@@ -46,7 +46,6 @@ export function TransactionsList({
 }: {
   accountId: string | undefined;
 }) {
-  // Data & states
   const qc = useQueryClient();
   const q = useQuery({
     queryKey: ["transactions", { accountId }],
@@ -55,7 +54,7 @@ export function TransactionsList({
 
   const serverByDay = useMemo(() => {
     const completed = q.data?.completed ?? [];
-    return groupBy(completed, (t) => t.date ?? "");
+    return groupBy(completed, (t) => t.date!); // completed have date
   }, [q.data]);
 
   const [localByDay, setLocalByDay] =
@@ -144,7 +143,6 @@ export function TransactionsList({
     setLocalByDay(reordered);
   }
 
-  if (q.isLoading) return null; // TODO: Maybe spinner later.
   if (q.error) return <Alert color="red">{(q.error as Error).message}</Alert>;
   const pending = q.data?.pending ?? [];
 
@@ -158,6 +156,11 @@ export function TransactionsList({
 
   return (
     <>
+      {q.isLoading && (
+        <Text c="dimmed" px="xs">
+          Loading...
+        </Text>
+      )}
       {pending.length > 0 && (
         <Section title="Pending">
           {pending.map((t) => (
@@ -191,9 +194,7 @@ export function TransactionsList({
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <>
-      <Box px="xs">
-        <SectionHeader compact>{title}</SectionHeader>
-      </Box>
+      <SectionHeader compact>{title}</SectionHeader>
       <Divider />
       <Stack pb="xs">{children}</Stack>
     </>
