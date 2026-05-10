@@ -7,6 +7,7 @@ import { RequireAuth } from "./routes/require-auth.js";
 import { SettingsRoute } from "./routes/settings.js";
 import { SettingsAccountsRoute } from "./routes/settings-accounts.js";
 import { SignInRoute } from "./routes/signin.js";
+import { TransactionNewRoute } from "./routes/transaction-new.js";
 import { TransactionsRoute } from "./routes/transactions.js";
 
 export function App() {
@@ -21,6 +22,7 @@ export function App() {
         </Route>
       </Route>
       <Route element={<AccountNewRoute />} path="/accounts/new" />
+      <Route element={<TransactionNewRoute />} path="/transactions/new" />
       <Route element={<SettingsRoute />} path="/settings" />
       <Route element={<SettingsAccountsRoute />} path="/settings/accounts" />
     </Routes>

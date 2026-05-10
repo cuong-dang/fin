@@ -1,8 +1,4 @@
 import { AccountSelect } from "@/components/account-select";
-import {
-  type CategoryLineFormValues,
-  packCategoryLine,
-} from "@/components/category-selector";
 import { MultiLineEditor, SingleLineEditor } from "@/components/line-editor";
 import { MoneyField } from "@/components/money-field";
 import { localDateKey } from "@/lib/dates";
@@ -51,8 +47,6 @@ const PAYMENT_KIND_OPTIONS: {
   { value: "loan", label: "Loan" },
   { value: "bill", label: "Bill" },
 ];
-
-type LineFormValues = CategoryLineFormValues;
 
 export type InitialTxValues = {
   type: TxType;

@@ -1,5 +1,5 @@
 import { PageShell } from "@/components/page-shell";
-import { TransactionForm } from "@/features/transactions/transaction-form";
+import { TransactionForm } from "@/features/transactions/transaction-form.js";
 import {
   createTransaction,
   listAccounts,
@@ -29,9 +29,6 @@ export function TransactionNewRoute() {
     queryFn: listBills,
   });
 
-  // Add / Cancel / Back all return to wherever the user came from
-  // (charts, transactions list, an account page, etc.) instead of
-  // dumping them at the root. `navigate(-1)` pops one history entry.
   const goBack = () => navigate(-1);
 
   const mutation = useMutation({
@@ -54,7 +51,7 @@ export function TransactionNewRoute() {
   }
 
   return (
-    <PageShell back={goBack} title="New transaction">
+    <PageShell title="New transaction">
       <TransactionForm
         accounts={accountsQ.data ?? []}
         bills={billsQ.data ?? []}
