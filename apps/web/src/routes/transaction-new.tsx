@@ -13,8 +13,9 @@ import { useNavigate } from "react-router";
 
 export function TransactionNewRoute() {
   const navigate = useNavigate();
-  const qc = useQueryClient();
+  const goBack = () => navigate(-1);
 
+  const qc = useQueryClient();
   const accountsQ = useQuery({
     queryKey: ["accounts"],
     queryFn: listAccounts,
@@ -29,13 +30,11 @@ export function TransactionNewRoute() {
     queryFn: listBills,
   });
 
-  const goBack = () => navigate(-1);
-
   const mutation = useMutation({
     mutationFn: createTransaction,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
-      qc.invalidateQueries({ queryKey: ["accounts"] });
+      qc.invalidateQueries({ queryKey: ["accounts"] }); // balance changes
       qc.invalidateQueries({ queryKey: ["categories"] });
       goBack();
     },

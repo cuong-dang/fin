@@ -173,20 +173,18 @@ export function TransactionForm({
     }
   }
 
-  function applyBill(newId: string) {
-    setBillId(newId);
-    if (!newId) {
+  function applyBill(billId: string) {
+    setBillId(billId);
+    if (!billId) {
       // Cleared the picker — leave existing lines/account; the user is
       // probably about to pick a different bill or switch tabs.
       return;
     }
-    const bill = bills.find((b) => b.id === newId);
+    const bill = bills.find((b) => b.id === billId);
     if (!bill) return;
+    if (bill.defaultAccountId) setAccountId(bill.defaultAccountId);
     setLines(
       bill.defaultLines.map((l) => ({
-        // Bill default lines may have a null amount (utilities and other
-        // variable bills); pre-fill blank so the user enters the actual
-        // charge.
         amount: l.amount ? formatMoneyPlain(BigInt(l.amount), l.currency) : "",
         categoryId: l.categoryId,
         newCategoryName: "",
@@ -195,7 +193,6 @@ export function TransactionForm({
         tagNames: l.tags.map((t) => t.name),
       })),
     );
-    if (bill.defaultAccountId) setAccountId(bill.defaultAccountId);
   }
 
   const isMultiLine = lines.length > 1;
@@ -232,23 +229,21 @@ export function TransactionForm({
     // Reset line + sub state on tab switch — matches existing behavior so
     // each tab starts fresh. paymentKind defaults back too, since it only
     // applies to the Payment tab.
-    setLines([emptyLine()]);
+    setAccountId("");
     setBillId("");
     setDestinationAccountId("");
+    setLines([emptyLine()]);
     setTransferAmount("");
     setPaymentKind("creditCard");
   }
 
   function handlePaymentKindChange(newKind: PaymentKind) {
     setPaymentKind(newKind);
-    // Switching kinds invalidates the prefilled state (each kind owns its
-    // own entity + amount/lines). Clear everything kind-specific. For
-    // Loan, lines start empty (fees are the exception, not the rule).
-    setBillId("");
-    setLines(newKind === "loan" ? [] : [emptyLine()]);
-    setDestinationAccountId("");
-    setTransferAmount("");
     setAccountId("");
+    setBillId("");
+    setDestinationAccountId("");
+    setLines([emptyLine()]);
+    setTransferAmount("");
   }
 
   function handleAccountChange(newId: string) {
@@ -295,11 +290,6 @@ export function TransactionForm({
     }
 
     if (type === "payment") {
-      // "Payment" is a UI portal that submits as a typed transaction:
-      //   creditCard → transfer (checking → CC)
-      //   loan → transfer (checking/CC → loan), with optional fee/interest
-      //     lines categorizing the non-principal portion
-      //   bill → expense + billId (bill charge)
       if (paymentKind === "creditCard") {
         onSubmit({
           type: "transfer",
@@ -339,32 +329,32 @@ export function TransactionForm({
     });
   };
 
-  if (accounts.length === 0) {
-    return (
-      <Stack>
-        <Text c="dimmed">You need to create an account first.</Text>
-        <Button component={Link} to="/accounts/new" w="fit-content">
-          Create account
-        </Button>
-      </Stack>
-    );
-  }
-
-  // Payment tab requires picking the entity (CC account, loan account, or
-  // bill) before anything else makes sense. Hide the rest of the
-  // form until one is selected, and surface a "create one first"
-  // affordance when there are none of that kind.
   const paymentEntityMissing =
     type === "payment" &&
     ((paymentKind === "creditCard" && !destinationAccountId) ||
       (paymentKind === "loan" && !destinationAccountId) ||
       (paymentKind === "bill" && !billId));
 
+  if (accounts.length === 0) {
+    return (
+      <Stack>
+        <Text c="dimmed">You need to create an account first.</Text>
+        <Button
+          component={Link}
+          to="/accounts/new"
+          variant="subtle"
+          w="fit-content"
+        >
+          Create account
+        </Button>
+      </Stack>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit}>
       <Stack>
         <TypeTabs value={type} onChange={handleTypeChange} />
-
         {type === "payment" && (
           <Stack>
             <SegmentedControl
