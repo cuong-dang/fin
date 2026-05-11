@@ -1,8 +1,4 @@
 import { AccountSelect } from "@/components/account-select";
-import {
-  type CategoryLineFormValues,
-  packCategoryLine,
-} from "@/components/category-selector";
 import { MultiLineEditor, SingleLineEditor } from "@/components/line-editor";
 import { COMMON_CURRENCIES } from "@/lib/currencies";
 
@@ -13,6 +9,7 @@ import type {
   CreateBillBody,
   RecurringFrequency,
   Tag,
+  TransactionLineBody,
 } from "@fin/schemas";
 import {
   Alert,
@@ -40,8 +37,6 @@ const TYPE_OPTIONS: { value: BillType; label: string }[] = [
   { value: "other", label: "Other" },
 ];
 
-// Per-type guidance shown under the type picker. Drives only UX —
-// behaviour is identical across types (a bill is a bill on the wire).
 const TYPE_HINT: Record<BillType, string> = {
   utility:
     "Variable-amount essential service (electric, water, gas). The amount is left blank in the template — fill it in per charge.",
@@ -51,19 +46,17 @@ const TYPE_HINT: Record<BillType, string> = {
     "Catch-all for periodic charges that aren't utilities or subscriptions — taxes, life or medical insurance premiums, HOA dues, payroll deductions, and the like.",
 };
 
-type LineFormValues = CategoryLineFormValues;
-
 export type InitialBillValues = {
   name: string;
   type: BillType;
   currency: string;
   frequency: RecurringFrequency;
-  defaultAccountId: string;
+  defaultPayFromAccountId: string;
   description: string;
-  lines: LineFormValues[];
+  lines: TransactionLineBody[];
 };
 
-const emptyLine = (): LineFormValues => ({
+const emptyLine = (): TransactionLineBody => ({
   amount: "",
   categoryId: "",
   newCategoryName: "",
@@ -98,7 +91,7 @@ export function BillForm({
     type: "subscription",
     currency: "USD",
     frequency: "monthly",
-    defaultAccountId: "",
+    defaultPayFromAccountId: "",
     description: "",
     lines: [emptyLine()],
   };
@@ -109,11 +102,11 @@ export function BillForm({
   const [frequency, setFrequency] = useState<RecurringFrequency>(
     defaults.frequency,
   );
-  const [defaultAccountId, setDefaultAccountId] = useState(
-    defaults.defaultAccountId,
+  const [defaultPayFromAccountId, setDefaultPayFromAccountId] = useState(
+    defaults.defaultPayFromAccountId,
   );
   const [description, setDescription] = useState(defaults.description);
-  const [lines, setLines] = useState<LineFormValues[]>(defaults.lines);
+  const [lines, setLines] = useState<TransactionLineBody[]>(defaults.lines);
 
   const expenseCategories = categories.filter((c) => c.kind === "expense");
   // Bill charges flow from CASA or CC; loan accounts can't be charge sources.
@@ -121,7 +114,7 @@ export function BillForm({
   const allTagNames = tags.map((t) => t.name);
   const isMultiLine = lines.length > 1;
 
-  function updateLine(i: number, patch: Partial<LineFormValues>) {
+  function updateLine(i: number, patch: Partial<TransactionLineBody>) {
     setLines((prev) =>
       prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)),
     );
@@ -142,9 +135,9 @@ export function BillForm({
           type,
           currency,
           frequency,
-          defaultAccountId: defaultAccountId || undefined,
+          defaultPayFromAccountId: defaultPayFromAccountId || undefined,
           description: description || undefined,
-          defaultLines: lines.map(packCategoryLine),
+          defaultLines: lines,
         });
       }}
     >
@@ -188,8 +181,8 @@ export function BillForm({
           allowNone
           description="Charges for this bill will pre-fill the source account."
           label="Default source account (optional)"
-          value={defaultAccountId}
-          onChange={setDefaultAccountId}
+          value={defaultPayFromAccountId}
+          onChange={setDefaultPayFromAccountId}
         />
 
         {isMultiLine ? (

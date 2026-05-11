@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router";
 import { AccountNewRoute } from "./routes/account-new.js";
 import { AppLayoutRoute } from "./routes/app-layout.js";
 import { AuthCallbackRoute } from "./routes/auth-callback.js";
+import { BillNewRoute } from "./routes/bill-new.js";
 import { RequireAuth } from "./routes/require-auth.js";
 import { SettingsRoute } from "./routes/settings.js";
 import { SettingsAccountsRoute } from "./routes/settings-accounts.js";
@@ -23,6 +24,7 @@ export function App() {
       </Route>
       <Route element={<AccountNewRoute />} path="/accounts/new" />
       <Route element={<TransactionNewRoute />} path="/transactions/new" />
+      <Route element={<BillNewRoute />} path="/bills/new" />
       <Route element={<SettingsRoute />} path="/settings" />
       <Route element={<SettingsAccountsRoute />} path="/settings/accounts" />
     </Routes>
