@@ -18,8 +18,8 @@ import {
 import type {
   Account,
   AccountType,
-  LoanDefaultLineBody,
   RecurringFrequency,
+  TransactionLineBody,
 } from "@fin/schemas";
 import {
   Alert,
@@ -61,7 +61,7 @@ export function AccountNewRoute() {
   // Loan-specific state (mirrors loanBody)
   const [amountPerPeriod, setAmountPerPeriod] = useState("");
   const [frequency, setFrequency] = useState<RecurringFrequency>("monthly");
-  const [loanLines, setloanLines] = useState<LoanDefaultLineBody[]>([]);
+  const [loanLines, setloanLines] = useState<TransactionLineBody[]>([]);
   const [excludeFromNetWorth, setExcludeFromNetWorth] = useState(false);
 
   const goBack = () => navigate(-1);

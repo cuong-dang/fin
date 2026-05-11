@@ -59,11 +59,11 @@ export type InitialTxValues = {
   accountId: string;
   destinationAccountId: string;
   transferAmount: string;
-  lines: LineFormValues[];
+  lines: TransactionLineBody[];
   billId: string;
 };
 
-const emptyLine = (): LineFormValues => ({
+const emptyLine = (): TransactionLineBody => ({
   amount: "",
   categoryId: "",
   newCategoryName: "",
@@ -108,7 +108,7 @@ export function TransactionForm({
   };
 
   const [type, setType] = useState<TxType>(defaults.type);
-  const [lines, setLines] = useState<LineFormValues[]>(defaults.lines);
+  const [lines, setLines] = useState<TransactionLineBody[]>(defaults.lines);
   const [transferAmount, setTransferAmount] = useState(defaults.transferAmount);
   const [accountId, setAccountId] = useState(defaults.accountId);
   const [destinationAccountId, setDestinationAccountId] = useState(
@@ -130,9 +130,6 @@ export function TransactionForm({
     (b) => b.cancelledAt === null || b.id === billId,
   );
 
-  // CC payment: pick a CC account to pay; the source account pre-fills
-  // from the CC's defaultPayFromAccountId (if set). Submit shape underneath
-  // is a transfer (checking_savings → credit_card), validated server-side.
   function applyCreditCard(ccId: string) {
     setDestinationAccountId(ccId);
     if (!ccId) {
@@ -145,14 +142,6 @@ export function TransactionForm({
     }
   }
 
-  // Loan payment: pick a loan account to pay; the source pre-fills from
-  // the plan's defaultAccountId (if set), the amount pre-fills from
-  // amountPerPeriod, and any default lines (fee/interest categorization
-  // templates) come in pre-populated. Submit shape is a transfer with
-  // optional lines (destination leg gets the principal portion =
-  // amount − Σ lines). Plan default-line amounts may be null — those
-  // arrive as empty strings so the user fills them in (or removes the
-  // line) before submit.
   function applyLoan(loanId: string) {
     setDestinationAccountId(loanId);
     if (!loanId) {
@@ -162,20 +151,17 @@ export function TransactionForm({
       return;
     }
     const loan = accounts.find((a) => a.id === loanId);
-    if (loan?.recurringPlan?.defaultAccountId) {
-      setAccountId(loan.recurringPlan.defaultAccountId);
+    if (loan?.defaultPayFromAccountId) {
+      setAccountId(loan.defaultPayFromAccountId);
     }
-    if (loan?.recurringPlan) {
+    if (loan?.loan) {
       setTransferAmount(
-        formatMoneyPlain(
-          BigInt(loan.recurringPlan.amountPerPeriod),
-          loan.currency,
-        ),
+        formatMoneyPlain(BigInt(loan.loan.amountPerPeriod), loan.currency),
       );
       setLines(
-        loan.recurringPlan.defaultLines.map((l) => ({
+        loan.loan.defaultLines.map((l) => ({
           amount: l.amount
-            ? formatMoneyPlain(BigInt(l.amount), l.currency)
+            ? formatMoneyPlain(BigInt(l.amount), loan.currency)
             : "",
           categoryId: l.categoryId,
           newCategoryName: "",
@@ -213,8 +199,6 @@ export function TransactionForm({
   }
 
   const isMultiLine = lines.length > 1;
-  // Categories shown in the line editor. Income lines pick income-kind;
-  // expense and payment both pick expense-kind. Transfer doesn't have lines.
   const categoryKindForType =
     type === "income" ? "income" : type === "transfer" ? null : "expense";
   const relevantCategories =
@@ -224,9 +208,7 @@ export function TransactionForm({
   // Source-account filter:
   //   - Transfer: All accounts. Targets must be checking/savings.
   //   - Payment > Credit card: source must be checking/savings.
-  //   - Payment > Loan: source can be checking/savings or credit_card
-  //     (paying a loan with a card is a real flow). Loan-as-source is
-  //     never valid.
+  //   - Payment > Loan: source can be checking/savings or credit_card.
   //   - Other (expense/income): all account types — a CC charge is an
   //     expense from the CC, a refund/credit is income to it.
   const sourceAccountPool =
@@ -279,7 +261,7 @@ export function TransactionForm({
     if (accountId === newId) setAccountId("");
   }
 
-  function updateLine(index: number, patch: Partial<LineFormValues>) {
+  function updateLine(index: number, patch: Partial<TransactionLineBody>) {
     setLines((prev) =>
       prev.map((l, i) => (i === index ? { ...l, ...patch } : l)),
     );
@@ -292,13 +274,6 @@ export function TransactionForm({
   function removeLine(index: number) {
     setLines((prev) => prev.filter((_, i) => i !== index));
   }
-
-  const lineToBody = (l: LineFormValues): TransactionLineBody => {
-    const packed = packCategoryLine(l);
-    // Transaction lines require amount (form enforces via `required`);
-    // server Zod re-validates if anything slips through.
-    return { ...packed, amount: packed.amount ?? "" };
-  };
 
   const handleSubmit: ComponentProps<"form">["onSubmit"] = (e) => {
     e.preventDefault();
@@ -342,7 +317,7 @@ export function TransactionForm({
           amount: transferAmount,
           accountId,
           destinationAccountId,
-          lines: lines.length > 0 ? lines.map(lineToBody) : undefined,
+          lines,
         });
         return;
       }
@@ -351,7 +326,7 @@ export function TransactionForm({
         ...commonBase,
         accountId,
         billId,
-        lines: lines.map(lineToBody),
+        lines,
       });
       return;
     }
@@ -360,7 +335,7 @@ export function TransactionForm({
       type,
       ...commonBase,
       accountId,
-      lines: lines.map(lineToBody),
+      lines,
     });
   };
 

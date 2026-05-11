@@ -5,9 +5,9 @@ import { MoneyField } from "@/components/money-field";
 import type {
   Account,
   CategoryWithSubs,
-  LoanDefaultLineBody,
   RecurringFrequency,
   Tag,
+  TransactionLineBody,
 } from "@fin/schemas";
 import { Select } from "@mantine/core";
 import type { Dispatch, SetStateAction } from "react";
@@ -20,7 +20,7 @@ const FREQUENCY_OPTIONS: { value: RecurringFrequency; label: string }[] = [
   { value: "yearly", label: "Yearly" },
 ];
 
-const emptyLine = (): LoanDefaultLineBody => ({
+const emptyLine = (): TransactionLineBody => ({
   amount: "",
   categoryId: "",
   newCategoryName: "",
@@ -90,8 +90,8 @@ export function LoanPlanFields({
   setFrequency: (v: RecurringFrequency) => void;
   defaultPayFromAccountId: string;
   setDefaultPayFromAccountId: (v: string) => void;
-  lines: LoanDefaultLineBody[];
-  setLines: Dispatch<SetStateAction<LoanDefaultLineBody[]>>;
+  lines: TransactionLineBody[];
+  setLines: Dispatch<SetStateAction<TransactionLineBody[]>>;
   payFromAccounts: Account[];
   categories: CategoryWithSubs[];
   tags: Tag[];
@@ -99,7 +99,7 @@ export function LoanPlanFields({
   const expenseCategories = categories.filter((c) => c.kind === "expense");
   const allTagNames = tags.map((t) => t.name);
 
-  function updateLine(i: number, patch: Partial<LoanDefaultLineBody>) {
+  function updateLine(i: number, patch: Partial<TransactionLineBody>) {
     setLines((prev) =>
       prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)),
     );

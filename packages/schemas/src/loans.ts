@@ -7,10 +7,15 @@ import {
 } from "./common.js";
 import { lineBaseBody } from "./transactions.js";
 
+// Loan default lines share `TransactionLineBody`'s wire shape — clients
+// always send a string `amount`, with `""` meaning "no amount" (variable
+// per-period charges). The write path translates `""` → null when
+// inserting into the DB. Transactions still validate `amount` as a
+// positive moneyString; only loan/bill default lines accept the empty
+// case.
 export const loanDefaultLineBody = lineBaseBody
-  .extend({ amount: moneyString.optional() })
+  .extend({ amount: z.union([moneyString, z.literal("")]) })
   .strict();
-export type LoanDefaultLineBody = z.infer<typeof loanDefaultLineBody>;
 
 export const loanBody = z
   .object({

@@ -1,11 +1,17 @@
 import { z } from "zod";
 
-import { currencyField, dateString, moneyString } from "./common.js";
+import {
+  currencyField,
+  dateString,
+  moneyString,
+  optionalTrimmedString,
+  optionalUuid,
+} from "./common.js";
 import type { Loan } from "./loans.js";
 import { loanBody } from "./loans.js";
 
 const nameField = z.string().trim().min(1).max(100);
-const newAccountGroupField = z.string().trim().min(1).max(100).optional();
+const newAccountGroupField = optionalTrimmedString(1, 100);
 
 export const accountType = z.enum(["checking_savings", "credit_card", "loan"]);
 export type AccountType = z.infer<typeof accountType>;
@@ -16,7 +22,7 @@ export type AccountType = z.infer<typeof accountType>;
 const baseCreate = z.object({
   name: nameField,
   currency: currencyField,
-  accountGroupId: z.uuid().optional(),
+  accountGroupId: optionalUuid,
   newAccountGroupName: newAccountGroupField,
   startingBalance: moneyString.optional(),
   adjustmentDate: dateString.optional(),
@@ -34,14 +40,14 @@ const creditCardCreate = baseCreate
   .extend({
     type: z.literal("credit_card"),
     creditLimit: moneyString,
-    defaultPayFromAccountId: z.uuid().optional(),
+    defaultPayFromAccountId: optionalUuid,
   })
   .strict();
 
 const loanCreate = baseCreate
   .extend({
     type: z.literal("loan"),
-    defaultPayFromAccountId: z.uuid().optional(),
+    defaultPayFromAccountId: optionalUuid,
     loan: loanBody,
   })
   .strict();
@@ -56,7 +62,7 @@ export type CreateAccountBody = z.infer<typeof createAccountBody>;
 // Currency is fixed at creation, so it doesn't appear here.
 const baseUpdate = z.object({
   name: nameField,
-  accountGroupId: z.uuid().optional(),
+  accountGroupId: optionalUuid,
   newGroupName: newAccountGroupField,
   newBalance: moneyString.optional(),
   adjustmentDate: dateString.optional(),
@@ -73,7 +79,7 @@ const creditCardUpdate = baseUpdate
   .extend({
     type: z.literal("credit_card"),
     creditLimit: moneyString,
-    defaultPayFromAccountId: z.uuid().optional(),
+    defaultPayFromAccountId: optionalUuid,
   })
   .strict();
 
@@ -83,7 +89,7 @@ const creditCardUpdate = baseUpdate
 const loanUpdate = baseUpdate
   .extend({
     type: z.literal("loan"),
-    defaultPayFromAccountId: z.uuid().optional(),
+    defaultPayFromAccountId: optionalUuid,
     loan: loanBody,
   })
   .strict();

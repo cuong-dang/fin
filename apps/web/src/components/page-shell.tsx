@@ -29,8 +29,8 @@ export function PageShell({
             {right}
           </Group>
           {subtitle && <Text c="dimmed">{subtitle}</Text>}
+          {children}
         </Stack>
-        {children}
       </Stack>
     </Container>
   );

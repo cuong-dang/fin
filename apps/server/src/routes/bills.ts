@@ -9,13 +9,13 @@ import {
 import { eq, inArray } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
 
-import { schema } from "../db";
-import { db } from "../db";
-import { findOwned, listOwnedActive } from "../lib/authz";
-import { resolveCategory } from "../lib/categories-resolve";
-import { groupBy } from "../lib/collections";
-import { parseMoney } from "../lib/money";
-import { upsertTags } from "../lib/tags-upsert";
+import { schema } from "../db/index.js";
+import { db } from "../db/index.js";
+import { findOwned, listOwnedActive } from "../lib/authz.js";
+import { resolveCategory } from "../lib/categories-resolve.js";
+import { groupBy } from "../lib/collections.js";
+import { parseMoney } from "../lib/money.js";
+import { upsertTags } from "../lib/tags-upsert.js";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -27,7 +27,7 @@ export const billRoutes: FastifyPluginAsync = async (app) => {
   app.get("/", async (req): Promise<Bill[]> => {
     const rows = await listOwnedActive(
       schema.bills,
-      req.auth.groupId,
+      req.auth.workspaceId,
       schema.bills.name,
     );
     if (rows.length === 0) return [];
@@ -39,7 +39,7 @@ export const billRoutes: FastifyPluginAsync = async (app) => {
 
   app.get("/:id", async (req, reply): Promise<Bill | undefined> => {
     const { id } = idParam.parse(req.params);
-    const bill = await findOwned(schema.bills, id, req.auth.groupId);
+    const bill = await findOwned(schema.bills, id, req.auth.workspaceId);
     if (!bill) {
       reply.code(404).send({ error: "Not found" });
       return;
@@ -55,7 +55,7 @@ export const billRoutes: FastifyPluginAsync = async (app) => {
     if (body.defaultAccountId) {
       const errResp = await validateBillDefaultAccount(
         body.defaultAccountId,
-        req.auth.groupId,
+        req.auth.workspaceId,
       );
       if (errResp) return reply.code(400).send({ error: errResp });
     }
@@ -64,7 +64,7 @@ export const billRoutes: FastifyPluginAsync = async (app) => {
       const [billRow] = await tx
         .insert(schema.bills)
         .values({
-          groupId: req.auth.groupId,
+          workspaceId: req.auth.workspaceId,
           name: body.name,
           type: body.type,
           currency: body.currency,
@@ -79,7 +79,7 @@ export const billRoutes: FastifyPluginAsync = async (app) => {
         billRow.id,
         body.defaultLines,
         body.currency,
-        req.auth.groupId,
+        req.auth.workspaceId,
       );
       return billRow;
     });
@@ -91,12 +91,12 @@ export const billRoutes: FastifyPluginAsync = async (app) => {
   app.patch("/:id", async (req, reply) => {
     const { id } = idParam.parse(req.params);
     const body = updateBillBody.parse(req.body);
-    const existing = await findOwned(schema.bills, id, req.auth.groupId);
+    const existing = await findOwned(schema.bills, id, req.auth.workspaceId);
     if (!existing) return reply.code(404).send({ error: "Not found" });
-    if (body.defaultAccountId) {
+    if (body.defaultPayFromAccountId) {
       const errResp = await validateBillDefaultAccount(
-        body.defaultAccountId,
-        req.auth.groupId,
+        body.defaultPayFromAccountId,
+        req.auth.workspaceId,
       );
       if (errResp) return reply.code(400).send({ error: errResp });
     }
@@ -109,8 +109,7 @@ export const billRoutes: FastifyPluginAsync = async (app) => {
           type: body.type,
           currency: body.currency,
           frequency: body.frequency,
-          defaultAccountId: body.defaultAccountId ?? null,
-          description: body.description ?? null,
+          defaultPayFromAccountId: body.defaultPayFromAccountId ?? null,
           updatedAt: new Date(),
         })
         .where(eq(schema.bills.id, id));
@@ -124,7 +123,7 @@ export const billRoutes: FastifyPluginAsync = async (app) => {
         id,
         body.defaultLines,
         body.currency,
-        req.auth.groupId,
+        req.auth.workspaceId,
       );
     });
     return reply.code(204).send();
@@ -153,7 +152,7 @@ export const billRoutes: FastifyPluginAsync = async (app) => {
   // only the latest cancelledAt is kept.
   app.post("/:id/resume", async (req, reply) => {
     const { id } = idParam.parse(req.params);
-    const existing = await findOwned(schema.bills, id, req.auth.groupId);
+    const existing = await findOwned(schema.bills, id, req.auth.workspaceId);
     if (!existing) return reply.code(404).send({ error: "Not found" });
     if (existing.cancelledAt === null) {
       return reply.code(409).send({ error: "Not cancelled" });
@@ -169,7 +168,7 @@ export const billRoutes: FastifyPluginAsync = async (app) => {
 
   app.delete("/:id", async (req, reply) => {
     const { id } = idParam.parse(req.params);
-    const existing = await findOwned(schema.bills, id, req.auth.groupId);
+    const existing = await findOwned(schema.bills, id, req.auth.workspaceId);
     if (!existing) return reply.code(404).send({ error: "Not found" });
     // Soft-delete: past transactions still link to this bill via
     // transactions.bill_id (RESTRICT FK) and continue to display its name.

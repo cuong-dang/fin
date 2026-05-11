@@ -1,13 +1,19 @@
 import { z } from "zod";
 
+import { optionalTrimmedString, optionalUuid } from "./common.js";
+
 export const categoryKind = z.enum(["income", "expense"]);
 export type CategoryKind = z.infer<typeof categoryKind>;
 
+// Shared shape used by every "line" body (transaction / bill / loan).
+// Each field accepts `""` from the form layer — preprocess strips it to
+// `undefined` so the resolver's XOR check sees absent rather than a
+// validation failure.
 export const categoryResolverInput = z.object({
-  categoryId: z.uuid().optional(),
-  newCategoryName: z.string().trim().min(1).max(100).optional(),
-  subcategoryId: z.uuid().optional(),
-  newSubcategoryName: z.string().trim().min(1).max(100).optional(),
+  categoryId: optionalUuid,
+  newCategoryName: optionalTrimmedString(1, 100),
+  subcategoryId: optionalUuid,
+  newSubcategoryName: optionalTrimmedString(1, 100),
 });
 export type CategoryResolverInput = z.infer<typeof categoryResolverInput>;
 

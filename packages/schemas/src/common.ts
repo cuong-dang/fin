@@ -21,6 +21,25 @@ export const currencyField = z
 export const idParam = z.object({ id: z.uuid() }).strict();
 export type IdParam = z.infer<typeof idParam>;
 
+/**
+ * Client form state uses `""` as "no value" for many string/uuid fields
+ * (one canonical "absent" shape across the form). At the wire boundary
+ * we want those to read as absent, not as a strict-validation failure.
+ * Use these wrappers for optional fields that the client may submit as
+ * `""` — preprocess strips empties to `undefined` before validation, so
+ * the inferred output type stays `field?: T | undefined`.
+ */
+export const emptyAsUndefined = (v: unknown) =>
+  typeof v === "string" && v.trim() === "" ? undefined : v;
+
+export const optionalUuid = z.preprocess(emptyAsUndefined, z.uuid().optional());
+
+export const optionalTrimmedString = (min: number, max: number) =>
+  z.preprocess(
+    emptyAsUndefined,
+    z.string().trim().min(min).max(max).optional(),
+  );
+
 export const recurringFrequency = z.enum([
   "weekly",
   "biweekly",

@@ -6,6 +6,7 @@ import { authPlugin } from "./plugins/auth.js";
 import { accountGroupRoutes } from "./routes/account-groups.js";
 import { accountRoutes } from "./routes/accounts.js";
 import { authRoutes } from "./routes/auth.js";
+import { billRoutes } from "./routes/bills.js";
 // import { accountGroupRoutes } from "./routes/account-groups";
 // import { accountRoutes } from "./routes/accounts";
 // import { analyticsRoutes } from "./routes/analytics";
@@ -28,7 +29,7 @@ await app.register(categoryRoutes, { prefix: "/api/categories" });
 await app.register(subcategoryRoutes, { prefix: "/api/subcategories" });
 await app.register(tagRoutes, { prefix: "/api/tags" });
 await app.register(transactionRoutes, { prefix: "/api/transactions" });
-// await app.register(billRoutes, { prefix: "/api/bills" });
+await app.register(billRoutes, { prefix: "/api/bills" });
 // await app.register(analyticsRoutes, { prefix: "/api/analytics" });
 
 // Centralized error handler — Zod validation errors become 400s.

@@ -2,7 +2,12 @@ import { z } from "zod";
 
 import type { AccountType } from "./accounts.js";
 import { categoryResolverInput } from "./categories.js";
-import { dateString, moneyString } from "./common.js";
+import {
+  dateString,
+  moneyString,
+  optionalTrimmedString,
+  optionalUuid,
+} from "./common.js";
 import { tagName } from "./tags.js";
 
 // ─── Create / update (full: income / expense / transfer) ──────────────────
@@ -27,7 +32,7 @@ export type TransactionLineBody = z.infer<typeof transactionLineBody>;
 const commonFields = z.object({
   date: dateString.optional(), // absent when pending
   pending: z.boolean().default(false),
-  description: z.string().trim().min(1).max(500).optional(),
+  description: optionalTrimmedString(1, 500),
 });
 
 const incomeFields = commonFields
@@ -46,7 +51,7 @@ const expenseFields = commonFields
   .extend({
     type: z.literal("expense"),
     accountId: z.uuid(),
-    billId: z.uuid().optional(),
+    billId: optionalUuid,
     lines: z.array(transactionLineBody).min(1),
   })
   .strict();
@@ -80,7 +85,7 @@ export const adjustmentUpdateBody = z
   .object({
     date: dateString,
     amount: moneyString,
-    description: z.string().trim().min(1).max(500).optional(),
+    description: optionalTrimmedString(1, 500),
   })
   .strict();
 export type AdjustmentUpdateBody = z.infer<typeof adjustmentUpdateBody>;

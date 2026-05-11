@@ -1,11 +1,7 @@
 import { MoneyField } from "@/components/money-field";
 import { SectionHeader } from "@/components/section-header";
 
-import type {
-  CategoryWithSubs,
-  LoanDefaultLineBody,
-  TransactionLineBody,
-} from "@fin/schemas";
+import type { CategoryWithSubs, TransactionLineBody } from "@fin/schemas";
 import {
   ActionIcon,
   Badge,
@@ -17,7 +13,8 @@ import {
   Text,
   UnstyledButton,
 } from "@mantine/core";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Tag, Trash2 } from "lucide-react";
+import { useState } from "react";
 
 import { CreatableSelect } from "./creatable-select";
 
@@ -55,7 +52,6 @@ export function SingleLineEditor({
         value={line.amount}
         onChange={(v) => onUpdate({ amount: v })}
       />
-      {/* TODO: Check the following type assertions. */}
       <CategorySelector
         categories={categories}
         categoryId={line.categoryId!}
@@ -111,13 +107,10 @@ export function MultiLineEditor({
   amountOptional = false,
   summary,
 }: {
-  lines: (TransactionLineBody | LoanDefaultLineBody)[];
+  lines: TransactionLineBody[];
   categories: CategoryWithSubs[];
   allTags: string[];
-  onUpdate: (
-    index: number,
-    patch: Partial<TransactionLineBody | LoanDefaultLineBody>,
-  ) => void;
+  onUpdate: (index: number, patch: Partial<TransactionLineBody>) => void;
   onAdd: () => void;
   onRemove: (index: number) => void;
   amountOptional?: boolean;
@@ -147,7 +140,7 @@ export function MultiLineEditor({
               label={amountOptional ? "Amount (optional)" : "Amount"}
               min={0}
               required={!amountOptional}
-              value={line.amount!}
+              value={line.amount}
               onChange={(v) => onUpdate(i, { amount: v })}
             />
             {/* All the following type assertions are guaranteed by `emptyLine` in
