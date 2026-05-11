@@ -11,7 +11,7 @@ import type { FastifyPluginAsync } from "fastify";
 
 import { schema } from "../db/index.js";
 import { db } from "../db/index.js";
-import { findOwned, listOwnedActive } from "../lib/authz.js";
+import { findOwned, findOwnedParent, listOwnedActive } from "../lib/authz.js";
 import { resolveCategory } from "../lib/categories-resolve.js";
 import { groupBy } from "../lib/collections.js";
 import { parseMoney } from "../lib/money.js";
@@ -52,9 +52,9 @@ export const billRoutes: FastifyPluginAsync = async (app) => {
 
   app.post("/", async (req, reply) => {
     const body = createBillBody.parse(req.body);
-    if (body.defaultAccountId) {
+    if (body.defaultPayFromAccountId) {
       const errResp = await validateBillDefaultAccount(
-        body.defaultAccountId,
+        body.defaultPayFromAccountId,
         req.auth.workspaceId,
       );
       if (errResp) return reply.code(400).send({ error: errResp });
@@ -69,8 +69,7 @@ export const billRoutes: FastifyPluginAsync = async (app) => {
           type: body.type,
           currency: body.currency,
           frequency: body.frequency,
-          defaultAccountId: body.defaultAccountId ?? null,
-          description: body.description ?? null,
+          defaultPayFromAccountId: body.defaultPayFromAccountId ?? null,
         })
         .returning({ id: schema.bills.id });
 
@@ -133,7 +132,7 @@ export const billRoutes: FastifyPluginAsync = async (app) => {
 
   app.post("/:id/cancel", async (req, reply) => {
     const { id } = idParam.parse(req.params);
-    const existing = await findOwned(schema.bills, id, req.auth.groupId);
+    const existing = await findOwned(schema.bills, id, req.auth.workspaceId);
     if (!existing) return reply.code(404).send({ error: "Not found" });
     if (existing.cancelledAt !== null) {
       return reply.code(409).send({ error: "Already cancelled" });
@@ -147,9 +146,7 @@ export const billRoutes: FastifyPluginAsync = async (app) => {
 
   // ─── Resume ──────────────────────────────────────────────────────────────
 
-  // Flip cancelledAt back to null. We don't preserve cancellation history —
-  // the user explicitly opted out of that. If a bill is re-cancelled later,
-  // only the latest cancelledAt is kept.
+  // Flip cancelledAt back to null. We don't preserve cancellation history.
   app.post("/:id/resume", async (req, reply) => {
     const { id } = idParam.parse(req.params);
     const existing = await findOwned(schema.bills, id, req.auth.workspaceId);
@@ -170,9 +167,7 @@ export const billRoutes: FastifyPluginAsync = async (app) => {
     const { id } = idParam.parse(req.params);
     const existing = await findOwned(schema.bills, id, req.auth.workspaceId);
     if (!existing) return reply.code(404).send({ error: "Not found" });
-    // Soft-delete: past transactions still link to this bill via
-    // transactions.bill_id (RESTRICT FK) and continue to display its name.
-    // Default lines + tag links remain intact for history.
+    // Soft-delete
     await db
       .update(schema.bills)
       .set({ deletedAt: new Date(), updatedAt: new Date() })
@@ -192,14 +187,17 @@ async function fetchDefaultLines(
       id: schema.billDefaultLines.id,
       billId: schema.billDefaultLines.billId,
       amount: schema.billDefaultLines.amount,
-      currency: schema.billDefaultLines.currency,
+      currency: schema.bills.currency,
       categoryId: schema.billDefaultLines.categoryId,
       categoryName: schema.categories.name,
       subcategoryId: schema.billDefaultLines.subcategoryId,
       subcategoryName: schema.subcategories.name,
-      description: schema.billDefaultLines.description,
     })
     .from(schema.billDefaultLines)
+    .innerJoin(
+      schema.bills,
+      eq(schema.bills.id, schema.billDefaultLines.billId),
+    )
     .innerJoin(
       schema.categories,
       eq(schema.categories.id, schema.billDefaultLines.categoryId),
@@ -241,7 +239,6 @@ async function fetchDefaultLines(
       categoryName: l.categoryName,
       subcategoryId: l.subcategoryId,
       subcategoryName: l.subcategoryName,
-      description: l.description,
       tags: (tagsByLine.get(l.id) ?? []).map((t) => ({
         id: t.tagId,
         name: t.tagName,
@@ -260,8 +257,7 @@ async function insertDefaultLines(
   if (lines.length === 0) {
     throw new Error("At least one default line is required");
   }
-  // Parse amounts up front so a bad line aborts before any write.
-  // Amount may be omitted (utilities, taxes — varies per period).
+
   const amounts = lines.map((l) =>
     l.amount ? parseMoney(l.amount, currency) : null,
   );
@@ -286,7 +282,6 @@ async function insertDefaultLines(
         categoryId,
         subcategoryId,
         amount: amounts[i],
-        currency,
       })
       .returning({ id: schema.billDefaultLines.id });
 
@@ -314,9 +309,8 @@ function toResponse(
     type: bill.type,
     currency: bill.currency,
     frequency: bill.frequency,
-    defaultAccountId: bill.defaultAccountId,
+    defaultPayFromAccountId: bill.defaultPayFromAccountId,
     cancelledAt: bill.cancelledAt?.toISOString() ?? null,
-    description: bill.description,
     defaultLines,
   };
 }
@@ -329,7 +323,14 @@ async function validateBillDefaultAccount(
   accountId: string,
   workspaceId: string,
 ): Promise<string | null> {
-  const account = await findOwned(schema.accounts, accountId, workspaceId);
+  const account = await findOwnedParent(
+    schema.accounts,
+    schema.accountGroups,
+    schema.accounts.accountGroupId,
+    schema.accountGroups.id,
+    accountId,
+    workspaceId,
+  );
   if (!account) return "Default account not found in this workspace";
   if (account.type === "loan") {
     return "Default account cannot be a loan account";

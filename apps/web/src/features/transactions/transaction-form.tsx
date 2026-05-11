@@ -182,7 +182,8 @@ export function TransactionForm({
     }
     const bill = bills.find((b) => b.id === billId);
     if (!bill) return;
-    if (bill.defaultAccountId) setAccountId(bill.defaultAccountId);
+    if (bill.defaultPayFromAccountId)
+      setAccountId(bill.defaultPayFromAccountId);
     setLines(
       bill.defaultLines.map((l) => ({
         amount: l.amount ? formatMoneyPlain(BigInt(l.amount), l.currency) : "",

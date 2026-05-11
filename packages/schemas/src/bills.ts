@@ -22,21 +22,11 @@ import { lineBaseBody } from "./transactions.js";
 export const billType = z.enum(["utility", "subscription", "other"]);
 export type BillType = z.infer<typeof billType>;
 
-// One default line on a bill. Sum of line amounts (when set) = the bill's
-// per-period charge. Mirrors `transactionLineBody` so a charge transaction
-// can copy lines verbatim — including the inline-create
-// category/subcategory path so users don't have to hop to /settings to
-// set up a new bill. `amount` is optional: utilities (and some bills with
-// variable totals) leave amount blank in the template.
 export const billDefaultLineBody = lineBaseBody
-  .extend({ amount: moneyString.optional() })
+  .extend({ amount: z.union([moneyString, z.literal("")]) })
   .strict();
 export type BillDefaultLineBody = z.infer<typeof billDefaultLineBody>;
 
-// Both create and update accept the same fields today: update rewrites all
-// fields + lines, just like the transaction PATCH. Defined as two distinct
-// schemas (rather than aliasing one to the other) so each can evolve
-// independently if/when the shapes diverge.
 const billFields = {
   name: z.string().trim().min(1).max(100),
   type: billType,
@@ -57,13 +47,12 @@ export type UpdateBillBody = z.infer<typeof updateBillBody>;
 
 export type BillDefaultLine = {
   id: string;
-  amount: string | null; // stringified bigint; null = varies per period
+  amount: string | null;
   currency: string;
   categoryId: string;
   categoryName: string;
   subcategoryId: string | null;
   subcategoryName: string | null;
-  description: string | null;
   tags: { id: string; name: string }[];
 };
 
@@ -73,8 +62,7 @@ export type Bill = {
   type: BillType;
   currency: string;
   frequency: RecurringFrequency;
-  defaultAccountId: string | null;
-  cancelledAt: string | null; // ISO timestamp; null = active
-  description: string | null;
+  defaultPayFromAccountId: string | null;
+  cancelledAt: string | null;
   defaultLines: BillDefaultLine[];
 };
