@@ -11,9 +11,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 
 export function BillNewRoute() {
-  const navigate = useNavigate();
   const qc = useQueryClient();
-
   const accountsQ = useQuery({ queryKey: ["accounts"], queryFn: listAccounts });
   const categoriesQ = useQuery({
     queryKey: ["categories"],
@@ -21,15 +19,14 @@ export function BillNewRoute() {
   });
   const tagsQ = useQuery({ queryKey: ["tags"], queryFn: () => listTags() });
 
-  // Create / Cancel / Back all return to wherever the user came from
-  // (settings, charts, transactions list, etc.) instead of dumping at
-  // /settings/bills. `navigate(-1)` pops one history entry.
+  const navigate = useNavigate();
   const goBack = () => navigate(-1);
 
   const mutation = useMutation({
     mutationFn: createBill,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bills"] });
+      qc.invalidateQueries({ queryKey: ["categories"] });
       qc.invalidateQueries({ queryKey: ["tags"] });
       goBack();
     },
@@ -40,7 +37,7 @@ export function BillNewRoute() {
   }
 
   return (
-    <PageShell back={goBack} title="New bill">
+    <PageShell title="New bill">
       <BillForm
         accounts={accountsQ.data ?? []}
         categories={categoriesQ.data ?? []}

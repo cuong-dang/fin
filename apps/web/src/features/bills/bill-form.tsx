@@ -109,7 +109,6 @@ export function BillForm({
   const [lines, setLines] = useState<TransactionLineBody[]>(defaults.lines);
 
   const expenseCategories = categories.filter((c) => c.kind === "expense");
-  // Bill charges flow from CASA or CC; loan accounts can't be charge sources.
   const payFromAccounts = accounts.filter((a) => a.type !== "loan");
   const allTagNames = tags.map((t) => t.name);
   const isMultiLine = lines.length > 1;
@@ -151,10 +150,8 @@ export function BillForm({
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
-        <Stack gap="xs">
-          <Text fw={500} size="sm">
-            Type
-          </Text>
+        <Stack>
+          <Text fw={500}>Type</Text>
           <SegmentedControl
             data={TYPE_OPTIONS}
             value={type}
