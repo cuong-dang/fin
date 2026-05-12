@@ -1,9 +1,12 @@
 import { Navigate, Route, Routes } from "react-router";
 
+import { AccountEditRoute } from "./routes/account-edit.js";
+import { AccountGroupEditRoute } from "./routes/account-group-edit.js";
 import { AccountNewRoute } from "./routes/account-new.js";
 import { AppLayoutRoute } from "./routes/app-layout.js";
 import { AuthCallbackRoute } from "./routes/auth-callback.js";
 import { BillNewRoute } from "./routes/bill-new.js";
+import { NotFoundRoute } from "./routes/not-found.js";
 import { RequireAuth } from "./routes/require-auth.js";
 import { SettingsRoute } from "./routes/settings.js";
 import { SettingsAccountsRoute } from "./routes/settings-accounts.js";
@@ -21,12 +24,18 @@ export function App() {
           <Route element={<Navigate replace to="/transactions" />} index />
           <Route element={<TransactionsRoute />} path="/transactions" />
         </Route>
+        <Route element={<AccountNewRoute />} path="/accounts/new" />
+        <Route element={<TransactionNewRoute />} path="/transactions/new" />
+        <Route element={<BillNewRoute />} path="/bills/new" />
+        <Route element={<SettingsRoute />} path="/settings" />
+        <Route element={<SettingsAccountsRoute />} path="/settings/accounts" />
+        <Route element={<AccountEditRoute />} path="/accounts/:id/edit" />
+        <Route
+          element={<AccountGroupEditRoute />}
+          path="/account-groups/:id/edit"
+        />
       </Route>
-      <Route element={<AccountNewRoute />} path="/accounts/new" />
-      <Route element={<TransactionNewRoute />} path="/transactions/new" />
-      <Route element={<BillNewRoute />} path="/bills/new" />
-      <Route element={<SettingsRoute />} path="/settings" />
-      <Route element={<SettingsAccountsRoute />} path="/settings/accounts" />
+      <Route element={<NotFoundRoute />} path="*" />
     </Routes>
   );
 }

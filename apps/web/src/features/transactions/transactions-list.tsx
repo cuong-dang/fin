@@ -56,7 +56,6 @@ export function TransactionsList({
     const completed = q.data?.completed ?? [];
     return groupBy(completed, (t) => t.date!); // completed have date
   }, [q.data]);
-
   const [localByDay, setLocalByDay] =
     useState<Map<string, EnrichedTransaction[]>>(serverByDay);
   const [lastServerByDay, setLastServerByDay] = useState(serverByDay);
@@ -64,6 +63,7 @@ export function TransactionsList({
     setLastServerByDay(serverByDay);
     setLocalByDay(serverByDay);
   }
+  const pending = q.data?.pending ?? [];
 
   const mutation = useMutation({
     mutationFn: reorderTransactions,
@@ -143,9 +143,6 @@ export function TransactionsList({
     setLocalByDay(reordered);
   }
 
-  if (q.error) return <Alert color="red">{(q.error as Error).message}</Alert>;
-  const pending = q.data?.pending ?? [];
-
   if (pending.length === 0 && localByDay.size === 0) {
     return (
       <Text c="dimmed" ta="center">
@@ -156,6 +153,7 @@ export function TransactionsList({
 
   return (
     <>
+      {q.error && <Alert color="red">{(q.error as Error).message}</Alert>}
       {q.isLoading && (
         <Text c="dimmed" px="xs">
           Loading...

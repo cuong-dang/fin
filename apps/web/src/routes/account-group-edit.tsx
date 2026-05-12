@@ -16,7 +16,6 @@ export function AccountGroupEditRoute() {
     queryFn: listAccountGroups,
   });
   const group = groupsQ.data?.find((g) => g.id === id);
-
   if (groupsQ.isLoading) return null;
   if (!group) return <NotFoundRoute />;
   return <Form group={group} />;
@@ -24,12 +23,9 @@ export function AccountGroupEditRoute() {
 
 function Form({ group }: { group: AccountGroup }) {
   const navigate = useNavigate();
+  const goBack = () => navigate(-1);
   const qc = useQueryClient();
   const [name, setName] = useState(group.name);
-
-  // Save / Cancel / Back return to wherever the user came from instead
-  // of dumping at /accounts. `navigate(-1)` pops one history entry.
-  const goBack = () => navigate(-1);
 
   const mutation = useMutation({
     mutationFn: (body: { name: string }) => updateAccountGroup(group.id, body),
@@ -40,7 +36,7 @@ function Form({ group }: { group: AccountGroup }) {
   });
 
   return (
-    <PageShell back={goBack} title="Edit account group">
+    <PageShell title="Edit account group">
       <form
         onSubmit={(e) => {
           e.preventDefault();

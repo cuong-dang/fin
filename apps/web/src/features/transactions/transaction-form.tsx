@@ -497,7 +497,6 @@ export function TransactionForm({
             />
 
             {error && <Alert color="red">{error}</Alert>}
-
             <Group>
               <Button loading={pending} type="submit">
                 {submitLabel}
