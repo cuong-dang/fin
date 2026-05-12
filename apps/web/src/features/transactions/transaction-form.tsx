@@ -52,7 +52,7 @@ export type InitialTxValues = {
   type: TxType;
   // Only consulted when type === "payment". Edit pre-fills it so the
   // Payment tab opens on the right kind (creditCard / loan / bill).
-  paymentKind?: PaymentKind;
+  paymentKind?: PaymentKind | undefined;
   date: string;
   pending: boolean;
   description: string;

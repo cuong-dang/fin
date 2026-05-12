@@ -1,3 +1,4 @@
+import { DangerZone } from "@/components/danger-zone";
 import { MoneyField } from "@/components/money-field";
 import { PageShell } from "@/components/page-shell";
 import {
@@ -20,16 +21,7 @@ import type {
   EnrichedTransaction,
   TransactionsListResponse,
 } from "@fin/schemas";
-import {
-  Alert,
-  Box,
-  Button,
-  Divider,
-  Group,
-  Stack,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { Alert, Button, Group, Stack, TextInput } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
@@ -37,8 +29,9 @@ import { useNavigate, useParams } from "react-router";
 import { NotFoundRoute } from "./not-found";
 
 export function TransactionEditRoute() {
-  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const goBack = () => navigate(-1);
+  const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
 
   // Seed the single-tx query from any cached list that happens to contain
@@ -90,13 +83,6 @@ export function TransactionEditRoute() {
   if (txQ.error || !txQ.data) return <NotFoundRoute />;
   const tx = txQ.data;
 
-  // Save / Cancel / Back / Delete all return to wherever the user
-  // came from instead of dumping them at the root. `navigate(-1)`
-  // pops one history entry. Declared before the type-branch returns
-  // so the nested AdjustmentEdit / FullEdit closures can read them
-  // (declarations live in the same function scope; placing them after
-  // `return` would put them in the temporal dead zone at render time).
-  const goBack = () => navigate(-1);
   function go() {
     qc.invalidateQueries({ queryKey: ["transactions"] });
     qc.invalidateQueries({ queryKey: ["accounts"] });
@@ -139,11 +125,7 @@ export function TransactionEditRoute() {
     const initial = deriveInitial(props.tx);
 
     return (
-      <PageShell
-        back={goBack}
-        subtitle={props.tx.type}
-        title="Edit transaction"
-      >
+      <PageShell title="Edit transaction">
         <TransactionForm
           accounts={props.accounts}
           bills={props.bills}
@@ -156,24 +138,30 @@ export function TransactionEditRoute() {
           onCancel={goBack}
           onSubmit={(body) => mutation.mutate(body)}
         />
-        <DangerZone
-          onDelete={() => {
-            if (
-              confirm(
-                "Delete this transaction? Its legs and lines will be removed. This cannot be undone.",
-              )
-            ) {
-              del.mutate();
-            }
-          }}
-        />
+        <DangerZone description="Deleting removes this transaction along with its legs and lines.">
+          <Button
+            color="red"
+            variant="light"
+            w="fit-content"
+            onClick={() => {
+              if (
+                confirm(
+                  "Delete this transaction? Its legs and lines will be removed. This cannot be undone.",
+                )
+              ) {
+                del.mutate();
+              }
+            }}
+          >
+            Delete transaction
+          </Button>
+        </DangerZone>
       </PageShell>
     );
   }
 
   function AdjustmentEdit({ tx }: { tx: EnrichedTransaction }) {
     const leg = tx.legs[0];
-    if (!leg) throw new Error(`Invariant: adjustment ${tx.id} has no leg`);
     const [amount, setAmount] = useState(
       formatMoneyPlain(BigInt(leg.amount), leg.accountCurrency),
     );
@@ -195,11 +183,7 @@ export function TransactionEditRoute() {
     });
 
     return (
-      <PageShell
-        back={goBack}
-        subtitle="Balance adjustment"
-        title="Edit transaction"
-      >
+      <PageShell title="Edit transaction">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -234,33 +218,23 @@ export function TransactionEditRoute() {
             </Group>
           </Stack>
         </form>
-        <DangerZone
-          onDelete={() => {
-            if (confirm("Delete this transaction? This cannot be undone.")) {
-              del.mutate();
-            }
-          }}
-        />
+        <DangerZone description="Deleting removes this transaction along with its legs and lines.">
+          <Button
+            color="red"
+            variant="light"
+            w="fit-content"
+            onClick={() => {
+              if (confirm("Delete this transaction? This cannot be undone.")) {
+                del.mutate();
+              }
+            }}
+          >
+            Delete transaction
+          </Button>
+        </DangerZone>
       </PageShell>
     );
   }
-}
-
-function DangerZone({ onDelete }: { onDelete: () => void }) {
-  return (
-    <Box mt="xl">
-      <Divider mb="xs" />
-      <Stack>
-        <Text fw={600}>Danger zone</Text>
-        <Text c="dimmed">
-          Deleting removes this transaction along with its legs and lines.
-        </Text>
-        <Button color="red" variant="light" w="fit-content" onClick={onDelete}>
-          Delete transaction
-        </Button>
-      </Stack>
-    </Box>
-  );
 }
 
 function deriveInitial(tx: EnrichedTransaction): InitialTxValues {
@@ -318,8 +292,6 @@ function deriveInitial(tx: EnrichedTransaction): InitialTxValues {
       ),
       accountId: outLeg.accountId,
       destinationAccountId: inLeg.accountId,
-      // Loan payments carry optional lines for interest/fee categorization.
-      // CC payments don't have lines today; tx.lines is empty for them.
       lines: tx.lines.map((line) => ({
         amount: formatMoneyPlainFromRaw(line.amount, line.currency),
         categoryId: line.categoryId,

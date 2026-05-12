@@ -50,7 +50,7 @@ export function SettingsAccountsRoute() {
       title="Accounts"
     >
       {groups.length === 0 ? (
-        <Text c="dimmed">No accounts.</Text>
+        <Text c="dimmed">No accounts yet.</Text>
       ) : (
         <Stack>
           {groups.map((g) => (
@@ -84,7 +84,7 @@ function GroupSection({
     <Box component="section">
       <Group justify="space-between">
         <SectionHeader>{group.name}</SectionHeader>
-        <Group>
+        <Group gap={0}>
           <ActionIcon
             aria-label={`Edit group ${group.name}`}
             component={Link}
@@ -133,7 +133,7 @@ function AccountRowItem({ account }: { account: Account }) {
           {account.currency}
         </Text>
       </Text>
-      <Group>
+      <Group gap={0}>
         <ActionIcon
           aria-label={`Edit account ${account.name}`}
           component={Link}

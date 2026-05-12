@@ -52,7 +52,6 @@ export type InitialBillValues = {
   currency: string;
   frequency: RecurringFrequency;
   defaultPayFromAccountId: string;
-  description: string;
   lines: TransactionLineBody[];
 };
 
@@ -92,7 +91,6 @@ export function BillForm({
     currency: "USD",
     frequency: "monthly",
     defaultPayFromAccountId: "",
-    description: "",
     lines: [emptyLine()],
   };
 

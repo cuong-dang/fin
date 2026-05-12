@@ -1,4 +1,4 @@
-import { Container, Group, Stack, Text, Title } from "@mantine/core";
+import { Container, Group, Stack, Title } from "@mantine/core";
 import type { ReactNode } from "react";
 
 import { BackLink } from "./back-link.js";
@@ -11,12 +11,10 @@ import { BackLink } from "./back-link.js";
 export function PageShell({
   title,
   children,
-  subtitle,
   right,
 }: {
   title: string;
   children: ReactNode;
-  subtitle?: ReactNode;
   right?: ReactNode;
 }) {
   return (
@@ -28,7 +26,6 @@ export function PageShell({
             <Title order={3}>{title}</Title>
             {right}
           </Group>
-          {subtitle && <Text c="dimmed">{subtitle}</Text>}
           {children}
         </Stack>
       </Stack>

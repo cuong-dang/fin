@@ -24,13 +24,11 @@ export function SettingsBillsRoute() {
 
   return (
     <PageShell
-      back="/settings"
       right={
         <Button component={Link} to="/bills/new">
           New bill
         </Button>
       }
-      subtitle="Recurring charges you pay on a schedule — utilities, subscriptions, taxes & fees. Charges link back to the bill so totals roll up over time."
       title="Bills"
     >
       {all.length === 0 ? (
@@ -38,32 +36,30 @@ export function SettingsBillsRoute() {
       ) : (
         <Stack>
           {active.length > 0 && (
-            <Stack>
+            <>
               <SectionHeader>Active</SectionHeader>
               {/* Group by type for at-a-glance scanning. */}
               {TYPE_ORDER.map((t) => {
                 const inType = active.filter((b) => b.type === t);
                 if (inType.length === 0) return null;
                 return (
-                  <Stack key={t} gap="xs">
-                    <Text c="dimmed" size="sm">
-                      {TYPE_LABEL[t]}
-                    </Text>
+                  <Stack key={t}>
+                    <SectionHeader compact>{TYPE_LABEL[t]}</SectionHeader>
                     {inType.map((b) => (
                       <Row key={b.id} bill={b} />
                     ))}
                   </Stack>
                 );
               })}
-            </Stack>
+            </>
           )}
           {cancelled.length > 0 && (
-            <Stack>
+            <>
               <SectionHeader>Cancelled</SectionHeader>
               {cancelled.map((b) => (
                 <Row key={b.id} bill={b} />
               ))}
-            </Stack>
+            </>
           )}
         </Stack>
       )}
@@ -72,10 +68,6 @@ export function SettingsBillsRoute() {
 }
 
 function Row({ bill }: { bill: Bill }) {
-  // Lines with a null amount (utilities, taxes — varies per period) are
-  // skipped from the total. If every line is null, `total` stays at 0n —
-  // rendered as the currency's zero, which reads as "no fixed amount"
-  // alongside bills that do total to a fixed charge.
   const total = bill.defaultLines.reduce(
     (acc, l) => (l.amount ? acc + BigInt(l.amount) : acc),
     0n,

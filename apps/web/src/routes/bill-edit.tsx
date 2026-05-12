@@ -1,3 +1,4 @@
+import { DangerZone } from "@/components/danger-zone";
 import { PageShell } from "@/components/page-shell";
 import { BillForm, type InitialBillValues } from "@/features/bills/bill-form";
 import {
@@ -13,7 +14,7 @@ import {
 import { formatMoneyPlain } from "@/lib/money";
 
 import type { Bill } from "@fin/schemas";
-import { Alert, Box, Button, Divider, Group, Stack, Text } from "@mantine/core";
+import { Alert, Button, Group } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router";
 
@@ -103,11 +104,7 @@ function Form({
   const cancelled = bill.cancelledAt !== null;
 
   return (
-    <PageShell
-      back={goBack}
-      subtitle={cancelled ? `Cancelled ${bill.cancelledAt}` : undefined}
-      title="Edit bill"
-    >
+    <PageShell title="Edit bill">
       {cancelled && (
         <Alert color="black">
           This bill has been cancelled. Past transactions still reference it;
@@ -125,59 +122,14 @@ function Form({
         onCancel={goBack}
         onSubmit={(body) => mutation.mutate(body)}
       />
-      <DangerZone
-        cancelled={cancelled}
-        onCancel={() => {
-          if (
-            confirm(
-              "Cancel this bill? Past transactions stay attached; future projections stop.",
-            )
-          ) {
-            cancel.mutate();
-          }
-        }}
-        onDelete={() => {
-          if (
-            confirm(
-              "Delete this bill? Past transactions become unlinked but are preserved. This cannot be undone.",
-            )
-          ) {
-            del.mutate();
-          }
-        }}
-        onResume={() => resume.mutate()}
-      />
-    </PageShell>
-  );
-}
-
-function DangerZone({
-  cancelled,
-  onCancel,
-  onResume,
-  onDelete,
-}: {
-  cancelled: boolean;
-  onCancel: () => void;
-  onResume: () => void;
-  onDelete: () => void;
-}) {
-  return (
-    <Box mt="xl">
-      <Divider mb="xs" />
-      <Stack>
-        <Text fw={600}>Danger zone</Text>
-        <Text c="dimmed">
-          Cancelling stops future projections; past charges stay linked.
-          Deleting unlinks past charges and removes the bill entirely.
-        </Text>
+      <DangerZone description="Cancelling stops future projections; past charges stay linked. Deleting unlinks past charges and removes the bill entirely.">
         <Group>
           {cancelled ? (
             <Button
               color="teal"
               variant="light"
               w="fit-content"
-              onClick={onResume}
+              onClick={() => resume.mutate()}
             >
               Resume bill
             </Button>
@@ -186,7 +138,15 @@ function DangerZone({
               color="orange"
               variant="light"
               w="fit-content"
-              onClick={onCancel}
+              onClick={() => {
+                if (
+                  confirm(
+                    "Cancel this bill? Past transactions stay attached; future projections stop.",
+                  )
+                ) {
+                  cancel.mutate();
+                }
+              }}
             >
               Cancel bill
             </Button>
@@ -195,13 +155,21 @@ function DangerZone({
             color="red"
             variant="light"
             w="fit-content"
-            onClick={onDelete}
+            onClick={() => {
+              if (
+                confirm(
+                  "Delete this bill? Past transactions become unlinked but are preserved. This cannot be undone.",
+                )
+              ) {
+                del.mutate();
+              }
+            }}
           >
             Delete bill
           </Button>
         </Group>
-      </Stack>
-    </Box>
+      </DangerZone>
+    </PageShell>
   );
 }
 
@@ -211,8 +179,7 @@ function deriveInitial(bill: Bill): InitialBillValues {
     type: bill.type,
     currency: bill.currency,
     frequency: bill.frequency,
-    defaultAccountId: bill.defaultAccountId ?? "",
-    description: bill.description ?? "",
+    defaultPayFromAccountId: bill.defaultPayFromAccountId ?? "",
     lines: bill.defaultLines.map((l) => ({
       amount: l.amount ? formatMoneyPlain(BigInt(l.amount), l.currency) : "",
       categoryId: l.categoryId,

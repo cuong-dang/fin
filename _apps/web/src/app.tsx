@@ -40,10 +40,6 @@ export function App() {
           path="/account-groups/:id/edit"
         />
         <Route element={<TransactionNewRoute />} path="/transactions/new" />
-        <Route
-          element={<TransactionEditRoute />}
-          path="/transactions/:id/edit"
-        />
         <Route element={<SettingsRoute />} path="/settings" />
         <Route
           element={<SettingsCategoriesRoute />}
