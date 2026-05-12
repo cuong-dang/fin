@@ -76,7 +76,7 @@ export function SingleLineEditor({
         w="fit-content"
         onClick={onSplit}
       >
-        Split across categories
+        Add expense line
       </Button>
     </Stack>
   );

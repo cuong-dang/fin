@@ -3,7 +3,6 @@ import { z } from "zod";
 import {
   currencyField,
   moneyString,
-  optionalTrimmedString,
   optionalUuid,
   type RecurringFrequency,
   recurringFrequency,
@@ -33,7 +32,6 @@ const billFields = {
   currency: currencyField,
   frequency: recurringFrequency,
   defaultPayFromAccountId: optionalUuid,
-  description: optionalTrimmedString(1, 500),
   defaultLines: z.array(billDefaultLineBody).min(1),
 };
 

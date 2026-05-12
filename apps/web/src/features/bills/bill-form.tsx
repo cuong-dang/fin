@@ -15,8 +15,8 @@ import {
   Alert,
   Button,
   Group,
-  NativeSelect,
   SegmentedControl,
+  Select,
   Stack,
   Text,
   TextInput,
@@ -105,7 +105,6 @@ export function BillForm({
   const [defaultPayFromAccountId, setDefaultPayFromAccountId] = useState(
     defaults.defaultPayFromAccountId,
   );
-  const [description, setDescription] = useState(defaults.description);
   const [lines, setLines] = useState<TransactionLineBody[]>(defaults.lines);
 
   const expenseCategories = categories.filter((c) => c.kind === "expense");
@@ -135,7 +134,6 @@ export function BillForm({
           currency,
           frequency,
           defaultPayFromAccountId: defaultPayFromAccountId || undefined,
-          description: description || undefined,
           defaultLines: lines,
         });
       }}
@@ -150,28 +148,26 @@ export function BillForm({
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
-        <Stack>
-          <Text fw={500}>Type</Text>
-          <SegmentedControl
-            data={TYPE_OPTIONS}
-            value={type}
-            onChange={(v) => setType(v as BillType)}
-          />
-          <Text c="dimmed" size="xs">
-            {TYPE_HINT[type]}
-          </Text>
-        </Stack>
-        <NativeSelect
+        <Text fw={500}>Type</Text>
+        <SegmentedControl
+          data={TYPE_OPTIONS}
+          value={type}
+          onChange={(v) => setType(v as BillType)}
+        />
+        <Text c="dimmed" size="xs">
+          {TYPE_HINT[type]}
+        </Text>
+        <Select
           data={COMMON_CURRENCIES}
           label="Currency"
           value={currency}
-          onChange={(e) => setCurrency(e.target.value)}
+          onChange={(e) => setCurrency(e!)}
         />
-        <NativeSelect
+        <Select
           data={FREQUENCY_OPTIONS}
           label="Frequency"
           value={frequency}
-          onChange={(e) => setFrequency(e.target.value as RecurringFrequency)}
+          onChange={(e) => setFrequency(e as RecurringFrequency)}
         />
         <AccountSelect
           accounts={payFromAccounts}
@@ -202,13 +198,6 @@ export function BillForm({
             onUpdate={(patch) => updateLine(0, patch)}
           />
         )}
-
-        <TextInput
-          label="Description (optional)"
-          maxLength={500}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-        />
 
         {error && <Alert color="red">{error}</Alert>}
 
