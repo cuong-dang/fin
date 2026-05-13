@@ -201,7 +201,7 @@ export function MultiLineEditor({
  *     also commits to create (the form state already has the typed
  *     text under `newCategoryName`).
  */
-export function CategorySelector({
+function CategorySelector({
   categories,
   categoryId,
   setCategoryId,
@@ -307,7 +307,7 @@ export function CategorySelector({
  * new tag. Suggestion pills are children of the Stack, so clicking one
  * doesn't trigger this path.
  */
-export function TagsField({
+function TagsField({
   label,
   allTags,
   value,

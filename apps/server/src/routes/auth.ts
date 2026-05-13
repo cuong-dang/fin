@@ -81,7 +81,7 @@ type BootstrappedUser = {
  * The winner inserts user + workspace + membership atomically; the loser's
  * INSERT no-ops and its SELECT then sees the winner's committed row.
  */
-export async function bootstrapSession(
+async function bootstrapSession(
   email: string,
   name: string,
 ): Promise<BootstrappedUser> {

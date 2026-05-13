@@ -5,7 +5,6 @@ import type {
   AnalyticsChartResponse,
   Bill,
   CashFlowQuery,
-  CategorySpendingQuery,
   CategoryWithSubs,
   CreateAccountBody,
   CreateBillBody,
@@ -14,7 +13,6 @@ import type {
   CreateTagBody,
   EnrichedTransaction,
   Me,
-  NetWorthQuery,
   ProcessTransactionBody,
   ReorderTransactionsBody,
   Tag,
@@ -168,19 +166,6 @@ export const deleteBill = (id: string) =>
 
 // ─── Analytics ────────────────────────────────────────────────────────────
 
-export const getCategorySpending = (q: CategorySpendingQuery) => {
-  const qs = new URLSearchParams({
-    granularity: q.granularity,
-    start: q.start,
-    end: q.end,
-    currency: q.currency,
-    direction: q.direction,
-  });
-  if (q.categoryId) qs.set("categoryId", q.categoryId);
-  if (q.tagId) qs.set("tagId", q.tagId);
-  return api<AnalyticsChartResponse>(`/api/analytics/category-spending?${qs}`);
-};
-
 export const getCashFlow = (q: CashFlowQuery) => {
   const qs = new URLSearchParams({
     granularity: q.granularity,
@@ -195,14 +180,4 @@ export const getCashFlow = (q: CashFlowQuery) => {
   if (q.billId) qs.set("billId", q.billId);
   if (q.loanId) qs.set("loanId", q.loanId);
   return api<AnalyticsChartResponse>(`/api/analytics/cash-flow?${qs}`);
-};
-
-export const getNetWorth = (q: NetWorthQuery) => {
-  const qs = new URLSearchParams({
-    granularity: q.granularity,
-    start: q.start,
-    end: q.end,
-    currency: q.currency,
-  });
-  return api<AnalyticsChartResponse>(`/api/analytics/net-worth?${qs}`);
 };

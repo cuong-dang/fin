@@ -29,13 +29,13 @@ export const DIRECTION_LABEL: Record<Direction, string> = {
   net: "Net",
 };
 
-export const BUCKET_LABEL: Record<"expense" | "loan" | "bill", string> = {
+const BUCKET_LABEL: Record<"expense" | "loan" | "bill", string> = {
   expense: "Expense",
   loan: "Loan",
   bill: "Bill",
 };
 
-export const BILL_TYPE_LABEL: Record<BillType, string> = {
+const BILL_TYPE_LABEL: Record<BillType, string> = {
   utility: "Utility",
   subscription: "Subscription",
   other: "Other",
