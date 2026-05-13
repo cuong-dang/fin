@@ -8,14 +8,9 @@ import type { FastifyPluginAsync } from "fastify";
 
 import { schema } from "../db/index.js";
 import {
-  buildCategorySpendingCtx,
-  buildContext,
-  buildNetWorthContext,
-  CASH_FLOW_HANDLERS,
-  fetchNetWorthRows,
-  handleCategorySpending,
-  shapeNetWorthResponse,
-  shapeResponse,
+  runCashFlow,
+  runCategorySpending,
+  runNetWorth,
 } from "../lib/analytics.js";
 import { findOwned } from "../lib/authz.js";
 
@@ -23,56 +18,61 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
 
   /**
-   * "Cash flow" chart data. Three directions, eight dimensions:
+   * "Cash flow" chart data. Three directions, nine dimensions:
    *
    * **out**
-   *   - outTop: 3 synthetic stacks per period: Expenses, Loan payments,
-   *     Bills. Mutually exclusive (CASE order: bill > loan-transfer > expense).
-   *   - outExpenses: outTop's "Expenses" bucket broken down by category.
-   *   - outExpensesByCategory: a single category broken down by subcategory.
-   *   - outLoans: outTop's "Loan payments" bucket broken down by loan account.
-   *   - outBills: outTop's "Bills" bucket broken down by bill (any type).
+   *   - outTop: 3 synthetic stacks per period (expense / loan / bill).
+   *     Mutually exclusive (CASE order: bill > loan-transfer > expense).
+   *   - outExpenses: stacked by category.
+   *   - outExpensesByCategory: one category's subcategory breakdown
+   *     (requires `categoryId`). With `subcategoryId`, restricted to
+   *     that one subcategory (single series).
+   *   - outLoans: per loan account. With `loanId`, restricted to one
+   *     loan (single series).
+   *   - outBills: stacked by bill type (utility / subscription /
+   *     other).
+   *   - outBillsByType: per-bill stacks within one bill type (requires
+   *     `billType`). With `billId`, restricted to one specific bill
+   *     (single series).
    *
    * **in**
    *   - inTop: income transactions grouped by income-kind category.
-   *   - inByCategory: a single income category broken down by subcategory.
+   *   - inByCategory: a single income category broken down by
+   *     subcategory (requires `categoryId`). With `subcategoryId`,
+   *     restricted to that one subcategory (single series).
    *
    * **net**
-   *   - net: per-period signed sum of leg amounts on CASA/CC accounts.
-   *     Income legs (+) and outflow legs (−) net naturally; internal
-   *     transfers (CASA↔CASA, CC payments) cancel because both legs land
-   *     on CASA/CC. Loan-account legs are excluded — financed purchases
-   *     don't move cash today; their cash impact surfaces later as loan
-   *     payments via the `out` direction.
+   *   - net: one signed value per period (sum of all CASA/CC leg
+   *     amounts) → single series feeding Mantine `AreaChart` in split
+   *     mode (positive teal, negative red). Internal transfers
+   *     (CASA↔CASA, CC payments) cancel because both legs land on
+   *     CASA/CC. Loan-account legs are excluded — financed purchases
+   *     don't move cash today; their cash impact surfaces later as
+   *     loan payments via the `out` direction.
    *
    * Excluded from every dimension: adjustments. The `out` direction
    * additionally excludes CASA→CASA transfers, CC payments, and
    * loan-account expenses (handled by the bucket CASE).
    *
-   * Sums use the negative leg for outTop / outLoans / outSubs (cash
+   * Sums use the negative leg for outTop / outLoans / outBills* (cash
    * leaving the source). Drill modes sum line amounts directly so the
    * per-category breakdown is correct for split-line transactions.
    */
   app.get("/cash-flow", async (req, reply): Promise<AnalyticsChartResponse> => {
     const params = cashFlowQuery.parse(req.query);
 
-    if (params.groupId) {
+    if (params.accountGroupId) {
       const group = await findOwned(
         schema.accountGroups,
-        params.groupId,
+        params.accountGroupId,
         req.auth.workspaceId,
       );
-      if (!group) return reply.code(404).send({ error: "Not found" });
+      if (!group) {
+        return reply.code(404).send({ error: "Account group not found" });
+      }
     }
 
-    const ctx = buildContext(params, req.auth.workspaceId);
-
-    const handler = CASH_FLOW_HANDLERS[params.dimension];
-    if (!handler) throw new Error(`Unhandled dimension ${params.dimension}`);
-
-    const rows = await handler(ctx);
-
-    return shapeResponse(rows, params.currency, params.dimension);
+    return runCashFlow(params, req.auth.workspaceId);
   });
 
   /**
@@ -94,36 +94,36 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
    * Buckets use ids as keys (not names) so the client can robustly
    * track stacks even if names contain special chars.
    */
-  app.get("/category-spending", async (req, reply) => {
-    const params = categorySpendingQuery.parse(req.query);
+  app.get(
+    "/category-spending",
+    async (req, reply): Promise<AnalyticsChartResponse> => {
+      const params = categorySpendingQuery.parse(req.query);
 
-    if (params.categoryId) {
-      const cat = await findOwned(
-        schema.categories,
-        params.categoryId,
-        req.auth.workspaceId,
-      );
-      if (!cat || cat.kind !== params.direction) {
-        return reply.code(400).send({
-          error: `Category must be ${params.direction}-kind`,
-        });
+      if (params.categoryId) {
+        const cat = await findOwned(
+          schema.categories,
+          params.categoryId,
+          req.auth.workspaceId,
+        );
+        if (!cat || cat.kind !== params.direction) {
+          return reply.code(400).send({
+            error: `Category must be ${params.direction}-kind`,
+          });
+        }
       }
-    }
 
-    if (params.tagId && params.tagId !== "__none__") {
-      const tag = await findOwned(
-        schema.tags,
-        params.tagId,
-        req.auth.workspaceId,
-      );
-      if (!tag) return reply.code(400).send({ error: "Tag not found" });
-    }
+      if (params.tagId && params.tagId !== "__none__") {
+        const tag = await findOwned(
+          schema.tags,
+          params.tagId,
+          req.auth.workspaceId,
+        );
+        if (!tag) return reply.code(400).send({ error: "Tag not found" });
+      }
 
-    const ctx = buildCategorySpendingCtx(params, req.auth.workspaceId);
-    const rows = await handleCategorySpending(ctx);
-
-    return shapeResponse(rows, params.currency, "categorySpending");
-  });
+      return runCategorySpending(params, req.auth.workspaceId);
+    },
+  );
 
   /**
    * Net worth chart data. For each period in the window, returns the
@@ -144,11 +144,8 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
    * and (5) emits the running cumulative via a window function on top
    * of the anchor.
    */
-  app.get("/net-worth", async (req) => {
+  app.get("/net-worth", async (req): Promise<AnalyticsChartResponse> => {
     const params = netWorthQuery.parse(req.query);
-    const ctx = buildNetWorthContext(params, req.auth.workspaceId);
-    const rows = await fetchNetWorthRows(ctx);
-
-    return shapeNetWorthResponse(rows, params.currency);
+    return runNetWorth(params, req.auth.workspaceId);
   });
 };

@@ -1,9 +1,38 @@
+/**
+ * Analytics queries follow a three-step recipe:
+ *
+ *   1. `build*Context(params, workspaceId)` precomputes the SQL
+ *      fragments shared by every per-chart query (date truncation,
+ *      period label, amount sums).
+ *   2. A `handle*` function takes that context and runs the
+ *      dimension-specific Drizzle query (or raw CTE for net-worth),
+ *      returning raw `Row[]` aggregates.
+ *   3. `shapeResponse(rows, currency, opts?)` pivots the rows into the
+ *      wire shape (`AnalyticsChartResponse`): periods → buckets,
+ *      group keys → items, minor-unit sums → major-unit numbers.
+ *
+ * Cash-flow uses a handler map (`CASH_FLOW_HANDLERS`) keyed by
+ * `dimension`; category-spending and net-worth each have a single
+ * dedicated handler.
+ *
+ * The route layer never touches the internals — each chart exposes
+ * one `run*(params, workspaceId): AnalyticsChartResponse` entry
+ * point. Routes validate workspace-owned references first (e.g.,
+ * `accountGroupId`) and then call the entry point.
+ */
+
 import type {
+  AnalyticsChartResponse,
+  CashFlowDimension,
   CashFlowQuery,
   CategorySpendingQuery,
   NetWorthQuery,
 } from "@fin/schemas";
-import { type ChartBucket, type Granularity } from "@fin/schemas";
+import {
+  type ChartBucket,
+  type ChartItem,
+  type Granularity,
+} from "@fin/schemas";
 import {
   aliasedTable,
   and,
@@ -16,6 +45,8 @@ import {
 } from "drizzle-orm";
 
 import { db, schema } from "../db/index.js";
+
+// ─── Helpers ───────────────────────────────────────────────────────────────
 
 /**
  * Postgres `date_trunc` unit per granularity. Daily uses no truncation
@@ -81,7 +112,7 @@ type Row = {
   amountMinor: string;
 };
 
-// Cash-flow
+// ─── Cash flow ─────────────────────────────────────────────────────────────
 
 type CashFlowQueryCtx = { workspaceId: string } & CashFlowQuery & {
     periodExpr: SQL<string>;
@@ -91,7 +122,7 @@ type CashFlowQueryCtx = { workspaceId: string } & CashFlowQuery & {
     signedLegAmountExpr: SQL<string>;
   };
 
-export function buildContext(
+function buildContext(
   params: CashFlowQuery,
   workspaceId: string,
 ): CashFlowQueryCtx {
@@ -113,17 +144,46 @@ export function buildContext(
 
 type Handler = (ctx: CashFlowQueryCtx) => Promise<Row[]>;
 
-export const CASH_FLOW_HANDLERS: Record<string, Handler> = {
+const CASH_FLOW_HANDLERS: Record<CashFlowDimension, Handler> = {
   outTop: handleOutTop,
-  outExpenses: handleCategory,
-  outExpensesByCategory: handleCategory,
-  inTop: handleCategory,
-  inByCategory: handleCategory,
+  outExpenses: (ctx) =>
+    handleCategory(ctx, { direction: "expense", drill: false }),
+  outExpensesByCategory: (ctx) =>
+    handleCategory(ctx, { direction: "expense", drill: true }),
+  inTop: (ctx) => handleCategory(ctx, { direction: "income", drill: false }),
+  inByCategory: (ctx) =>
+    handleCategory(ctx, { direction: "income", drill: true }),
   outLoans: handleOutLoans,
   outBills: handleOutBills,
   outBillsByType: handleOutBillsByType,
   net: handleNet,
 };
+
+// Explicit ordering for outTop's 3 buckets — server returns them in
+// CASE-clause order, but we want a stable left-to-right legend.
+const OUT_TOP_ORDER: ChartItem[] = [
+  { id: "expense", name: "Expenses" },
+  { id: "loan", name: "Loans" },
+  { id: "bill", name: "Bills" },
+];
+
+/**
+ * Cash-flow chart entry point. Trusts that the caller has already
+ * validated workspace-owned references (e.g. `accountGroupId`); this
+ * fn handles only the query → shape pipeline.
+ */
+export async function runCashFlow(
+  params: CashFlowQuery,
+  workspaceId: string,
+): Promise<AnalyticsChartResponse> {
+  const ctx = buildContext(params, workspaceId);
+  const rows = await CASH_FLOW_HANDLERS[params.dimension](ctx);
+  return shapeResponse(
+    rows,
+    params.currency,
+    params.dimension === "outTop" ? { itemOrder: OUT_TOP_ORDER } : undefined,
+  );
+}
 
 async function handleOutTop(ctx: CashFlowQueryCtx): Promise<Row[]> {
   const {
@@ -131,7 +191,7 @@ async function handleOutTop(ctx: CashFlowQueryCtx): Promise<Row[]> {
     currency,
     start,
     end,
-    groupId,
+    accountGroupId,
     periodExpr,
     truncExpr,
     legAmountExpr,
@@ -175,7 +235,9 @@ async function handleOutTop(ctx: CashFlowQueryCtx): Promise<Row[]> {
         sql`${schema.transactionLegs.amount} < 0`,
         gte(schema.transactions.date, start),
         lte(schema.transactions.date, end),
-        groupId ? eq(schema.accounts.accountGroupId, groupId) : undefined,
+        accountGroupId
+          ? eq(schema.accounts.accountGroupId, accountGroupId)
+          : undefined,
       ),
     )
     .groupBy(truncExpr, bucket)
@@ -183,22 +245,34 @@ async function handleOutTop(ctx: CashFlowQueryCtx): Promise<Row[]> {
     .orderBy(truncExpr);
 }
 
-async function handleCategory(ctx: CashFlowQueryCtx): Promise<Row[]> {
+/**
+ * Shared category/subcategory query for both `outExpenses*` and
+ * `in*` dimensions. `direction` swaps the `transactions.type` filter
+ * (and toggles the bill exclusion for the expense side). `drill`
+ * switches between grouping by category and grouping by subcategory
+ * within one category (then `ctx.categoryId` becomes required, and
+ * `ctx.subcategoryId` optionally narrows to a single subcategory →
+ * single series).
+ */
+async function handleCategory(
+  ctx: CashFlowQueryCtx,
+  mode: { direction: "income" | "expense"; drill: boolean },
+): Promise<Row[]> {
   const {
     workspaceId,
     start,
     end,
     currency,
-    dimension,
-    groupId,
+    accountGroupId,
     categoryId,
+    subcategoryId,
     periodExpr,
     truncExpr,
     lineAmountExpr,
   } = ctx;
 
-  const isIncome = dimension.startsWith("in");
-  const drilling = dimension.endsWith("ByCategory");
+  const isIncome = mode.direction === "income";
+  const drilling = mode.drill;
 
   const base = db
     .select({
@@ -233,19 +307,33 @@ async function handleCategory(ctx: CashFlowQueryCtx): Promise<Row[]> {
     !isIncome ? sql`${schema.transactions.billId} IS NULL` : undefined,
     gte(schema.transactions.date, start),
     lte(schema.transactions.date, end),
-    groupId ? eq(schema.accounts.accountGroupId, groupId) : undefined,
+    accountGroupId
+      ? eq(schema.accounts.accountGroupId, accountGroupId)
+      : undefined,
   );
 
   if (drilling) {
     if (!categoryId) {
       throw new Error("categoryId required for drilling");
     }
+    // With `subcategoryId` set, restrict to lines under that one
+    // subcategory — the result reads as a single series (or empty if
+    // the id doesn't match any line in the user's workspace; the
+    // workspace filter on transactions prevents cross-tenant reads).
     return base
       .leftJoin(
         schema.subcategories,
         eq(schema.subcategories.id, schema.transactionLines.subcategoryId),
       )
-      .where(and(where, eq(schema.transactionLines.categoryId, categoryId)))
+      .where(
+        and(
+          where,
+          eq(schema.transactionLines.categoryId, categoryId),
+          subcategoryId
+            ? eq(schema.transactionLines.subcategoryId, subcategoryId)
+            : undefined,
+        ),
+      )
       .groupBy(
         truncExpr,
         schema.transactionLines.subcategoryId,
@@ -270,7 +358,7 @@ async function handleOutLoans(ctx: CashFlowQueryCtx): Promise<Row[]> {
     start,
     end,
     currency,
-    groupId,
+    accountGroupId,
     loanId,
     periodExpr,
     truncExpr,
@@ -316,7 +404,9 @@ async function handleOutLoans(ctx: CashFlowQueryCtx): Promise<Row[]> {
         sql`${schema.transactionLegs.amount} < 0`,
         gte(schema.transactions.date, start),
         lte(schema.transactions.date, end),
-        groupId ? eq(schema.accounts.accountGroupId, groupId) : undefined,
+        accountGroupId
+          ? eq(schema.accounts.accountGroupId, accountGroupId)
+          : undefined,
         loanId ? eq(destAcc.id, loanId) : undefined,
       ),
     )
@@ -330,7 +420,56 @@ async function handleOutBills(ctx: CashFlowQueryCtx): Promise<Row[]> {
     start,
     end,
     currency,
-    groupId,
+    accountGroupId,
+    periodExpr,
+    truncExpr,
+    legAmountExpr,
+  } = ctx;
+
+  // Stack per bill type (utility / subscription / other). The type
+  // string itself doubles as both id and name for the wire — the
+  // client renders a friendly label from the enum.
+  const typeExpr = sql<string>`${schema.bills.type}`;
+  return db
+    .select({
+      period: periodExpr,
+      itemId: typeExpr,
+      itemName: typeExpr,
+      amountMinor: legAmountExpr,
+    })
+    .from(schema.transactionLegs)
+    .innerJoin(
+      schema.transactions,
+      eq(schema.transactions.id, schema.transactionLegs.transactionId),
+    )
+    .innerJoin(
+      schema.accounts,
+      eq(schema.accounts.id, schema.transactionLegs.accountId),
+    )
+    .innerJoin(schema.bills, eq(schema.bills.id, schema.transactions.billId))
+    .where(
+      and(
+        eq(schema.transactions.workspaceId, workspaceId),
+        eq(schema.accounts.currency, currency),
+        sql`${schema.transactionLegs.amount} < 0`,
+        gte(schema.transactions.date, start),
+        lte(schema.transactions.date, end),
+        accountGroupId
+          ? eq(schema.accounts.accountGroupId, accountGroupId)
+          : undefined,
+      ),
+    )
+    .groupBy(truncExpr, schema.bills.type)
+    .orderBy(truncExpr);
+}
+
+async function handleOutBillsByType(ctx: CashFlowQueryCtx): Promise<Row[]> {
+  const {
+    workspaceId,
+    start,
+    end,
+    currency,
+    accountGroupId,
     billType: billTypeFilter,
     billId,
     periodExpr,
@@ -365,59 +504,14 @@ async function handleOutBills(ctx: CashFlowQueryCtx): Promise<Row[]> {
         sql`${schema.transactionLegs.amount} < 0`,
         gte(schema.transactions.date, start),
         lte(schema.transactions.date, end),
-        groupId ? eq(schema.accounts.accountGroupId, groupId) : undefined,
+        accountGroupId
+          ? eq(schema.accounts.accountGroupId, accountGroupId)
+          : undefined,
         billTypeFilter ? eq(schema.bills.type, billTypeFilter) : undefined,
         billId ? eq(schema.bills.id, billId) : undefined,
       ),
     )
     .groupBy(truncExpr, schema.bills.id, schema.bills.name)
-    .orderBy(truncExpr);
-}
-
-async function handleOutBillsByType(ctx: CashFlowQueryCtx): Promise<Row[]> {
-  const {
-    workspaceId,
-    start,
-    end,
-    currency,
-    groupId,
-    periodExpr,
-    truncExpr,
-    legAmountExpr,
-  } = ctx;
-
-  // Stack per bill type (utility / subscription / other). The type
-  // string itself doubles as both id and name for the wire — the
-  // client renders a friendly label from the enum.
-  const typeExpr = sql<string>`${schema.bills.type}`;
-  return db
-    .select({
-      period: periodExpr,
-      itemId: typeExpr,
-      itemName: typeExpr,
-      amountMinor: legAmountExpr,
-    })
-    .from(schema.transactionLegs)
-    .innerJoin(
-      schema.transactions,
-      eq(schema.transactions.id, schema.transactionLegs.transactionId),
-    )
-    .innerJoin(
-      schema.accounts,
-      eq(schema.accounts.id, schema.transactionLegs.accountId),
-    )
-    .innerJoin(schema.bills, eq(schema.bills.id, schema.transactions.billId))
-    .where(
-      and(
-        eq(schema.transactions.workspaceId, workspaceId),
-        eq(schema.accounts.currency, currency),
-        sql`${schema.transactionLegs.amount} < 0`,
-        gte(schema.transactions.date, start),
-        lte(schema.transactions.date, end),
-        groupId ? eq(schema.accounts.accountGroupId, groupId) : undefined,
-      ),
-    )
-    .groupBy(truncExpr, schema.bills.type)
     .orderBy(truncExpr);
 }
 
@@ -427,25 +521,22 @@ async function handleNet(ctx: CashFlowQueryCtx): Promise<Row[]> {
     start,
     end,
     currency,
-    groupId,
+    accountGroupId,
     periodExpr,
     truncExpr,
     signedLegAmountExpr,
   } = ctx;
 
-  // Per-period signed sums on CASA/CC legs, split into two stacks:
-  //   - "in"  — sum of positive legs (income)
-  //   - "out" — sum of negative legs (outflows; value stays negative)
-  // The client renders these as diverging bars (in above zero, out
-  // below) plus a derived net line (in + out).
+  // One signed net value per period, fed straight into the Mantine
+  // `<AreaChart type="split">` — that variant supports exactly one
+  // series and colors above/below zero from `splitColors`.
   //
-  // Internal transfers (CASA↔CASA, CC payments) are excluded — they
-  // would inflate both bars equally without changing net, and they
-  // aren't "real" cash flow from the user's perspective. A transfer
-  // with at least one leg on a loan account IS real cash flow (the
-  // CASA leg surfaces as outflow); those are kept.
-  const sideExpr = sql<string>`CASE WHEN ${schema.transactionLegs.amount} > 0 THEN 'in' ELSE 'out' END`;
-  const sideNameExpr = sql<string>`CASE WHEN ${schema.transactionLegs.amount} > 0 THEN 'Cash in' ELSE 'Cash out' END`;
+  // The sum is over all CASA/CC legs. Income (positive legs) and
+  // outflows (negative legs) net naturally; internal transfers
+  // (CASA↔CASA, CC payments) cancel because both legs land on the
+  // user's CASA/CC accounts. A transfer with at least one leg on a
+  // loan account IS real cash flow (the CASA leg surfaces as outflow);
+  // those are kept by the `NOT (internalTransfer)` clause.
   const internalTransfer = sql`
     ${schema.transactions.type} = 'transfer'
     AND NOT EXISTS (
@@ -455,11 +546,9 @@ async function handleNet(ctx: CashFlowQueryCtx): Promise<Row[]> {
         AND a.type = 'loan'
     )
   `;
-  return db
+  const rows = await db
     .select({
       period: periodExpr,
-      itemId: sideExpr,
-      itemName: sideNameExpr,
       amountMinor: signedLegAmountExpr,
     })
     .from(schema.transactionLegs)
@@ -480,14 +569,23 @@ async function handleNet(ctx: CashFlowQueryCtx): Promise<Row[]> {
         sql`NOT (${internalTransfer})`,
         gte(schema.transactions.date, start),
         lte(schema.transactions.date, end),
-        groupId ? eq(schema.accounts.accountGroupId, groupId) : undefined,
+        accountGroupId
+          ? eq(schema.accounts.accountGroupId, accountGroupId)
+          : undefined,
       ),
     )
-    .groupBy(truncExpr, sideExpr, sideNameExpr)
+    .groupBy(truncExpr)
     .orderBy(truncExpr);
+
+  return rows.map((r) => ({
+    period: r.period,
+    itemId: "net",
+    itemName: "Net",
+    amountMinor: r.amountMinor,
+  }));
 }
 
-// Category-spending
+// ─── Category & tag ────────────────────────────────────────────────────────
 type CategorySpendingCtx = {
   workspaceId: string;
   granularity: Granularity;
@@ -506,7 +604,7 @@ type CategorySpendingCtx = {
   tagFilter?: SQL | undefined;
 };
 
-export function buildCategorySpendingCtx(
+function buildCategorySpendingCtx(
   params: CategorySpendingQuery,
   workspaceId: string,
 ): CategorySpendingCtx {
@@ -540,7 +638,7 @@ export function buildCategorySpendingCtx(
   };
 }
 
-export async function handleCategorySpending(
+async function handleCategorySpending(
   ctx: CategorySpendingCtx,
 ): Promise<Row[]> {
   const {
@@ -607,7 +705,20 @@ export async function handleCategorySpending(
     .orderBy(truncExpr);
 }
 
-// Net worth
+/**
+ * Category-spending chart entry point. Caller is expected to have
+ * validated `categoryId` ownership + `kind` and any `tagId` already.
+ */
+export async function runCategorySpending(
+  params: CategorySpendingQuery,
+  workspaceId: string,
+): Promise<AnalyticsChartResponse> {
+  const ctx = buildCategorySpendingCtx(params, workspaceId);
+  const rows = await handleCategorySpending(ctx);
+  return shapeResponse(rows, params.currency);
+}
+
+// ─── Net worth ─────────────────────────────────────────────────────────────
 type NetWorthCtx = {
   workspaceId: string;
   granularity: Granularity;
@@ -624,7 +735,7 @@ type NetWorthCtx = {
   intervalLit: SQL;
 };
 
-export function buildNetWorthContext(
+function buildNetWorthContext(
   params: NetWorthQuery,
   workspaceId: string,
 ): NetWorthCtx {
@@ -653,9 +764,7 @@ type NetWorthRow = {
   balance: string;
 };
 
-export async function fetchNetWorthRows(
-  ctx: NetWorthCtx,
-): Promise<NetWorthRow[]> {
+async function fetchNetWorthRows(ctx: NetWorthCtx): Promise<NetWorthRow[]> {
   const {
     workspaceId,
     currency,
@@ -681,7 +790,9 @@ export async function fetchNetWorthRows(
       FROM ${schema.transactionLegs} legs
       JOIN ${schema.transactions} t ON t.id = legs.transaction_id
       JOIN ${schema.accounts} a ON a.id = legs.account_id
-      WHERE a.group_id = ${workspaceId}
+      JOIN ${schema.accountGroups} ag ON ag.id = a.account_group_id
+      WHERE ag.workspace_id = ${workspaceId}
+        AND ag.deleted_at IS NULL
         AND a.deleted_at IS NULL
         AND a.exclude_from_net_worth = false
         AND a.currency = ${currency}
@@ -735,50 +846,24 @@ export async function fetchNetWorthRows(
   `);
 }
 
-// Shape response
-export function shapeResponse(
-  rows: Row[],
-  currency: string,
-  dimension: string,
-) {
-  const decimals = currencyDecimals(currency);
-  const divisor = 10 ** decimals;
+// Net-worth has a fixed two-series ordering with user-friendly labels;
+// pass these into `shapeResponse` so the wire response says "Assets"
+// and "Liabilities" rather than the raw enum strings.
+const NET_WORTH_ORDER: ChartItem[] = [
+  { id: "assets", name: "Assets" },
+  { id: "liabilities", name: "Liabilities" },
+];
 
-  const byPeriod = new Map<string, ChartBucket>();
-  const itemsById = new Map<string, string>();
-
-  for (const r of rows.map((r) => normalizeRow(r))) {
-    const id = r.itemId;
-    itemsById.set(id, r.itemName);
-
-    let bucket = byPeriod.get(r.period);
-    if (!bucket) {
-      bucket = { period: r.period };
-      byPeriod.set(r.period, bucket);
-    }
-
-    bucket[id] = r.amount / divisor;
-  }
-
-  const items =
-    dimension === "outTop"
-      ? [
-          { id: "expense", name: "Expenses" },
-          { id: "loan", name: "Loans" },
-          { id: "bill", name: "Bills" },
-        ].filter((i) => itemsById.has(i.id))
-      : [...itemsById.entries()]
-          .map(([id, name]) => ({ id, name }))
-          .sort((a, b) => a.name.localeCompare(b.name));
-
-  return {
-    currency,
-    items,
-    buckets: [...byPeriod.values()],
-  };
-}
-
-export function shapeNetWorthResponse(rows: NetWorthRow[], currency: string) {
+/**
+ * Net-worth chart entry point. No caller validation needed (no
+ * referenced entities beyond the workspace itself).
+ */
+export async function runNetWorth(
+  params: NetWorthQuery,
+  workspaceId: string,
+): Promise<AnalyticsChartResponse> {
+  const ctx = buildNetWorthContext(params, workspaceId);
+  const rows = await fetchNetWorthRows(ctx);
   return shapeResponse(
     rows.map((r) => ({
       period: r.period,
@@ -786,16 +871,57 @@ export function shapeNetWorthResponse(rows: NetWorthRow[], currency: string) {
       itemName: r.bucket,
       amountMinor: r.balance,
     })),
-    currency,
-    "netWorth",
+    params.currency,
+    { itemOrder: NET_WORTH_ORDER },
   );
 }
 
-function normalizeRow(r: Row) {
+// ─── Response shaping ──────────────────────────────────────────────────────
+
+/**
+ * Pivot raw `Row[]` aggregates into the wire shape. Each row's
+ * `itemId` becomes a series id; each `period` becomes a bucket whose
+ * `[itemId]` column holds the value in major currency units.
+ *
+ * `itemOrder`, when provided, fixes the order of the `items` array
+ * (filtered to ids actually present in the rows). Without it, items
+ * are sorted alphabetically by name. Null ids ("Other"-style)
+ * collapse to a single synthetic item.
+ */
+function shapeResponse(
+  rows: Row[],
+  currency: string,
+  options?: { itemOrder?: ChartItem[] },
+) {
+  const decimals = currencyDecimals(currency);
+  const divisor = 10 ** decimals;
+
+  const byPeriod = new Map<string, ChartBucket>();
+  const itemsById = new Map<string, string>();
+
+  for (const r of rows) {
+    const id = r.itemId ?? "__none__";
+    const name = r.itemName ?? "Other";
+    const amount = Number(r.amountMinor);
+    itemsById.set(id, name);
+
+    let bucket = byPeriod.get(r.period);
+    if (!bucket) {
+      bucket = { period: r.period };
+      byPeriod.set(r.period, bucket);
+    }
+    bucket[id] = amount / divisor;
+  }
+
+  const items = options?.itemOrder
+    ? options.itemOrder.filter((i) => i.id !== null && itemsById.has(i.id))
+    : [...itemsById.entries()]
+        .map(([id, name]) => ({ id, name }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
   return {
-    period: r.period,
-    itemId: r.itemId ?? "__none__",
-    itemName: r.itemName ?? "Other",
-    amount: Number(r.amountMinor),
+    currency,
+    items,
+    buckets: [...byPeriod.values()],
   };
 }

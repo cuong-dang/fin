@@ -1,18 +1,104 @@
 import { z } from "zod";
 
 import { billType } from "./bills.js";
-import { currencyField, dateString } from "./common.js";
+import { currencyField, dateString, optionalUuid } from "./common.js";
 
 export const granularity = z.enum(["daily", "weekly", "monthly", "yearly"]);
 export type Granularity = z.infer<typeof granularity>;
 
+/**
+ * Fields every analytics chart accepts on the wire: window + currency.
+ * Each chart's query schema extends this with its own filter axes.
+ * File-private — the chart-specific schemas below are the public API.
+ */
+const baseChartQuery = z.object({
+  granularity,
+  start: dateString,
+  end: dateString,
+  currency: currencyField,
+});
+
+// ─── Cash flow (out / in / net) ───────────────────────────────────────────
+
+/**
+ * Self-describing dimension keys. The prefix encodes the direction so
+ * the server can switch on `dimension` alone — no separate direction
+ * field on the wire. The naming convention `out<Thing>By<Filter>` =
+ * "drilled into one `<Filter>` value, broken down by `<Thing>`".
+ */
+export const cashFlowDimension = z.enum([
+  // direction=out
+  "outTop", // 3 stacks: expense / loan / bill
+  "outExpenses", // stack by category
+  "outExpensesByCategory", // one category → subcategory stack (requires categoryId; with subcategoryId → single series)
+  "outLoans", // per-loan stacks (with loanId → single series)
+  "outBills", // 3 stacks: utility / subscription / other
+  "outBillsByType", // one bill type → per-bill stack (requires billType; with billId → single series)
+  // direction=in
+  "inTop", // stack by income category
+  "inByCategory", // one category → subcategory stack (requires categoryId; with subcategoryId → single series)
+  // direction=net
+  // Two stacks per period: `in` (positive sums) and `out` (signed
+  // negative). The client renders them as diverging bars.
+  "net",
+]);
+export type CashFlowDimension = z.infer<typeof cashFlowDimension>;
+
+/**
+ * "Cash flow" chart: combined view of money leaving / entering the
+ * user's pocket each period.
+ *
+ * **out** — three top-level stacks (expense from CASA/CC, loan
+ * payments, bills) with drills into each. Excludes adjustments,
+ * CASA→CASA transfers, CC payments (settlements), and loan-account
+ * expenses (financed purchases — cash surfaces over time as loan
+ * payments).
+ *
+ * **in** sums income transactions by category, with subcategory drill.
+ *
+ * **net** returns two stacks per period from CASA/CC legs: `in`
+ * (positive sums) and `out` (signed negative). Internal transfers
+ * (CASA↔CASA, CC payments) are filtered out — they would inflate both
+ * bars equally without changing net. Loan-account legs are excluded
+ * (financed purchases surface as cash flow when the loan is paid).
+ * Adjustments are excluded.
+ */
+export const cashFlowQuery = baseChartQuery.extend({
+  dimension: cashFlowDimension,
+  // Optional filter to one account group (sidebar UX). Independent of
+  // the drill axis.
+  accountGroupId: optionalUuid,
+  // Drill filters. The client only sends each one with its compatible
+  // dimension; the server treats illegal combos as a no-op.
+  // - categoryId     : required for `outExpensesByCategory` and `inByCategory`.
+  // - subcategoryId  : restricts the above to one subcategory (leaf, single series).
+  // - billType       : required for `outBillsByType`.
+  // - billId         : restricts `outBillsByType` to one specific bill (leaf, single series).
+  // - loanId         : restricts `outLoans` to one specific loan (leaf, single series).
+  categoryId: optionalUuid,
+  subcategoryId: optionalUuid,
+  billType: billType.optional(),
+  billId: optionalUuid,
+  loanId: optionalUuid,
+});
+export type CashFlowQuery = z.infer<typeof cashFlowQuery>;
+
 // ─── Shared response shapes ───────────────────────────────────────────────
 
 /**
- * One stackable item rendered as a bar segment + legend chip. Used by
- * every analytics chart. `id` is null for synthetic "Other"-style
- * items (e.g., lines with no subcategory in drill mode); the client
- * uses null to disable further drill on that chip.
+ * One series in the chart (a stacked area + a legend chip). Used by
+ * every analytics chart.
+ *
+ * - `id`   — wire key. Doubles as the column name on each
+ *   `ChartBucket`, so the client reads its values via `bucket[id]`,
+ *   and as Mantine's `series.name` (its internal data-key).
+ *   `null` marks a synthetic "Other"-style item (e.g., lines with no
+ *   subcategory in drill mode); the client uses `null` to disable
+ *   further drill on that chip.
+ * - `name` — display label shown in the legend and tooltip. Mantine's
+ *   `series.label`. May be the same string as `id` when the server's
+ *   group key is already user-readable (e.g., bill type "utility");
+ *   the client may remap to a friendlier label via `displayItemName`.
  */
 export type ChartItem = {
   id: string | null;
@@ -20,13 +106,21 @@ export type ChartItem = {
 };
 
 /**
- * Per-period bucket. Each item (category, subcategory, account,
- * subscription, or synthetic bucket — depending on chart + drill) gets
- * a column keyed by its id. Values are numeric in major units
- * (Recharts wants numbers, not bigint strings).
+ * One row of chart data — the value of every series at a single
+ * period. Each `ChartItem.id` becomes a property on this object,
+ * whose value is the series' sum for that period in major currency
+ * units (the chart consumes plain numbers, not bigint strings).
  *
- * `period` is a granularity-shaped label: "2026-04-28" daily,
- * "2026-W17" weekly (ISO), "2026-04" monthly, "2026" yearly.
+ * `period` is a granularity-shaped label produced by Postgres
+ * `to_char`: "2026-04-28" daily, "Apr 26" weekly (Sun-starting),
+ * "2026-04" monthly, "2026" yearly. The client passes this string
+ * straight through as the chart's X-axis category.
+ *
+ * Why `number | string` in the index signature: TS can't express
+ * "every key except `period` is a number" — `{ period: string } &
+ * Record<string, number>` collapses to `never` for `period`. The
+ * `string` half of the union exists solely to accommodate `period`;
+ * every other key is a `number` at runtime.
  */
 export type ChartBucket = {
   period: string;
@@ -34,10 +128,9 @@ export type ChartBucket = {
 
 /**
  * Common response shape across all analytics chart endpoints. The
- * server filters and groups differently per chart, but the wire
- * shape is the same so the client's chart components
- * (`<StackedBarChart>`, `<DivergingNetChart>`) can consume it
- * generically.
+ * server filters and groups differently per chart, but the wire shape
+ * is the same so a single Mantine `<AreaChart>` can consume it
+ * generically (`buckets` → `data`, `items` → `series`).
  */
 export type AnalyticsChartResponse = {
   currency: string;
@@ -71,96 +164,12 @@ export type CategoryChartDirection = z.infer<typeof categoryChartDirection>;
  *   - "__none__" → only lines with no tags
  * Multi-tag selection isn't supported.
  */
-export const categorySpendingQuery = z.object({
-  granularity,
-  start: dateString,
-  end: dateString,
-  currency: currencyField,
+export const categorySpendingQuery = baseChartQuery.extend({
   direction: categoryChartDirection.default("expense"),
-  categoryId: z.uuid().optional(),
+  categoryId: optionalUuid,
   tagId: z.union([z.uuid(), z.literal("__none__")]).optional(),
 });
 export type CategorySpendingQuery = z.infer<typeof categorySpendingQuery>;
-
-// ─── Cash flow (out / in / net) ───────────────────────────────────────────
-
-/**
- * Direction of the cash-flow view. Client-only — never sent over the
- * wire; the server reads direction from the `dimension` prefix
- * (`out*` / `in*` / `net`). Drives the dropdown in the chart UI and
- * determines which dimension defaults to use on switch.
- */
-export const cashFlowDirection = z.enum(["out", "in", "net"]);
-export type CashFlowDirection = z.infer<typeof cashFlowDirection>;
-
-/**
- * Self-describing dimension keys. The prefix encodes the direction so
- * the server can switch on `dimension` alone — no separate direction
- * field on the wire.
- */
-export const cashFlowDimension = z.enum([
-  // direction=out
-  "outTop", // 3 stacks: Expenses, Loan payments, Bills
-  "outExpenses", // drill into Expenses → category stacks
-  "outExpensesByCategory", // drill further → subcategory stacks (requires categoryId)
-  "outLoans", // drill into Loan payments → per-loan stacks (or single series with loanId)
-  "outBillsByType", // drill into Bills → per-type stacks (utility / subscription / other)
-  "outBills", // drill into a bill type → per-bill stacks (with billType filter), or single series (with billId)
-  // direction=in
-  "inTop", // income by category
-  "inByCategory", // drill into a category → subcategory stacks (requires categoryId)
-  // direction=net
-  // Two stacks per period: `in` (positive sums) and `out` (signed
-  // negative). The Net line is derived client-side as in + out.
-  "net",
-]);
-export type CashFlowDimension = z.infer<typeof cashFlowDimension>;
-
-/**
- * "Cash flow" chart: combined view of money leaving / entering the
- * user's pocket each period.
- *
- * **out** — three top-level stacks (Expenses from CASA/CC, Loan
- * payments, Subs) with drills into each. Excludes adjustments,
- * CASA→CASA transfers, CC payments (settlements), and loan-account
- * expenses (financed purchases — cash surfaces over time as loan
- * payments).
- *
- * **in** sums income transactions by category, with subcategory drill.
- * Mirrors the expense-side drill structure on the income side.
- *
- * **net** returns two stacks per period from CASA/CC legs: `in`
- * (positive sums) and `out` (signed negative). The client renders
- * them as diverging bars and derives the Net line as in + out.
- * Internal transfers (CASA↔CASA, CC payments) are filtered out — they
- * would inflate both bars equally without changing net. Loan-account
- * legs are excluded (financed purchases surface as cash flow when the
- * loan is paid). Adjustments are excluded.
- *
- * `categoryId` is only used for `outExpensesByCategory` and
- * `inByCategory` drills.
- */
-export const cashFlowQuery = z.object({
-  granularity,
-  start: dateString,
-  end: dateString,
-  currency: currencyField,
-  dimension: cashFlowDimension,
-  // Optional filter to one account group (sidebar UX). Independent of
-  // the drill axis.
-  groupId: z.uuid().optional(),
-  // Drill filters. The client only sends each one with its compatible
-  // dimension; the server treats illegal combos as a no-op.
-  // - categoryId  : required for `outExpensesByCategory` and `inByCategory`.
-  // - billType    : restricts `outBills` to one bill type (util/sub/other).
-  // - billId      : restricts `outBills` to one specific bill (leaf, single series).
-  // - loanId      : restricts `outLoans` to one specific loan (leaf, single series).
-  categoryId: z.uuid().optional(),
-  billType: billType.optional(),
-  billId: z.uuid().optional(),
-  loanId: z.uuid().optional(),
-});
-export type CashFlowQuery = z.infer<typeof cashFlowQuery>;
 
 // ─── Net worth ────────────────────────────────────────────────────────────
 
@@ -174,10 +183,5 @@ export type CashFlowQuery = z.infer<typeof cashFlowQuery>;
  * payments naturally net to zero (both legs land on the user's
  * accounts).
  */
-export const netWorthQuery = z.object({
-  granularity,
-  start: dateString,
-  end: dateString,
-  currency: currencyField,
-});
+export const netWorthQuery = baseChartQuery;
 export type NetWorthQuery = z.infer<typeof netWorthQuery>;
