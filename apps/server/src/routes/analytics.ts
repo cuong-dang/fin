@@ -6,7 +6,7 @@ import {
 } from "@fin/schemas";
 import type { FastifyPluginAsync } from "fastify";
 
-import { schema } from "../db";
+import { schema } from "../db/index.js";
 import {
   buildCategorySpendingCtx,
   buildContext,
@@ -16,8 +16,8 @@ import {
   handleCategorySpending,
   shapeNetWorthResponse,
   shapeResponse,
-} from "../lib/analytics";
-import { findOwned } from "../lib/authz";
+} from "../lib/analytics.js";
+import { findOwned } from "../lib/authz.js";
 
 export const analyticsRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
@@ -60,12 +60,12 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
       const group = await findOwned(
         schema.accountGroups,
         params.groupId,
-        req.auth.groupId,
+        req.auth.workspaceId,
       );
       if (!group) return reply.code(404).send({ error: "Not found" });
     }
 
-    const ctx = buildContext(params, req.auth.groupId);
+    const ctx = buildContext(params, req.auth.workspaceId);
 
     const handler = CASH_FLOW_HANDLERS[params.dimension];
     if (!handler) throw new Error(`Unhandled dimension ${params.dimension}`);
@@ -101,7 +101,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
       const cat = await findOwned(
         schema.categories,
         params.categoryId,
-        req.auth.groupId,
+        req.auth.workspaceId,
       );
       if (!cat || cat.kind !== params.direction) {
         return reply.code(400).send({
@@ -111,11 +111,15 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
     }
 
     if (params.tagId && params.tagId !== "__none__") {
-      const tag = await findOwned(schema.tags, params.tagId, req.auth.groupId);
+      const tag = await findOwned(
+        schema.tags,
+        params.tagId,
+        req.auth.workspaceId,
+      );
       if (!tag) return reply.code(400).send({ error: "Tag not found" });
     }
 
-    const ctx = buildCategorySpendingCtx(params, req.auth.groupId);
+    const ctx = buildCategorySpendingCtx(params, req.auth.workspaceId);
     const rows = await handleCategorySpending(ctx);
 
     return shapeResponse(rows, params.currency, "categorySpending");
@@ -142,7 +146,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
    */
   app.get("/net-worth", async (req) => {
     const params = netWorthQuery.parse(req.query);
-    const ctx = buildNetWorthContext(params, req.auth.groupId);
+    const ctx = buildNetWorthContext(params, req.auth.workspaceId);
     const rows = await fetchNetWorthRows(ctx);
 
     return shapeNetWorthResponse(rows, params.currency);

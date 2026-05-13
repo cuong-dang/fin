@@ -191,6 +191,9 @@ export const getCashFlow = (q: CashFlowQuery) => {
   });
   if (q.categoryId) qs.set("categoryId", q.categoryId);
   if (q.groupId) qs.set("groupId", q.groupId);
+  if (q.billType) qs.set("billType", q.billType);
+  if (q.billId) qs.set("billId", q.billId);
+  if (q.loanId) qs.set("loanId", q.loanId);
   return api<AnalyticsChartResponse>(`/api/analytics/cash-flow?${qs}`);
 };
 

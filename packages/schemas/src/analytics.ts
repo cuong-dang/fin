@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { billType } from "./bills.js";
 import { currencyField, dateString } from "./common.js";
 
 export const granularity = z.enum(["daily", "weekly", "monthly", "yearly"]);
@@ -99,14 +100,15 @@ export type CashFlowDirection = z.infer<typeof cashFlowDirection>;
  */
 export const cashFlowDimension = z.enum([
   // direction=out
-  "outTop", // 3 stacks: Expenses, Loan payments, Subs
+  "outTop", // 3 stacks: Expenses, Loan payments, Bills
   "outExpenses", // drill into Expenses → category stacks
-  "outExpensesByCategory", // drill further → subcategory stacks (within one category)
-  "outLoans", // drill into Loan payments → per-loan stacks
-  "outBills", // drill into Bills → per-bill stacks
+  "outExpensesByCategory", // drill further → subcategory stacks (requires categoryId)
+  "outLoans", // drill into Loan payments → per-loan stacks (or single series with loanId)
+  "outBillsByType", // drill into Bills → per-type stacks (utility / subscription / other)
+  "outBills", // drill into a bill type → per-bill stacks (with billType filter), or single series (with billId)
   // direction=in
   "inTop", // income by category
-  "inByCategory", // drill into a category → subcategory stacks
+  "inByCategory", // drill into a category → subcategory stacks (requires categoryId)
   // direction=net
   // Two stacks per period: `in` (positive sums) and `out` (signed
   // negative). The Net line is derived client-side as in + out.
@@ -144,8 +146,19 @@ export const cashFlowQuery = z.object({
   end: dateString,
   currency: currencyField,
   dimension: cashFlowDimension,
+  // Optional filter to one account group (sidebar UX). Independent of
+  // the drill axis.
   groupId: z.uuid().optional(),
+  // Drill filters. The client only sends each one with its compatible
+  // dimension; the server treats illegal combos as a no-op.
+  // - categoryId  : required for `outExpensesByCategory` and `inByCategory`.
+  // - billType    : restricts `outBills` to one bill type (util/sub/other).
+  // - billId      : restricts `outBills` to one specific bill (leaf, single series).
+  // - loanId      : restricts `outLoans` to one specific loan (leaf, single series).
   categoryId: z.uuid().optional(),
+  billType: billType.optional(),
+  billId: z.uuid().optional(),
+  loanId: z.uuid().optional(),
 });
 export type CashFlowQuery = z.infer<typeof cashFlowQuery>;
 

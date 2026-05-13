@@ -15,7 +15,7 @@ import {
   sql,
 } from "drizzle-orm";
 
-import { db, schema } from "../db";
+import { db, schema } from "../db/index.js";
 
 /**
  * Postgres `date_trunc` unit per granularity. Daily uses no truncation
@@ -83,7 +83,7 @@ type Row = {
 
 // Cash-flow
 
-type CashFlowQueryCtx = { userGroupId: string } & CashFlowQuery & {
+type CashFlowQueryCtx = { workspaceId: string } & CashFlowQuery & {
     periodExpr: SQL<string>;
     truncExpr: SQL<unknown>;
     legAmountExpr: SQL<string>;
@@ -93,7 +93,7 @@ type CashFlowQueryCtx = { userGroupId: string } & CashFlowQuery & {
 
 export function buildContext(
   params: CashFlowQuery,
-  userGroupId: string,
+  workspaceId: string,
 ): CashFlowQueryCtx {
   const { granularity } = params;
 
@@ -101,7 +101,7 @@ export function buildContext(
   const truncExpr = truncExprFor(granularity, sql`${schema.transactions.date}`);
 
   return {
-    userGroupId,
+    workspaceId,
     ...params,
     periodExpr: sql<string>`to_char(${truncExpr}, ${fmtLit})`,
     truncExpr,
@@ -121,12 +121,13 @@ export const CASH_FLOW_HANDLERS: Record<string, Handler> = {
   inByCategory: handleCategory,
   outLoans: handleOutLoans,
   outBills: handleOutBills,
+  outBillsByType: handleOutBillsByType,
   net: handleNet,
 };
 
 async function handleOutTop(ctx: CashFlowQueryCtx): Promise<Row[]> {
   const {
-    userGroupId,
+    workspaceId,
     currency,
     start,
     end,
@@ -168,7 +169,7 @@ async function handleOutTop(ctx: CashFlowQueryCtx): Promise<Row[]> {
     )
     .where(
       and(
-        eq(schema.transactions.groupId, userGroupId),
+        eq(schema.transactions.workspaceId, workspaceId),
         eq(schema.accounts.currency, currency),
         ne(schema.transactions.type, "adjustment"),
         sql`${schema.transactionLegs.amount} < 0`,
@@ -184,7 +185,7 @@ async function handleOutTop(ctx: CashFlowQueryCtx): Promise<Row[]> {
 
 async function handleCategory(ctx: CashFlowQueryCtx): Promise<Row[]> {
   const {
-    userGroupId,
+    workspaceId,
     start,
     end,
     currency,
@@ -226,7 +227,7 @@ async function handleCategory(ctx: CashFlowQueryCtx): Promise<Row[]> {
     );
 
   const where = and(
-    eq(schema.transactions.groupId, userGroupId),
+    eq(schema.transactions.workspaceId, workspaceId),
     eq(schema.transactionLines.currency, currency),
     eq(schema.transactions.type, isIncome ? "income" : "expense"),
     !isIncome ? sql`${schema.transactions.billId} IS NULL` : undefined,
@@ -265,17 +266,20 @@ async function handleCategory(ctx: CashFlowQueryCtx): Promise<Row[]> {
 
 async function handleOutLoans(ctx: CashFlowQueryCtx): Promise<Row[]> {
   const {
-    userGroupId,
+    workspaceId,
     start,
     end,
     currency,
     groupId,
+    loanId,
     periodExpr,
     truncExpr,
     legAmountExpr,
   } = ctx;
 
-  // Per-loan breakdown (transfers to loan accounts).
+  // Per-loan breakdown (transfers to loan accounts). With `loanId`
+  // set, restricts to a single loan and the result reads as one
+  // series — same shape, just one item.
   const destLeg = aliasedTable(schema.transactionLegs, "dest_leg");
   const destAcc = aliasedTable(schema.accounts, "dest_acc");
   return db
@@ -307,12 +311,13 @@ async function handleOutLoans(ctx: CashFlowQueryCtx): Promise<Row[]> {
     )
     .where(
       and(
-        eq(schema.transactions.groupId, userGroupId),
+        eq(schema.transactions.workspaceId, workspaceId),
         eq(schema.accounts.currency, currency),
         sql`${schema.transactionLegs.amount} < 0`,
         gte(schema.transactions.date, start),
         lte(schema.transactions.date, end),
         groupId ? eq(schema.accounts.accountGroupId, groupId) : undefined,
+        loanId ? eq(destAcc.id, loanId) : undefined,
       ),
     )
     .groupBy(truncExpr, destAcc.id, destAcc.name)
@@ -321,16 +326,21 @@ async function handleOutLoans(ctx: CashFlowQueryCtx): Promise<Row[]> {
 
 async function handleOutBills(ctx: CashFlowQueryCtx): Promise<Row[]> {
   const {
-    userGroupId,
+    workspaceId,
     start,
     end,
     currency,
     groupId,
+    billType: billTypeFilter,
+    billId,
     periodExpr,
     truncExpr,
     legAmountExpr,
   } = ctx;
 
+  // Per-bill stacks. `billType` filter restricts to one bill type
+  // (e.g., all subscription bills). `billId` filter restricts to a
+  // single bill (leaf — series shape is the same, just one item).
   return db
     .select({
       period: periodExpr,
@@ -350,7 +360,56 @@ async function handleOutBills(ctx: CashFlowQueryCtx): Promise<Row[]> {
     .innerJoin(schema.bills, eq(schema.bills.id, schema.transactions.billId))
     .where(
       and(
-        eq(schema.transactions.groupId, userGroupId),
+        eq(schema.transactions.workspaceId, workspaceId),
+        eq(schema.accounts.currency, currency),
+        sql`${schema.transactionLegs.amount} < 0`,
+        gte(schema.transactions.date, start),
+        lte(schema.transactions.date, end),
+        groupId ? eq(schema.accounts.accountGroupId, groupId) : undefined,
+        billTypeFilter ? eq(schema.bills.type, billTypeFilter) : undefined,
+        billId ? eq(schema.bills.id, billId) : undefined,
+      ),
+    )
+    .groupBy(truncExpr, schema.bills.id, schema.bills.name)
+    .orderBy(truncExpr);
+}
+
+async function handleOutBillsByType(ctx: CashFlowQueryCtx): Promise<Row[]> {
+  const {
+    workspaceId,
+    start,
+    end,
+    currency,
+    groupId,
+    periodExpr,
+    truncExpr,
+    legAmountExpr,
+  } = ctx;
+
+  // Stack per bill type (utility / subscription / other). The type
+  // string itself doubles as both id and name for the wire — the
+  // client renders a friendly label from the enum.
+  const typeExpr = sql<string>`${schema.bills.type}`;
+  return db
+    .select({
+      period: periodExpr,
+      itemId: typeExpr,
+      itemName: typeExpr,
+      amountMinor: legAmountExpr,
+    })
+    .from(schema.transactionLegs)
+    .innerJoin(
+      schema.transactions,
+      eq(schema.transactions.id, schema.transactionLegs.transactionId),
+    )
+    .innerJoin(
+      schema.accounts,
+      eq(schema.accounts.id, schema.transactionLegs.accountId),
+    )
+    .innerJoin(schema.bills, eq(schema.bills.id, schema.transactions.billId))
+    .where(
+      and(
+        eq(schema.transactions.workspaceId, workspaceId),
         eq(schema.accounts.currency, currency),
         sql`${schema.transactionLegs.amount} < 0`,
         gte(schema.transactions.date, start),
@@ -358,13 +417,13 @@ async function handleOutBills(ctx: CashFlowQueryCtx): Promise<Row[]> {
         groupId ? eq(schema.accounts.accountGroupId, groupId) : undefined,
       ),
     )
-    .groupBy(truncExpr, schema.bills.id, schema.bills.name)
+    .groupBy(truncExpr, schema.bills.type)
     .orderBy(truncExpr);
 }
 
 async function handleNet(ctx: CashFlowQueryCtx): Promise<Row[]> {
   const {
-    userGroupId,
+    workspaceId,
     start,
     end,
     currency,
@@ -414,7 +473,7 @@ async function handleNet(ctx: CashFlowQueryCtx): Promise<Row[]> {
     )
     .where(
       and(
-        eq(schema.transactions.groupId, userGroupId),
+        eq(schema.transactions.workspaceId, workspaceId),
         eq(schema.accounts.currency, currency),
         sql`${schema.accounts.type} IN ('checking_savings', 'credit_card')`,
         ne(schema.transactions.type, "adjustment"),
@@ -430,26 +489,26 @@ async function handleNet(ctx: CashFlowQueryCtx): Promise<Row[]> {
 
 // Category-spending
 type CategorySpendingCtx = {
-  userGroupId: string;
+  workspaceId: string;
   granularity: Granularity;
   start: string;
   end: string;
   currency: string;
   direction: "income" | "expense";
-  categoryId?: string;
-  tagId?: string;
+  categoryId?: string | undefined;
+  tagId?: string | undefined;
 
   // derived
   drilling: boolean;
   periodExpr: SQL<string>;
   truncExpr: SQL<unknown>;
   amountExpr: SQL<string>;
-  tagFilter?: SQL;
+  tagFilter?: SQL | undefined;
 };
 
 export function buildCategorySpendingCtx(
   params: CategorySpendingQuery,
-  userGroupId: string,
+  workspaceId: string,
 ): CategorySpendingCtx {
   const { granularity, tagId, categoryId } = params;
 
@@ -471,7 +530,7 @@ export function buildCategorySpendingCtx(
         : undefined;
 
   return {
-    userGroupId,
+    workspaceId,
     ...params,
     drilling: !!categoryId,
     periodExpr: sql<string>`to_char(${truncExpr}, ${fmtLit})`,
@@ -485,7 +544,7 @@ export async function handleCategorySpending(
   ctx: CategorySpendingCtx,
 ): Promise<Row[]> {
   const {
-    userGroupId,
+    workspaceId,
     start,
     end,
     currency,
@@ -514,7 +573,7 @@ export async function handleCategorySpending(
     );
 
   const where = and(
-    eq(schema.transactions.groupId, userGroupId),
+    eq(schema.transactions.workspaceId, workspaceId),
     eq(schema.transactionLines.currency, currency),
     gte(schema.transactions.date, start),
     lte(schema.transactions.date, end),
@@ -550,7 +609,7 @@ export async function handleCategorySpending(
 
 // Net worth
 type NetWorthCtx = {
-  userGroupId: string;
+  workspaceId: string;
   granularity: Granularity;
   start: string;
   end: string;
@@ -567,7 +626,7 @@ type NetWorthCtx = {
 
 export function buildNetWorthContext(
   params: NetWorthQuery,
-  userGroupId: string,
+  workspaceId: string,
 ): NetWorthCtx {
   const { granularity, start, end } = params;
 
@@ -575,7 +634,7 @@ export function buildNetWorthContext(
   const intervalLit = sql.raw(`'1 ${TRUNC_UNIT[granularity]}'::interval`);
 
   return {
-    userGroupId,
+    workspaceId,
     ...params,
 
     truncStart: truncExprFor(granularity, sql`${start}::date`),
@@ -598,7 +657,7 @@ export async function fetchNetWorthRows(
   ctx: NetWorthCtx,
 ): Promise<NetWorthRow[]> {
   const {
-    userGroupId,
+    workspaceId,
     currency,
     start,
     end,
@@ -622,7 +681,7 @@ export async function fetchNetWorthRows(
       FROM ${schema.transactionLegs} legs
       JOIN ${schema.transactions} t ON t.id = legs.transaction_id
       JOIN ${schema.accounts} a ON a.id = legs.account_id
-      WHERE a.group_id = ${userGroupId}
+      WHERE a.group_id = ${workspaceId}
         AND a.deleted_at IS NULL
         AND a.exclude_from_net_worth = false
         AND a.currency = ${currency}

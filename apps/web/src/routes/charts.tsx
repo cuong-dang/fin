@@ -13,10 +13,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 /**
- * Charts page. Hosts shared controls (granularity + currency) at the
- * top and stacks individual chart components below. Each chart owns
- * its own data fetching + rendering; this page just passes the active
- * window down.
+ * Charts page. Hosts cross-chart controls (granularity + currency) at
+ * the top and stacks individual chart components below. Per-chart
+ * controls (e.g., direction toggle, account-group filter for cash
+ * flow) live inside each chart component.
  */
 export function ChartsRoute() {
   const accountsQ = useQuery({ queryKey: ["accounts"], queryFn: listAccounts });
