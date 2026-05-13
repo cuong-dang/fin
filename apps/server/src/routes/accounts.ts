@@ -12,7 +12,7 @@ import {
   updateAccountBody,
 } from "@fin/schemas";
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
-import type { FastifyPluginAsync, FastifyReply } from "fastify";
+import type { FastifyPluginAsync } from "fastify";
 
 import { schema } from "../db/index.js";
 import { db } from "../db/index.js";
@@ -58,13 +58,12 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const ccFields = await resolveCcFields(
+    const ccValid = await validateCcFields(
       body,
       body.currency,
       req.auth.workspaceId,
-      reply,
     );
-    if (ccFields === null) return;
+    if (!ccValid.ok) return reply.code(400).send({ error: ccValid.error });
 
     // Loan: pre-validate plan's pay-from (must be checking_savings or credit_card)
     // before opening the write tx. The plan row itself is created inside the tx.
@@ -106,8 +105,14 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
           name: body.name,
           currency: body.currency,
           type: body.type,
-          creditLimit: ccFields.creditLimit,
-          defaultPayFromAccountId: ccFields.defaultPayFromAccountId,
+          creditLimit:
+            body.type === "credit_card"
+              ? parseMoney(body.creditLimit, body.currency)
+              : null,
+          defaultPayFromAccountId:
+            body.type === "credit_card" || body.type === "loan"
+              ? (body.defaultPayFromAccountId ?? null)
+              : null,
           loanId,
           excludeFromNetWorth: body.excludeFromNetWorth ?? false,
         })
@@ -184,13 +189,12 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(400).send({ error: "Destination group not found" });
     }
 
-    const ccFields = await resolveCcFields(
+    const ccValid = await validateCcFields(
       body,
       account.currency,
       req.auth.workspaceId,
-      reply,
     );
-    if (ccFields === null) return;
+    if (!ccValid.ok) return reply.code(400).send({ error: ccValid.error });
 
     // Loan: pre-validate plan's pay-from up front (mirrors POST). The plan
     // row update happens inside the tx below.
@@ -252,8 +256,14 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
         .set({
           name: body.name,
           accountGroupId: accountGroupId!,
-          creditLimit: ccFields.creditLimit,
-          defaultPayFromAccountId: ccFields.defaultPayFromAccountId,
+          creditLimit:
+            body.type === "credit_card"
+              ? parseMoney(body.creditLimit, account.currency)
+              : null,
+          defaultPayFromAccountId:
+            body.type === "credit_card" || body.type === "loan"
+              ? (body.defaultPayFromAccountId ?? null)
+              : null,
           excludeFromNetWorth: body.excludeFromNetWorth ?? false,
           updatedAt: new Date(),
         })
@@ -543,41 +553,25 @@ type AccountRow = {
   frequency: RecurringFrequency | null;
 };
 
-async function resolveCcFields(
+// Validates CC-specific fields (limit > 0, pay-from is a CASA account when
+// set).
+async function validateCcFields(
   body: CreateAccountBody | UpdateAccountBody,
   currency: string,
   workspaceId: string,
-  reply: FastifyReply,
-): Promise<CcFields | null> {
-  if (body.type !== "credit_card") {
-    return { creditLimit: null, defaultPayFromAccountId: null };
-  }
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (body.type !== "credit_card") return { ok: true };
   const limitMinor = parseMoney(body.creditLimit, currency);
   if (limitMinor <= 0n) {
-    reply.code(400).send({ error: "Credit limit must be positive" });
-    return null;
+    return { ok: false, error: "Credit limit must be positive" };
   }
   if (body.defaultPayFromAccountId) {
-    const result = await validatePayFrom(
-      body.defaultPayFromAccountId,
-      workspaceId,
-      ["checking_savings"],
-    );
-    if (!result.ok) {
-      reply.code(400).send({ error: result.error });
-      return null;
-    }
+    return validatePayFrom(body.defaultPayFromAccountId, workspaceId, [
+      "checking_savings",
+    ]);
   }
-  return {
-    creditLimit: limitMinor,
-    defaultPayFromAccountId: body.defaultPayFromAccountId ?? null,
-  };
+  return { ok: true };
 }
-
-type CcFields = {
-  creditLimit: bigint | null;
-  defaultPayFromAccountId: string | null;
-};
 
 async function validatePayFrom(
   payFromId: string,

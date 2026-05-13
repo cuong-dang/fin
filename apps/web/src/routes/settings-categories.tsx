@@ -32,11 +32,7 @@ export function SettingsCategoriesRoute() {
   const tags = tagsQ.data ?? [];
 
   return (
-    <PageShell
-      back="/settings"
-      subtitle="Categories organize transactions; tags add a free-form second axis. Lines can carry multiple tags."
-      title="Categories & tags"
-    >
+    <PageShell title="Categories & tags">
       <KindSection categories={income} kind="income" title="Income" />
       <KindSection categories={expense} kind="expense" title="Expense" />
       <TagsSection tags={tags} />

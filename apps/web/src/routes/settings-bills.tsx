@@ -4,7 +4,7 @@ import { listBills } from "@/lib/endpoints";
 import { formatMoney } from "@/lib/money";
 
 import type { Bill, BillType } from "@fin/schemas";
-import { Anchor, Badge, Button, Group, Stack, Text } from "@mantine/core";
+import { Badge, Button, Group, NavLink, Stack, Text } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 
@@ -73,23 +73,20 @@ function Row({ bill }: { bill: Bill }) {
     0n,
   );
   return (
-    <Group justify="space-between">
-      <Anchor
-        c="inherit"
-        component={Link}
-        to={`/bills/${bill.id}/edit`}
-        underline="never"
-      >
+    <NavLink
+      component={Link}
+      label={
         <Group>
           <Text fw={500}>{bill.name}</Text>
-          <Badge color="black" variant="light">
-            {bill.frequency}
-          </Badge>
+          <Badge variant="light">{bill.frequency}</Badge>
         </Group>
-      </Anchor>
-      <Text c="dimmed" ff="monospace">
-        {formatMoney(total, bill.currency)}
-      </Text>
-    </Group>
+      }
+      rightSection={
+        <Text c="dimmed" ff="monospace">
+          {formatMoney(total, bill.currency)}
+        </Text>
+      }
+      to={`/bills/${bill.id}/edit`}
+    />
   );
 }
