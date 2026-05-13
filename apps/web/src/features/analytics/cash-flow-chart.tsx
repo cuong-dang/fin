@@ -28,20 +28,20 @@ import {
 import { DrillBreadcrumb } from "./drill-breadcrumb";
 import { DrillPicker } from "./drill-picker";
 
-// A small deterministic palette. Mantine accepts named theme colors
-// (e.g., "blue.6"). One color per stack; the chart cycles if items
-// outnumber colors.
+// Rainbow-ish qualitative palette, matching Mantine's chart examples.
+// Series get colors by index; the chart cycles if items outnumber the
+// list.
 const PALETTE = [
+  "indigo.6",
   "blue.6",
   "teal.6",
+  "lime.6",
+  "yellow.6",
   "orange.6",
-  "grape.6",
-  "yellow.7",
-  "cyan.6",
-  "pink.6",
-  "lime.7",
-  "indigo.6",
   "red.6",
+  "pink.6",
+  "grape.6",
+  "violet.6",
 ];
 
 const DIRECTION_OPTIONS: { value: Direction; label: string }[] = [
@@ -67,8 +67,9 @@ export function CashFlowChart({
     direction: "out",
     drill: [],
   });
-  const [groupId, setGroupId] = useState<string>(ALL_GROUPS);
-  const activeGroupId = groupId === ALL_GROUPS ? undefined : groupId;
+  const [accountGroupId, setAccountGroupId] = useState<string>(ALL_GROUPS);
+  const activeAccountGroupId =
+    accountGroupId === ALL_GROUPS ? undefined : accountGroupId;
 
   const groupsQ = useQuery({
     queryKey: ["account-groups"],
@@ -83,9 +84,9 @@ export function CashFlowChart({
         start,
         end,
         currency,
-        groupId: activeGroupId,
+        accountGroupId: activeAccountGroupId,
       }),
-    [state, granularity, start, end, currency, activeGroupId],
+    [state, granularity, start, end, currency, activeAccountGroupId],
   );
 
   const q = useQuery({
@@ -110,7 +111,7 @@ export function CashFlowChart({
     // synthetic bucket) get a sentinel so the row stays addressable.
     name: String(item.id ?? "__other__"),
     label: displayItemName(state, item),
-    color: PALETTE[i % PALETTE.length]!,
+    color: PALETTE[i % PALETTE.length],
   }));
 
   const formatter = useMemo(
@@ -143,18 +144,20 @@ export function CashFlowChart({
                   { value: ALL_GROUPS, label: "All groups" },
                   ...groups.map((g) => ({ value: g.id, label: g.name })),
                 ]}
-                value={groupId}
-                onChange={(v) => v && setGroupId(v)}
+                value={accountGroupId}
+                onChange={(v) => v && setAccountGroupId(v)}
               />
             )}
           </Group>
         </Group>
         <Group>
-          <DrillBreadcrumb
-            state={state}
-            onPopTo={(depth) => setState((s) => popToDepth(s, depth))}
-          />
-          {state.direction !== "net" && !isLeaf(state) && (
+          {state.direction !== "net" && (
+            <DrillBreadcrumb
+              state={state}
+              onPopTo={(depth) => setState((s) => popToDepth(s, depth))}
+            />
+          )}
+          {!isLeaf(state) && (
             <DrillPicker
               items={items}
               state={state}

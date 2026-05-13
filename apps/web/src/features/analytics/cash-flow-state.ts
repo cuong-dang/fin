@@ -12,6 +12,7 @@ export type Direction = "out" | "in" | "net";
 export type DrillSegment =
   | { kind: "bucket"; id: "expense" | "loan" | "bill" }
   | { kind: "category"; id: string; label: string }
+  | { kind: "subcategory"; id: string; label: string }
   | { kind: "billType"; id: BillType }
   | { kind: "loanEntity"; id: string; label: string }
   | { kind: "billEntity"; id: string; label: string };
@@ -49,6 +50,7 @@ export function crumbLabel(seg: DrillSegment): string {
     case "billType":
       return BILL_TYPE_LABEL[seg.id];
     case "category":
+    case "subcategory":
     case "loanEntity":
     case "billEntity":
       return seg.label;
@@ -117,21 +119,29 @@ export function stateToQuery(
     end: string;
     currency: string;
     /** Optional account-group filter — applied at every dimension. */
-    groupId?: string | undefined;
+    accountGroupId?: string | undefined;
   },
 ): CashFlowQuery {
   const { direction, drill } = state;
-  // The schema's `groupId` field is optional under
+  // The schema's `accountGroupId` field is optional under
   // exactOptionalPropertyTypes; build a partial-spread so we never emit
-  // an explicit `groupId: undefined`.
-  const common = base.groupId ? { ...base, groupId: base.groupId } : base;
+  // an explicit `accountGroupId: undefined`.
+  const common = base.accountGroupId
+    ? { ...base, accountGroupId: base.accountGroupId }
+    : base;
 
   if (direction === "net") return { ...common, dimension: "net" };
 
   if (direction === "in") {
     const cat = drill.find((s) => s.kind === "category");
     if (cat && cat.kind === "category") {
-      return { ...common, dimension: "inByCategory", categoryId: cat.id };
+      const sub = drill.find((s) => s.kind === "subcategory");
+      return {
+        ...common,
+        dimension: "inByCategory",
+        categoryId: cat.id,
+        ...(sub && sub.kind === "subcategory" && { subcategoryId: sub.id }),
+      };
     }
     return { ...common, dimension: "inTop" };
   }
@@ -145,10 +155,12 @@ export function stateToQuery(
   if (bucket.id === "expense") {
     const cat = drill[1];
     if (cat && cat.kind === "category") {
+      const sub = drill[2];
       return {
         ...common,
         dimension: "outExpensesByCategory",
         categoryId: cat.id,
+        ...(sub && sub.kind === "subcategory" && { subcategoryId: sub.id }),
       };
     }
     return { ...common, dimension: "outExpenses" };
@@ -165,18 +177,18 @@ export function stateToQuery(
   // bucket.id === "bill"
   const typeSeg = drill[1];
   if (!typeSeg || typeSeg.kind !== "billType") {
-    return { ...common, dimension: "outBillsByType" };
+    return { ...common, dimension: "outBills" };
   }
   const entity = drill[2];
   if (entity && entity.kind === "billEntity") {
     return {
       ...common,
-      dimension: "outBills",
+      dimension: "outBillsByType",
       billType: typeSeg.id,
       billId: entity.id,
     };
   }
-  return { ...common, dimension: "outBills", billType: typeSeg.id };
+  return { ...common, dimension: "outBillsByType", billType: typeSeg.id };
 }
 
 // ─── Drill interpretation ─────────────────────────────────────────────────
@@ -199,6 +211,9 @@ export function interpretItem(
     if (drill.length === 0) {
       return { kind: "category", id: item.id, label: item.name };
     }
+    if (drill.length === 1 && drill[0]?.kind === "category") {
+      return { kind: "subcategory", id: item.id, label: item.name };
+    }
     return null;
   }
 
@@ -215,6 +230,9 @@ export function interpretItem(
     if (bucket.id === "expense") {
       if (drill.length === 1) {
         return { kind: "category", id: item.id, label: item.name };
+      }
+      if (drill.length === 2 && drill[1]?.kind === "category") {
+        return { kind: "subcategory", id: item.id, label: item.name };
       }
       return null;
     }
@@ -250,13 +268,15 @@ export function isLeaf(state: ChartState): boolean {
   const { direction, drill } = state;
   if (direction === "net") return true;
   if (direction === "in") {
-    return drill.some((s) => s.kind === "category");
+    return drill.some((s) => s.kind === "subcategory");
   }
   // direction === "out"
   if (drill.length === 0) return false;
   const bucket = drill[0];
   if (bucket?.kind !== "bucket") return true;
-  if (bucket.id === "expense") return drill.some((s) => s.kind === "category");
+  if (bucket.id === "expense") {
+    return drill.some((s) => s.kind === "subcategory");
+  }
   if (bucket.id === "loan") return drill.some((s) => s.kind === "loanEntity");
   if (bucket.id === "bill") return drill.some((s) => s.kind === "billEntity");
   return true;

@@ -175,7 +175,8 @@ export const getCashFlow = (q: CashFlowQuery) => {
     dimension: q.dimension,
   });
   if (q.categoryId) qs.set("categoryId", q.categoryId);
-  if (q.groupId) qs.set("groupId", q.groupId);
+  if (q.subcategoryId) qs.set("subcategoryId", q.subcategoryId);
+  if (q.accountGroupId) qs.set("accountGroupId", q.accountGroupId);
   if (q.billType) qs.set("billType", q.billType);
   if (q.billId) qs.set("billId", q.billId);
   if (q.loanId) qs.set("loanId", q.loanId);

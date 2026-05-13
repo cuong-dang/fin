@@ -119,7 +119,7 @@ function NetWorthSummary({ totals }: { totals: Map<string, bigint> }) {
   return (
     <Stack align="flex-end" gap={0}>
       {[...totals].map(([currency, amount]) => (
-        <Text key={currency} ff="monospace">
+        <Text key={currency} c="dimmed" ff="monospace">
           {formatMoney(amount, currency)}
         </Text>
       ))}
