@@ -152,9 +152,15 @@ export type CategoryChartDirection = z.infer<typeof categoryChartDirection>;
  * Request shape for the by-category-&-tag chart. Client computes the
  * range — typically a granularity-appropriate trailing window (e.g.,
  * 12 months for `monthly`) — and the server bucket-sums lines into
- * those periods, grouped by category. When `categoryId` is set the
- * chart drills into a single category and groups by subcategory; lines
- * with a null subcategory roll up into a synthetic "Other" item.
+ * those periods, grouped by category.
+ *
+ * Drill levels mirror cash-flow's category branch:
+ *   - top              → stacked by category (of the chosen kind).
+ *   - `categoryId` set → drilled into one category, stacked by
+ *     subcategory; lines with a null subcategory roll up under
+ *     "Other" with id=null.
+ *   - `subcategoryId` set (along with `categoryId`) → leaf: a single
+ *     series for that one subcategory.
  *
  * `tagId` filters lines by tag (the line→tag M2M is the natural place
  * — tags only land on income/expense lines, never on transfer or
@@ -164,12 +170,13 @@ export type CategoryChartDirection = z.infer<typeof categoryChartDirection>;
  *   - "__none__" → only lines with no tags
  * Multi-tag selection isn't supported.
  */
-export const categorySpendingQuery = baseChartQuery.extend({
+export const categoryTagQuery = baseChartQuery.extend({
   direction: categoryChartDirection.default("expense"),
   categoryId: optionalUuid,
+  subcategoryId: optionalUuid,
   tagId: z.union([z.uuid(), z.literal("__none__")]).optional(),
 });
-export type CategorySpendingQuery = z.infer<typeof categorySpendingQuery>;
+export type CategoryTagQuery = z.infer<typeof categoryTagQuery>;
 
 // ─── Net worth ────────────────────────────────────────────────────────────
 

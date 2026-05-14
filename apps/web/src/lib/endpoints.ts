@@ -5,6 +5,7 @@ import type {
   AnalyticsChartResponse,
   Bill,
   CashFlowQuery,
+  CategoryTagQuery,
   CategoryWithSubs,
   CreateAccountBody,
   CreateBillBody,
@@ -181,4 +182,18 @@ export const getCashFlow = (q: CashFlowQuery) => {
   if (q.billId) qs.set("billId", q.billId);
   if (q.loanId) qs.set("loanId", q.loanId);
   return api<AnalyticsChartResponse>(`/api/analytics/cash-flow?${qs}`);
+};
+
+export const getCategoryTag = (q: CategoryTagQuery) => {
+  const qs = new URLSearchParams({
+    granularity: q.granularity,
+    start: q.start,
+    end: q.end,
+    currency: q.currency,
+    direction: q.direction,
+  });
+  if (q.categoryId) qs.set("categoryId", q.categoryId);
+  if (q.subcategoryId) qs.set("subcategoryId", q.subcategoryId);
+  if (q.tagId) qs.set("tagId", q.tagId);
+  return api<AnalyticsChartResponse>(`/api/analytics/category-tag?${qs}`);
 };

@@ -1,35 +1,31 @@
 import { Breadcrumbs, Button, Text } from "@mantine/core";
 
-import { type ChartState, crumbLabel } from "./cash-flow-state";
-
 /**
- * Breadcrumb showing the current drill path. First crumb is always
- * "All" (root for the active direction). Non-last crumbs are subtle
- * buttons that pop the drill back to that depth; the last crumb is
- * plain text to indicate the current position.
+ * Drill-state breadcrumb. The first crumb is always "All" (root for
+ * the current view); the last crumb is plain text marking the current
+ * position. All others are clickable buttons that pop the drill back
+ * to that depth. The caller computes the label sequence — this
+ * component is state-shape agnostic.
  */
 export function DrillBreadcrumb({
-  state,
+  labels,
   onPopTo,
 }: {
-  state: ChartState;
+  labels: string[];
   /** depth=0 resets drill; depth=N keeps the first N segments. */
   onPopTo: (depth: number) => void;
 }) {
-  const { drill } = state;
-
   return (
     <Breadcrumbs separator="›" separatorMargin="xs">
-      {drill.length === 0 ? (
+      {labels.length === 0 ? (
         <Text fw={500}>All</Text>
       ) : (
         <Button size="compact-sm" variant="subtle" onClick={() => onPopTo(0)}>
           All
         </Button>
       )}
-      {drill.map((seg, i) => {
-        const last = i === drill.length - 1;
-        const label = crumbLabel(seg);
+      {labels.map((label, i) => {
+        const last = i === labels.length - 1;
         if (last) {
           return (
             <Text key={i} fw={500}>

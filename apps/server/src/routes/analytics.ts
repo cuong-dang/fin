@@ -1,17 +1,13 @@
 import {
   type AnalyticsChartResponse,
   cashFlowQuery,
-  categorySpendingQuery,
+  categoryTagQuery,
   netWorthQuery,
 } from "@fin/schemas";
 import type { FastifyPluginAsync } from "fastify";
 
 import { schema } from "../db/index.js";
-import {
-  runCashFlow,
-  runCategorySpending,
-  runNetWorth,
-} from "../lib/analytics.js";
+import { runCashFlow, runCategoryTag, runNetWorth } from "../lib/analytics.js";
 import { findOwned } from "../lib/authz.js";
 
 export const analyticsRoutes: FastifyPluginAsync = async (app) => {
@@ -81,12 +77,14 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
    * lines by design (see AGENTS.md) and are excluded structurally by
    * the line-driven join.
    *
-   * Two modes:
+   * Drill levels (mirrors cash-flow's category branch):
    *   - default: GROUP BY category — stacks are top-level categories
    *     of the chosen `direction` (expense or income).
-   *   - drill (`categoryId` set): GROUP BY subcategory, filtered to
-   *     that category's lines. Lines with a null subcategory roll up
+   *   - `categoryId` set: GROUP BY subcategory, filtered to that
+   *     category's lines. Lines with a null subcategory roll up
    *     under "Other" with id=null.
+   *   - `subcategoryId` set (with `categoryId`): leaf — a single
+   *     series for that one subcategory.
    *
    * Optional `tagId` filter: a UUID restricts to lines tagged with
    * that tag; the literal `"__none__"` restricts to untagged lines.
@@ -95,9 +93,9 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
    * track stacks even if names contain special chars.
    */
   app.get(
-    "/category-spending",
+    "/category-tag",
     async (req, reply): Promise<AnalyticsChartResponse> => {
-      const params = categorySpendingQuery.parse(req.query);
+      const params = categoryTagQuery.parse(req.query);
 
       if (params.categoryId) {
         const cat = await findOwned(
@@ -121,7 +119,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
         if (!tag) return reply.code(400).send({ error: "Tag not found" });
       }
 
-      return runCategorySpending(params, req.auth.workspaceId);
+      return runCategoryTag(params, req.auth.workspaceId);
     },
   );
 

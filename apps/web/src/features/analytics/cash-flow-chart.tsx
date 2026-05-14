@@ -16,9 +16,12 @@ import { useMemo, useState } from "react";
 import {
   appendSegment,
   type ChartState,
+  crumbLabel,
   type Direction,
   DIRECTION_LABEL,
   displayItemName,
+  type DrillSegment,
+  interpretItem,
   isLeaf,
   popToDepth,
   stateToQuery,
@@ -26,23 +29,8 @@ import {
 } from "./cash-flow-state";
 import { DrillBreadcrumb } from "./drill-breadcrumb";
 import { DrillPicker } from "./drill-picker";
+import { PALETTE } from "./palette";
 import { SortedAreaChart } from "./sorted-area-chart";
-
-// Rainbow-ish qualitative palette, matching Mantine's chart examples.
-// Series get colors by index; the chart cycles if items outnumber the
-// list.
-const PALETTE = [
-  "indigo.6",
-  "blue.6",
-  "teal.6",
-  "lime.6",
-  "yellow.6",
-  "orange.6",
-  "red.6",
-  "pink.6",
-  "grape.6",
-  "violet.6",
-];
 
 const DIRECTION_OPTIONS: { value: Direction; label: string }[] = [
   { value: "out", label: DIRECTION_LABEL.out },
@@ -151,17 +139,39 @@ export function CashFlowChart({
         <Group>
           {state.direction !== "net" && (
             <DrillBreadcrumb
-              state={state}
+              labels={state.drill.map(crumbLabel)}
               onPopTo={(depth) => setState((s) => popToDepth(s, depth))}
             />
           )}
-          {!isLeaf(state) && (
-            <DrillPicker
-              items={items}
-              state={state}
-              onPick={(seg) => setState((s) => appendSegment(s, seg))}
-            />
-          )}
+          {!isLeaf(state) &&
+            (() => {
+              // Pair each drillable item with the segment it produces;
+              // non-drillable items (null id, or item kind unrecognized
+              // at this level) drop out.
+              const drillable = items
+                .map((item) => {
+                  const seg = interpretItem(state, item);
+                  if (!seg) return null;
+                  return {
+                    id: String(item.id),
+                    label: displayItemName(state, item),
+                    seg,
+                  };
+                })
+                .filter(
+                  (x): x is { id: string; label: string; seg: DrillSegment } =>
+                    x !== null,
+                );
+              return (
+                <DrillPicker
+                  options={drillable.map((d) => ({ id: d.id, label: d.label }))}
+                  onPick={(id) => {
+                    const hit = drillable.find((d) => d.id === id);
+                    if (hit) setState((s) => appendSegment(s, hit.seg));
+                  }}
+                />
+              );
+            })()}
         </Group>
         {q.isLoading ? (
           <Text c="dimmed">Loading…</Text>

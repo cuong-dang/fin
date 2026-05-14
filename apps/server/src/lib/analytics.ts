@@ -12,7 +12,7 @@
  *      group keys → items, minor-unit sums → major-unit numbers.
  *
  * Cash-flow uses a handler map (`CASH_FLOW_HANDLERS`) keyed by
- * `dimension`; category-spending and net-worth each have a single
+ * `dimension`; by-category-&-tag and net-worth each have a single
  * dedicated handler.
  *
  * The route layer never touches the internals — each chart exposes
@@ -25,7 +25,7 @@ import type {
   AnalyticsChartResponse,
   CashFlowDimension,
   CashFlowQuery,
-  CategorySpendingQuery,
+  CategoryTagQuery,
   NetWorthQuery,
 } from "@fin/schemas";
 import {
@@ -114,7 +114,7 @@ type Row = {
 
 // ─── Cash flow ─────────────────────────────────────────────────────────────
 
-type CashFlowQueryCtx = { workspaceId: string } & CashFlowQuery & {
+type CashFlowCtx = { workspaceId: string } & CashFlowQuery & {
     periodExpr: SQL<string>;
     truncExpr: SQL<unknown>;
     legAmountExpr: SQL<string>;
@@ -122,10 +122,10 @@ type CashFlowQueryCtx = { workspaceId: string } & CashFlowQuery & {
     signedLegAmountExpr: SQL<string>;
   };
 
-function buildContext(
+function buildCashFlowCtx(
   params: CashFlowQuery,
   workspaceId: string,
-): CashFlowQueryCtx {
+): CashFlowCtx {
   const { granularity } = params;
 
   const fmtLit = sql.raw(`'${PERIOD_FORMAT[granularity]}'`);
@@ -142,7 +142,7 @@ function buildContext(
   };
 }
 
-type Handler = (ctx: CashFlowQueryCtx) => Promise<Row[]>;
+type Handler = (ctx: CashFlowCtx) => Promise<Row[]>;
 
 const CASH_FLOW_HANDLERS: Record<CashFlowDimension, Handler> = {
   outTop: handleOutTop,
@@ -176,7 +176,7 @@ export async function runCashFlow(
   params: CashFlowQuery,
   workspaceId: string,
 ): Promise<AnalyticsChartResponse> {
-  const ctx = buildContext(params, workspaceId);
+  const ctx = buildCashFlowCtx(params, workspaceId);
   const rows = await CASH_FLOW_HANDLERS[params.dimension](ctx);
   return shapeResponse(
     rows,
@@ -185,7 +185,7 @@ export async function runCashFlow(
   );
 }
 
-async function handleOutTop(ctx: CashFlowQueryCtx): Promise<Row[]> {
+async function handleOutTop(ctx: CashFlowCtx): Promise<Row[]> {
   const {
     workspaceId,
     currency,
@@ -255,7 +255,7 @@ async function handleOutTop(ctx: CashFlowQueryCtx): Promise<Row[]> {
  * single series).
  */
 async function handleCategory(
-  ctx: CashFlowQueryCtx,
+  ctx: CashFlowCtx,
   mode: { direction: "income" | "expense"; drill: boolean },
 ): Promise<Row[]> {
   const {
@@ -352,7 +352,7 @@ async function handleCategory(
     .orderBy(truncExpr);
 }
 
-async function handleOutLoans(ctx: CashFlowQueryCtx): Promise<Row[]> {
+async function handleOutLoans(ctx: CashFlowCtx): Promise<Row[]> {
   const {
     workspaceId,
     start,
@@ -414,7 +414,7 @@ async function handleOutLoans(ctx: CashFlowQueryCtx): Promise<Row[]> {
     .orderBy(truncExpr);
 }
 
-async function handleOutBills(ctx: CashFlowQueryCtx): Promise<Row[]> {
+async function handleOutBills(ctx: CashFlowCtx): Promise<Row[]> {
   const {
     workspaceId,
     start,
@@ -463,7 +463,7 @@ async function handleOutBills(ctx: CashFlowQueryCtx): Promise<Row[]> {
     .orderBy(truncExpr);
 }
 
-async function handleOutBillsByType(ctx: CashFlowQueryCtx): Promise<Row[]> {
+async function handleOutBillsByType(ctx: CashFlowCtx): Promise<Row[]> {
   const {
     workspaceId,
     start,
@@ -515,7 +515,7 @@ async function handleOutBillsByType(ctx: CashFlowQueryCtx): Promise<Row[]> {
     .orderBy(truncExpr);
 }
 
-async function handleNet(ctx: CashFlowQueryCtx): Promise<Row[]> {
+async function handleNet(ctx: CashFlowCtx): Promise<Row[]> {
   const {
     workspaceId,
     start,
@@ -586,7 +586,7 @@ async function handleNet(ctx: CashFlowQueryCtx): Promise<Row[]> {
 }
 
 // ─── Category & tag ────────────────────────────────────────────────────────
-type CategorySpendingCtx = {
+type CategoryTagCtx = {
   workspaceId: string;
   granularity: Granularity;
   start: string;
@@ -594,6 +594,7 @@ type CategorySpendingCtx = {
   currency: string;
   direction: "income" | "expense";
   categoryId?: string | undefined;
+  subcategoryId?: string | undefined;
   tagId?: string | undefined;
 
   // derived
@@ -604,10 +605,10 @@ type CategorySpendingCtx = {
   tagFilter?: SQL | undefined;
 };
 
-function buildCategorySpendingCtx(
-  params: CategorySpendingQuery,
+function buildCategoryTagCtx(
+  params: CategoryTagQuery,
   workspaceId: string,
-): CategorySpendingCtx {
+): CategoryTagCtx {
   const { granularity, tagId, categoryId } = params;
 
   const fmtLit = sql.raw(`'${PERIOD_FORMAT[granularity]}'`);
@@ -638,9 +639,26 @@ function buildCategorySpendingCtx(
   };
 }
 
-async function handleCategorySpending(
-  ctx: CategorySpendingCtx,
-): Promise<Row[]> {
+/**
+ * By-category-&-tag handler. `direction` picks the
+ * `categories.kind` (expense or income); `drilling` swaps between
+ * grouping by category (top level) and grouping by subcategory
+ * within one category (drill, then `ctx.categoryId` is required).
+ * `tagFilter`, if set, narrows lines to one tag id or to untagged
+ * lines.
+ *
+ * Intentionally *omits* two filters that cash-flow's `handleCategory`
+ * applies, because this chart partitions by category — not by
+ * money-flow bucket:
+ *   - No `accounts.type IN ('checking_savings', 'credit_card')`
+ *     filter. Loan-account expenses (financed purchases) are
+ *     counted, since they're still expense lines under some
+ *     category.
+ *   - No `bill_id IS NULL` exclusion. Bill-charged expense lines
+ *     are counted too — they belong to whatever category the bill's
+ *     default lines name.
+ */
+async function handleCategoryTag(ctx: CategoryTagCtx): Promise<Row[]> {
   const {
     workspaceId,
     start,
@@ -648,6 +666,7 @@ async function handleCategorySpending(
     currency,
     direction,
     categoryId,
+    subcategoryId,
     drilling,
     periodExpr,
     truncExpr,
@@ -679,14 +698,26 @@ async function handleCategorySpending(
   );
 
   if (drilling) {
-    if (!categoryId) throw new Error("categoryId required");
-
+    if (!categoryId) throw new Error("categoryId required for drilling");
+    // With `subcategoryId` set, restrict to lines under that one
+    // subcategory — the result reads as a single series (or empty if
+    // the id doesn't match any line in the workspace; the workspace
+    // filter on transactions prevents cross-tenant reads). Mirrors
+    // cash-flow's `handleCategory` leaf.
     return base
       .leftJoin(
         schema.subcategories,
         eq(schema.subcategories.id, schema.transactionLines.subcategoryId),
       )
-      .where(and(where, eq(schema.transactionLines.categoryId, categoryId)))
+      .where(
+        and(
+          where,
+          eq(schema.transactionLines.categoryId, categoryId),
+          subcategoryId
+            ? eq(schema.transactionLines.subcategoryId, subcategoryId)
+            : undefined,
+        ),
+      )
       .groupBy(
         truncExpr,
         schema.transactionLines.subcategoryId,
@@ -706,15 +737,15 @@ async function handleCategorySpending(
 }
 
 /**
- * Category-spending chart entry point. Caller is expected to have
+ * By-category-&-tag chart entry point. Caller is expected to have
  * validated `categoryId` ownership + `kind` and any `tagId` already.
  */
-export async function runCategorySpending(
-  params: CategorySpendingQuery,
+export async function runCategoryTag(
+  params: CategoryTagQuery,
   workspaceId: string,
 ): Promise<AnalyticsChartResponse> {
-  const ctx = buildCategorySpendingCtx(params, workspaceId);
-  const rows = await handleCategorySpending(ctx);
+  const ctx = buildCategoryTagCtx(params, workspaceId);
+  const rows = await handleCategoryTag(ctx);
   return shapeResponse(rows, params.currency);
 }
 
@@ -735,7 +766,7 @@ type NetWorthCtx = {
   intervalLit: SQL;
 };
 
-function buildNetWorthContext(
+function buildNetWorthCtx(
   params: NetWorthQuery,
   workspaceId: string,
 ): NetWorthCtx {
@@ -862,7 +893,7 @@ export async function runNetWorth(
   params: NetWorthQuery,
   workspaceId: string,
 ): Promise<AnalyticsChartResponse> {
-  const ctx = buildNetWorthContext(params, workspaceId);
+  const ctx = buildNetWorthCtx(params, workspaceId);
   const rows = await fetchNetWorthRows(ctx);
   return shapeResponse(
     rows.map((r) => ({
