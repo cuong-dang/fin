@@ -15,7 +15,12 @@ services:
     name: fin-api
     runtime: node
     plan: free
-    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @fin/server build
+    # We run with `tsx` in prod (same loader as dev) so the
+    # workspace-internal @fin/schemas package — which ships TS via its
+    # `exports` field — Just Works without a separate compile step. The
+    # typecheck pass during build catches TS errors before they hit
+    # runtime.
+    buildCommand: pnpm install --frozen-lockfile && pnpm typecheck
     startCommand: pnpm --filter @fin/server start
     healthCheckPath: /health
     envVars:
