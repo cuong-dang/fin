@@ -312,12 +312,26 @@ async function main() {
 
   await resetWorkspace(workspaceId);
 
-  // Account group
-  const [group] = await db
+  // Account groups:
+  //   - "Spending" — everyday accounts (checking, CCs, BNPL, auto loan).
+  //   - "Savings"  — long-term cash buffer.
+  //   - "Excluded" — accounts tracked but kept out of net-worth and
+  //     the everyday sidebar focus (the Mortgage lives here).
+  const [spendingGroup] = await db
     .insert(schema.accountGroups)
-    .values({ workspaceId, name: "Personal" })
+    .values({ workspaceId, name: "Spending" })
     .returning({ id: schema.accountGroups.id });
-  if (!group) throw new Error("Invariant: account group insert");
+  if (!spendingGroup) throw new Error("Invariant: spending group insert");
+  const [savingsGroup] = await db
+    .insert(schema.accountGroups)
+    .values({ workspaceId, name: "Savings" })
+    .returning({ id: schema.accountGroups.id });
+  if (!savingsGroup) throw new Error("Invariant: savings group insert");
+  const [excludedGroup] = await db
+    .insert(schema.accountGroups)
+    .values({ workspaceId, name: "Excluded" })
+    .returning({ id: schema.accountGroups.id });
+  if (!excludedGroup) throw new Error("Invariant: excluded group insert");
 
   // Loans first (accounts.loan_id references them)
   const [autoLoan] = await db
@@ -351,7 +365,7 @@ async function main() {
   const [checking] = await db
     .insert(schema.accounts)
     .values({
-      accountGroupId: group.id,
+      accountGroupId: spendingGroup.id,
       name: "Chase Checking",
       currency: CURRENCY,
       type: "checking_savings",
@@ -362,7 +376,7 @@ async function main() {
   const [savings] = await db
     .insert(schema.accounts)
     .values({
-      accountGroupId: group.id,
+      accountGroupId: savingsGroup.id,
       name: "Marcus Savings",
       currency: CURRENCY,
       type: "checking_savings",
@@ -371,7 +385,7 @@ async function main() {
   const [sapphire] = await db
     .insert(schema.accounts)
     .values({
-      accountGroupId: group.id,
+      accountGroupId: spendingGroup.id,
       name: "Chase Sapphire",
       currency: CURRENCY,
       type: "credit_card",
@@ -382,7 +396,7 @@ async function main() {
   const [amex] = await db
     .insert(schema.accounts)
     .values({
-      accountGroupId: group.id,
+      accountGroupId: spendingGroup.id,
       name: "Amex Gold",
       currency: CURRENCY,
       type: "credit_card",
@@ -393,7 +407,7 @@ async function main() {
   const [autoAcct] = await db
     .insert(schema.accounts)
     .values({
-      accountGroupId: group.id,
+      accountGroupId: spendingGroup.id,
       name: "Auto Loan",
       currency: CURRENCY,
       type: "loan",
@@ -404,7 +418,7 @@ async function main() {
   const [mortgageAcct] = await db
     .insert(schema.accounts)
     .values({
-      accountGroupId: group.id,
+      accountGroupId: excludedGroup.id,
       name: "Mortgage",
       currency: CURRENCY,
       type: "loan",
@@ -419,7 +433,7 @@ async function main() {
   const [affirmAcct] = await db
     .insert(schema.accounts)
     .values({
-      accountGroupId: group.id,
+      accountGroupId: spendingGroup.id,
       name: "Affirm BNPL",
       currency: CURRENCY,
       type: "loan",
