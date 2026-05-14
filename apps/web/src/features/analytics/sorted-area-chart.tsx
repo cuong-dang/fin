@@ -31,17 +31,21 @@ type SortedAreaChartProps = Omit<AreaChartProps, "series"> & {
  *      Any caller-supplied `color` on a series entry is overridden —
  *      consistent color ordering across the three views is the point.
  *
- *   3. The tooltip's payload is sorted descending by per-period
- *      value, matching Mantine's value-descending legend. Mantine's
- *      `<AreaChart>` installs its own `content` for Recharts'
- *      Tooltip, which silently bypasses Recharts' built-in
- *      `itemSorter` — so we override `content` here.
+ *   3. The tooltip's payload, and the legend's order, are both
+ *      reordered to read largest-first. The legend's payload is
+ *      built by Recharts from chart context (the `payload` prop on
+ *      `<Legend>` is ignored), so we steer it via `itemSorter`
+ *      (Recharts feeds that to `sortBy`, ascending). For the
+ *      tooltip, Mantine's `<AreaChart>` installs its own `content`
+ *      that bypasses Recharts' tooltip itemSorter, so we override
+ *      the tooltip content here too.
  *
  * Net: stack (top-down), legend (left-to-right), and tooltip
  * (top-down) all read biggest-first *and* in the same color order.
  */
 export function SortedAreaChart(props: SortedAreaChartProps) {
-  const { data, series, tooltipProps, valueFormatter, ...rest } = props;
+  const { data, series, legendProps, tooltipProps, valueFormatter, ...rest } =
+    props;
 
   const sortedSeries = useMemo(() => {
     const totals = new Map<string, number>();
@@ -66,6 +70,34 @@ export function SortedAreaChart(props: SortedAreaChartProps) {
     }));
   }, [series, data]);
 
+  // Recharts derives the Legend's payload from chart context and
+  // ignores any `payload` prop passed to `<Legend>`. The supported
+  // way to influence its order is `itemSorter`, which it feeds to
+  // lodash/es-toolkit `sortBy` (ascending). We want descending by
+  // total, so return the negative.
+  const totalsByName = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of sortedSeries) {
+      let sum = 0;
+      for (const row of data as Record<string, unknown>[]) {
+        const v = row[s.name];
+        if (typeof v === "number") sum += Math.abs(v);
+      }
+      m.set(s.name, sum);
+    }
+    return m;
+  }, [sortedSeries, data]);
+  const legendItemSorter = (entry: {
+    dataKey?: string | number | ((obj: unknown) => unknown);
+  }) =>
+    -(
+      totalsByName.get(
+        typeof entry.dataKey === "string" || typeof entry.dataKey === "number"
+          ? String(entry.dataKey)
+          : "",
+      ) ?? 0
+    );
+
   const renderTooltip = ({
     label,
     payload,
@@ -88,6 +120,7 @@ export function SortedAreaChart(props: SortedAreaChartProps) {
   return (
     <AreaChart
       data={data}
+      legendProps={{ itemSorter: legendItemSorter, ...legendProps }}
       series={sortedSeries}
       tooltipProps={{ content: renderTooltip, ...tooltipProps }}
       {...(valueFormatter && { valueFormatter })}

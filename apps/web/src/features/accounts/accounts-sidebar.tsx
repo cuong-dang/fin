@@ -23,18 +23,14 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, ChevronDown, ChevronRight, CircleOff } from "lucide-react";
 import { useState } from "react";
-import { Link, useLocation, useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 
 /**
  * Accounts panel rendered inside the AppLayout's navbar.
  */
 export function AccountsSidebar() {
   const [params] = useSearchParams();
-  const { pathname } = useLocation();
-  const onTransactions = pathname === "/transactions";
-  const selectedAccountId = onTransactions
-    ? (params.get("account") ?? undefined)
-    : undefined;
+  const selectedAccountId = params.get("accountId") ?? undefined;
   const groupsQ = useQuery({
     queryKey: ["account-groups"],
     queryFn: listAccountGroups,
@@ -77,12 +73,6 @@ export function AccountsSidebar() {
 
       {/* Account groups and accounts */}
       <ScrollArea flex={1}>
-        <NavLink
-          active={onTransactions && !selectedAccountId}
-          component={Link}
-          label="All transactions"
-          to="/transactions"
-        />
         {groupsQ.isLoading || accountsQ.isLoading ? (
           <Text c="dimmed" px="xs">
             Loading...
