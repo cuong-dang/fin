@@ -2,6 +2,8 @@
 
 A personal finance / money-tracking app.
 
+<img alt="Main screen" src="docs/screenshots/main.png" width="600">
+
 ## Highlight features
 
 What sets this apart from every personal-finance app I've tried — each
