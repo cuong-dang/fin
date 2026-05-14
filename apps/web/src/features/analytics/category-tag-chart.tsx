@@ -15,7 +15,6 @@ import { useMemo, useState } from "react";
 
 import { DrillBreadcrumb } from "./drill-breadcrumb";
 import { DrillPicker } from "./drill-picker";
-import { PALETTE } from "./palette";
 import { SortedAreaChart } from "./sorted-area-chart";
 
 const DIRECTION_OPTIONS: { value: CategoryChartDirection; label: string }[] = [
@@ -111,12 +110,12 @@ export function CategoryTagChart({
 
   // Null ids ("Other" synthetic bucket — lines with no subcategory in
   // drill mode) get a sentinel so the row stays addressable.
-  // SortedAreaChart re-orders the series for stacking; we just need
-  // each entry to have a stable name/label/color.
-  const series = items.map((item, i) => ({
+  // SortedAreaChart re-orders the series for stacking and assigns
+  // palette colors by rank; we just need each entry to have a stable
+  // name/label.
+  const series = items.map((item) => ({
     name: String(item.id ?? "__other__"),
     label: item.name,
-    color: PALETTE[i % PALETTE.length],
   }));
 
   const formatter = useMemo(

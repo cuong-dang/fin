@@ -3,26 +3,44 @@ import type { ComponentProps } from "react";
 import { useMemo } from "react";
 import type { TooltipContentProps } from "recharts";
 
+import { PALETTE } from "./palette";
+
 type AreaChartProps = ComponentProps<typeof AreaChart>;
+type AreaChartSeries = AreaChartProps["series"][number];
+
+// Caller passes series without a color — SortedAreaChart assigns
+// palette colors itself based on sort rank. Anything else
+// (`name`, `label`) passes through.
+type SortedAreaSeries = Omit<AreaChartSeries, "color">;
+
+type SortedAreaChartProps = Omit<AreaChartProps, "series"> & {
+  series: SortedAreaSeries[];
+};
 
 /**
- * Drop-in replacement for `<AreaChart>` with two opinionated defaults
- * for stacked / split area charts:
+ * Drop-in replacement for `<AreaChart>` with three opinionated
+ * defaults for stacked / split area charts:
  *
  *   1. `series` is sorted ascending by absolute total across `data`
  *      so the largest contributor sits at the *top* of the stack
  *      (Recharts paints `series[0]` at the bottom, last on top).
  *
- *   2. The tooltip's payload is sorted descending by per-period
+ *   2. Colors are reassigned *after* the sort: the largest stack
+ *      (top of the chart, left of the legend, top of the tooltip)
+ *      gets `PALETTE[0]`, the next-largest `PALETTE[1]`, and so on.
+ *      Any caller-supplied `color` on a series entry is overridden —
+ *      consistent color ordering across the three views is the point.
+ *
+ *   3. The tooltip's payload is sorted descending by per-period
  *      value, matching Mantine's value-descending legend. Mantine's
  *      `<AreaChart>` installs its own `content` for Recharts'
  *      Tooltip, which silently bypasses Recharts' built-in
  *      `itemSorter` — so we override `content` here.
  *
  * Net: stack (top-down), legend (left-to-right), and tooltip
- * (top-down) all read biggest-first.
+ * (top-down) all read biggest-first *and* in the same color order.
  */
-export function SortedAreaChart(props: AreaChartProps) {
+export function SortedAreaChart(props: SortedAreaChartProps) {
   const { data, series, tooltipProps, valueFormatter, ...rest } = props;
 
   const sortedSeries = useMemo(() => {
@@ -35,9 +53,17 @@ export function SortedAreaChart(props: AreaChartProps) {
       }
       totals.set(s.name, sum);
     }
-    return [...series].sort(
+    const sorted = [...series].sort(
       (a, b) => (totals.get(a.name) ?? 0) - (totals.get(b.name) ?? 0),
     );
+    // Color by rank, biggest-first. `sorted` is ascending by total,
+    // so the LAST entry is the top of the stack — it should get
+    // `PALETTE[0]`. Index from the end.
+    const n = sorted.length;
+    return sorted.map((s, i) => ({
+      ...s,
+      color: PALETTE[(n - 1 - i) % PALETTE.length],
+    }));
   }, [series, data]);
 
   const renderTooltip = ({

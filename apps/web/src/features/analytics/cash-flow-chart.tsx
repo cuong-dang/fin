@@ -29,7 +29,6 @@ import {
 } from "./cash-flow-state";
 import { DrillBreadcrumb } from "./drill-breadcrumb";
 import { DrillPicker } from "./drill-picker";
-import { PALETTE } from "./palette";
 import { SortedAreaChart } from "./sorted-area-chart";
 
 const DIRECTION_OPTIONS: { value: Direction; label: string }[] = [
@@ -92,12 +91,12 @@ export function CashFlowChart({
   // Bucket ids on the wire are either UUIDs or short enum strings —
   // either way, suitable as a data-row key. Null ids ("Other"
   // synthetic bucket) get a sentinel so the row stays addressable.
-  // SortedAreaChart re-orders the series for stacking; we just need
-  // each entry to have a stable name/label/color.
-  const series = items.map((item, i) => ({
+  // SortedAreaChart re-orders the series for stacking and assigns
+  // palette colors by rank; we just need each entry to have a stable
+  // name/label.
+  const series = items.map((item) => ({
     name: String(item.id ?? "__other__"),
     label: displayItemName(state, item),
-    color: PALETTE[i % PALETTE.length],
   }));
 
   const formatter = useMemo(
