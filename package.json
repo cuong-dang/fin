@@ -8,6 +8,7 @@
     "db:down": "docker compose down",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:seed": "pnpm --filter @fin/server seed",
     "db:studio": "drizzle-kit studio",
     "db:up": "docker compose up -d",
     "dev:server": "pnpm --filter @fin/server dev",

@@ -16,6 +16,8 @@ primary cases instead of afterthoughts:
   stays the shape of real events while analytics still see the
   breakdown.
 
+  <img alt="Multi-line split in the New Transaction form" src="docs/screenshots/multi-line-splits.png" width="300">
+
 - **Native recurring bills with templates.** Utilities, subscriptions,
   insurance, taxes, anything that recurs — first-class entities with
   type (utility/subscription/other), cadence, a default source
@@ -25,6 +27,8 @@ primary cases instead of afterthoughts:
   Past charges link back to the bill (rendered as `↻ Netflix` on the
   tx row) for "how much on subscriptions this quarter?" answers.
 
+  <img alt="Recurring bill template + Payment tab auto-fill" src="docs/screenshots/recurring-bills.png" width="300">
+
 - **Credit-card accounts with limit tracking.** Accounts have a `type`
   (`checking_savings` / `credit_card` / `loan`). Credit cards carry a
   credit limit and an optional default pay-from account. The sidebar
@@ -33,6 +37,8 @@ primary cases instead of afterthoughts:
   via the **Payment** tab is a transfer underneath (checking → CC) with
   the source pre-filled from the card's default — accounting honest,
   UX simple.
+
+  <img alt="Credit-card limit progress bar in the sidebar" src="docs/screenshots/credit-cards.png" width="300">
 
 - **Loan accounts with amortization templates.** Loan accounts
   (mortgage, auto loan, BNPL) pair 1:1 with a plan describing the
@@ -48,6 +54,8 @@ primary cases instead of afterthoughts:
   records categorization and the user fills per-period amounts at
   payment time.
 
+  <img alt="Loan account with amortization template + payment form" src="docs/screenshots/loans.png" width="300">
+
 - **Analytics that separate cash flow from purchase activity.** Three
   charts that answer different questions:
   - **Cash flow** — money actually leaving / entering your everyday
@@ -55,13 +63,21 @@ primary cases instead of afterthoughts:
     purchases financed on a loan account don't show up until you
     actually pay the loan. Toggle Out / In / Net; drill Out by
     expense → category → subcategory, or by individual loan / bill.
+
+    <img alt="Cash flow chart — Out/In/Net with drill" src="docs/screenshots/cash-flow-chart.png" width="600">
+
   - **By category & tag** — where your money goes, broken down by
     category, _including_ big-ticket items financed by loans on the
     day you bought them. Drill into a category's subcategories;
     filter by tag (or "Untagged").
+
+    <img alt="By-category-and-tag chart" src="docs/screenshots/category-tag-chart.png" width="600">
+
   - **Net worth** — assets above zero, liabilities below, net line
     on top, tracked over time. Accounts marked "exclude from net
     worth" stay out; balance adjustments are in.
+
+    <img alt="Net worth chart — diverging assets/liabilities with net line" src="docs/screenshots/net-worth-chart.png" width="600">
 
   Every chart sits on one Mantine `AreaChart`; filters and drills are
   explicit controls (no click-the-legend magic).
@@ -160,6 +176,20 @@ WEB_ORIGIN=http://localhost:5173   # optional, this is the default
 On first sign-in the server auto-provisions your user row and a default
 "Personal" workspace.
 
+### Demo data
+
+To explore with realistic activity (~7 months of transactions exercising
+every highlight feature — multi-line splits, bills, CCs, loans, a
+loan-financed BNPL purchase, and tagged lines):
+
+```bash
+pnpm db:seed
+```
+
+The seed wipes the first user's workspace and rewrites it from a
+deterministic PRNG, so reruns produce the same dataset. Users,
+workspaces, and memberships are preserved.
+
 ## Useful scripts
 
 - `pnpm dev` — server + web in parallel
@@ -172,6 +202,7 @@ On first sign-in the server auto-provisions your user row and a default
 - `pnpm format` / `pnpm format:check` — Prettier
 - `pnpm db:up` / `pnpm db:down` — Postgres container
 - `pnpm db:generate` / `pnpm db:migrate` / `pnpm db:studio` — Drizzle
+- `pnpm db:seed` — wipe + reseed the first user's workspace with demo data
 
 ## API shape
 
