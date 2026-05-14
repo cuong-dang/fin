@@ -1,7 +1,6 @@
 import { getCashFlow, listAccountGroups } from "@/lib/endpoints";
 
 import type { Granularity } from "@fin/schemas";
-import { AreaChart } from "@mantine/charts";
 import {
   Card,
   Group,
@@ -27,6 +26,7 @@ import {
 } from "./cash-flow-state";
 import { DrillBreadcrumb } from "./drill-breadcrumb";
 import { DrillPicker } from "./drill-picker";
+import { SortedAreaChart } from "./sorted-area-chart";
 
 // Rainbow-ish qualitative palette, matching Mantine's chart examples.
 // Series get colors by index; the chart cycles if items outnumber the
@@ -98,17 +98,15 @@ export function CashFlowChart({
   const items = q.data?.items ?? [];
   const buckets = q.data?.buckets ?? [];
 
-  const chartType: "default" | "stacked" | "split" =
-    state.direction === "net"
-      ? "split"
-      : items.length <= 1
-        ? "default"
-        : "stacked";
+  const chartType: "stacked" | "split" =
+    state.direction === "net" ? "split" : "stacked";
 
+  // Bucket ids on the wire are either UUIDs or short enum strings —
+  // either way, suitable as a data-row key. Null ids ("Other"
+  // synthetic bucket) get a sentinel so the row stays addressable.
+  // SortedAreaChart re-orders the series for stacking; we just need
+  // each entry to have a stable name/label/color.
   const series = items.map((item, i) => ({
-    // Bucket ids on the wire are either UUIDs or short enum strings —
-    // either way, suitable as a data-row key. Null ids ("Other"
-    // synthetic bucket) get a sentinel so the row stays addressable.
     name: String(item.id ?? "__other__"),
     label: displayItemName(state, item),
     color: PALETTE[i % PALETTE.length],
@@ -172,7 +170,7 @@ export function CashFlowChart({
         ) : buckets.length === 0 ? (
           <Text c="dimmed">No data for this view.</Text>
         ) : (
-          <AreaChart
+          <SortedAreaChart
             curveType="natural"
             data={buckets}
             dataKey="period"

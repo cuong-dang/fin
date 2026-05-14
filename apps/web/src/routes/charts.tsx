@@ -8,7 +8,7 @@ import { NetWorthChart } from "@/features/analytics/net-worth-chart";
 import { listAccounts } from "@/lib/endpoints";
 
 import type { Granularity } from "@fin/schemas";
-import { Group, NativeSelect, Stack } from "@mantine/core";
+import { Group, Select, Stack } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
@@ -40,11 +40,12 @@ export function ChartsRoute() {
       <Group>
         <GranularityToggle value={granularity} onChange={setGranularity} />
         {currencies.length > 1 && (
-          <NativeSelect
+          <Select
+            allowDeselect={false}
             aria-label="Currency"
             data={currencies}
             value={activeCurrency}
-            onChange={(e) => setCurrency(e.target.value)}
+            onChange={(v) => setCurrency(v ?? "")}
           />
         )}
       </Group>
