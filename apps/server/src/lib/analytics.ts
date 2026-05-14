@@ -619,6 +619,7 @@ async function handleNet(ctx: CashFlowCtx): Promise<Row[]> {
 }
 
 // ─── Category & tag ────────────────────────────────────────────────────────
+
 type CategoryTagCtx = {
   workspaceId: string;
   granularity: Granularity;
@@ -783,6 +784,7 @@ export async function runCategoryTag(
 }
 
 // ─── Net worth ─────────────────────────────────────────────────────────────
+
 type NetWorthCtx = {
   workspaceId: string;
   granularity: Granularity;

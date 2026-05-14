@@ -8,7 +8,6 @@ import {
   Select,
   Stack,
   Text,
-  Title,
 } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -27,10 +26,12 @@ import {
   stateToQuery,
   withDirection,
 } from "./cash-flow-state";
+import { ChartTitle } from "./chart-title";
 import { DivergingNetChart } from "./diverging-net-chart";
 import { DrillBreadcrumb } from "./drill-breadcrumb";
 import { DrillPicker } from "./drill-picker";
 import { SortedAreaChart } from "./sorted-area-chart";
+import { useCurrencyFormatters } from "./use-currency-formatters";
 
 const DIRECTION_OPTIONS: { value: Direction; label: string }[] = [
   { value: "out", label: DIRECTION_LABEL.out },
@@ -97,31 +98,26 @@ export function CashFlowChart({
     label: displayItemName(state, item),
   }));
 
-  const formatter = useMemo(
-    () =>
-      currency
-        ? new Intl.NumberFormat("en-US", { style: "currency", currency })
-        : null,
-    [currency],
-  );
+  const fmt = useCurrencyFormatters(currency);
 
   return (
     <Card>
       <Stack>
         <Group justify="space-between">
-          <Title order={4}>Cash flow</Title>
+          <ChartTitle
+            info="How much cash is going in and out of your everyday accounts each period — checking, savings, and credit cards. Loan payments count as cash out too (even though they're recorded as transfers, real cash leaves your account). Useful for: do I have enough cushion this month? Could I afford another $X recurring payment?"
+            title="Cash flow"
+          />
           <Group>
             <SegmentedControl
               data={DIRECTION_OPTIONS}
               value={state.direction}
-              w="fit-content"
               onChange={(v) =>
                 setState((s) => withDirection(s, v as Direction))
               }
             />
             {groups.length > 0 && (
               <Select
-                allowDeselect={false}
                 aria-label="Account group"
                 data={[
                   { value: ALL_GROUPS, label: "All groups" },
@@ -186,9 +182,8 @@ export function CashFlowChart({
             negative={{ name: "out", label: "Cash out" }}
             net={{ name: "net", label: "Net" }}
             positive={{ name: "in", label: "Cash in" }}
-            valueFormatter={
-              formatter ? (v: number) => formatter.format(v) : undefined
-            }
+            valueFormatter={fmt?.tooltipFormatter}
+            yAxisProps={fmt ? { tickFormatter: fmt.axisFormatter } : undefined}
           />
         ) : (
           <SortedAreaChart
@@ -200,8 +195,9 @@ export function CashFlowChart({
             type="stacked"
             withLegend
             withPointLabels
-            {...(formatter && {
-              valueFormatter: (v: number) => formatter.format(v),
+            {...(fmt && {
+              valueFormatter: fmt.tooltipFormatter,
+              yAxisProps: { tickFormatter: fmt.axisFormatter },
             })}
           />
         )}

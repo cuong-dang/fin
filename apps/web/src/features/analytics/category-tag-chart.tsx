@@ -8,14 +8,15 @@ import {
   Select,
   Stack,
   Text,
-  Title,
 } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
+import { ChartTitle } from "./chart-title";
 import { DrillBreadcrumb } from "./drill-breadcrumb";
 import { DrillPicker } from "./drill-picker";
 import { SortedAreaChart } from "./sorted-area-chart";
+import { useCurrencyFormatters } from "./use-currency-formatters";
 
 const DIRECTION_OPTIONS: { value: CategoryChartDirection; label: string }[] = [
   { value: "expense", label: "Expense" },
@@ -118,13 +119,7 @@ export function CategoryTagChart({
     label: item.name,
   }));
 
-  const formatter = useMemo(
-    () =>
-      currency
-        ? new Intl.NumberFormat("en-US", { style: "currency", currency })
-        : null,
-    [currency],
-  );
+  const fmt = useCurrencyFormatters(currency);
 
   // Direction change resets the drill (different categories per kind)
   // and the tag filter (a previously-selected tag may not appear in
@@ -163,16 +158,17 @@ export function CategoryTagChart({
     <Card>
       <Stack>
         <Group justify="space-between">
-          <Title order={4}>By category &amp; tag</Title>
+          <ChartTitle
+            info="Where your money goes (or comes from), broken down by category — including big-ticket items financed by loans, counted on the day you bought them. Filter by a tag to narrow further. Useful for: what am I actually spending on? Is any category creeping up?"
+            title="By category & tag"
+          />
           <Group>
             <SegmentedControl
               data={DIRECTION_OPTIONS}
               value={direction}
-              w="fit-content"
               onChange={(v) => onDirectionChange(v as CategoryChartDirection)}
             />
             <Select
-              allowDeselect={false}
               aria-label="Tag filter"
               data={tagOptions(tags)}
               value={tag}
@@ -214,8 +210,9 @@ export function CategoryTagChart({
             type="stacked"
             withLegend
             withPointLabels
-            {...(formatter && {
-              valueFormatter: (v: number) => formatter.format(v),
+            {...(fmt && {
+              valueFormatter: fmt.tooltipFormatter,
+              yAxisProps: { tickFormatter: fmt.axisFormatter },
             })}
           />
         )}

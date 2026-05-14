@@ -1,11 +1,12 @@
 import { getNetWorth } from "@/lib/endpoints";
 
 import type { Granularity } from "@fin/schemas";
-import { Card, Stack, Text, Title } from "@mantine/core";
+import { Card, Stack, Text } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
 
+import { ChartTitle } from "./chart-title";
 import { DivergingNetChart } from "./diverging-net-chart";
+import { useCurrencyFormatters } from "./use-currency-formatters";
 
 /**
  * Net-worth chart. Renders a diverging stacked area:
@@ -39,18 +40,15 @@ export function NetWorthChart({
 
   const buckets = q.data?.buckets ?? [];
 
-  const formatter = useMemo(
-    () =>
-      currency
-        ? new Intl.NumberFormat("en-US", { style: "currency", currency })
-        : null,
-    [currency],
-  );
+  const fmt = useCurrencyFormatters(currency);
 
   return (
     <Card>
       <Stack>
-        <Title order={4}>Net worth</Title>
+        <ChartTitle
+          info="Everything you own minus everything you owe, tracked over time. Assets sit above zero; debts (credit-card balances and loans) sit below zero; the net line is the difference. Useful for: am I building wealth?"
+          title="Net worth"
+        />
         {q.isLoading ? (
           <Text c="dimmed">Loading…</Text>
         ) : q.error ? (
@@ -63,9 +61,8 @@ export function NetWorthChart({
             negative={{ name: "liabilities", label: "Liabilities" }}
             net={{ name: "net", label: "Net worth" }}
             positive={{ name: "assets", label: "Assets" }}
-            valueFormatter={
-              formatter ? (v: number) => formatter.format(v) : undefined
-            }
+            valueFormatter={fmt?.tooltipFormatter}
+            yAxisProps={fmt ? { tickFormatter: fmt.axisFormatter } : undefined}
           />
         )}
       </Stack>

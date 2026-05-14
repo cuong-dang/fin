@@ -52,7 +52,7 @@ export function AuthCallbackRoute() {
           throw new Error("Invariant: /me returned a user with no workspace");
         }
         setWorkspaceId(first.id);
-        navigate("/transactions", { replace: true });
+        navigate("/charts", { replace: true });
       })
       .catch((e: Error) => setError(e.message));
   }, [navigate]);

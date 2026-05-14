@@ -26,7 +26,7 @@ export function App() {
       <Route element={<AuthCallbackRoute />} path="/auth/callback" />
       <Route element={<RequireAuth />}>
         <Route element={<AppLayoutRoute />}>
-          <Route element={<Navigate replace to="/transactions" />} index />
+          <Route element={<Navigate replace to="/charts" />} index />
           <Route element={<TransactionsRoute />} path="/transactions" />
           <Route element={<ChartsRoute />} path="/charts" />
         </Route>

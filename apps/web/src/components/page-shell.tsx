@@ -23,7 +23,7 @@ export function PageShell({
         <BackLink />
         <Stack w="100%">
           <Group justify="space-between">
-            <Title order={3}>{title}</Title>
+            <Title order={4}>{title}</Title>
             {right}
           </Group>
           {children}

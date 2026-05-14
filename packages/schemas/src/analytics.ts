@@ -83,28 +83,6 @@ export const cashFlowQuery = baseChartQuery.extend({
 });
 export type CashFlowQuery = z.infer<typeof cashFlowQuery>;
 
-// ─── Shared response shapes ───────────────────────────────────────────────
-
-/**
- * One series in the chart (a stacked area + a legend chip). Used by
- * every analytics chart.
- *
- * - `id`   — wire key. Doubles as the column name on each
- *   `ChartBucket`, so the client reads its values via `bucket[id]`,
- *   and as Mantine's `series.name` (its internal data-key).
- *   `null` marks a synthetic "Other"-style item (e.g., lines with no
- *   subcategory in drill mode); the client uses `null` to disable
- *   further drill on that chip.
- * - `name` — display label shown in the legend and tooltip. Mantine's
- *   `series.label`. May be the same string as `id` when the server's
- *   group key is already user-readable (e.g., bill type "utility");
- *   the client may remap to a friendlier label via `displayItemName`.
- */
-export type ChartItem = {
-  id: string | null;
-  name: string;
-};
-
 /**
  * One row of chart data — the value of every series at a single
  * period. Each `ChartItem.id` becomes a property on this object,
@@ -168,7 +146,7 @@ export type CategoryChartDirection = z.infer<typeof categoryChartDirection>;
  *   - omitted → no tag filter
  *   - a UUID → only lines tagged with that tag
  *   - "__none__" → only lines with no tags
- * Multi-tag selection isn't supported.
+ * Multi-tag selection isn't supported. (TODO?)
  */
 export const categoryTagQuery = baseChartQuery.extend({
   direction: categoryChartDirection.default("expense"),
@@ -192,3 +170,25 @@ export type CategoryTagQuery = z.infer<typeof categoryTagQuery>;
  */
 export const netWorthQuery = baseChartQuery;
 export type NetWorthQuery = z.infer<typeof netWorthQuery>;
+
+// ─── Shared response shapes ───────────────────────────────────────────────
+
+/**
+ * One series in the chart (a stacked area + a legend chip). Used by
+ * every analytics chart.
+ *
+ * - `id`   — wire key. Doubles as the column name on each
+ *   `ChartBucket`, so the client reads its values via `bucket[id]`,
+ *   and as Mantine's `series.name` (its internal data-key).
+ *   `null` marks a synthetic "Other"-style item (e.g., lines with no
+ *   subcategory in drill mode); the client uses `null` to disable
+ *   further drill on that chip.
+ * - `name` — display label shown in the legend and tooltip. Mantine's
+ *   `series.label`. May be the same string as `id` when the server's
+ *   group key is already user-readable (e.g., bill type "utility");
+ *   the client may remap to a friendlier label via `displayItemName`.
+ */
+export type ChartItem = {
+  id: string | null;
+  name: string;
+};

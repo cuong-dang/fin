@@ -26,6 +26,7 @@ export function DivergingNetChart({
   negative,
   net,
   valueFormatter,
+  yAxisProps,
   h = 300,
 }: {
   data: CompositeChartProps["data"];
@@ -36,6 +37,7 @@ export function DivergingNetChart({
   /** Per-period sum of `positive + negative`, rendered as a line. */
   net: SeriesSpec;
   valueFormatter?: ((v: number) => string) | undefined;
+  yAxisProps?: CompositeChartProps["yAxisProps"] | undefined;
   h?: number;
 }) {
   const series: CompositeChartSeries[] = [
@@ -79,6 +81,7 @@ export function DivergingNetChart({
       withLegend
       withPointLabels
       {...(valueFormatter && { valueFormatter })}
+      {...(yAxisProps && { yAxisProps })}
     />
   );
 }
