@@ -1,5 +1,11 @@
 import { clearAuth, getToken, getWorkspaceId } from "./auth.js";
 
+// Base URL of the API. Empty in dev (Vite proxies `/api/*` to port
+// 3001 so relative paths Just Work). In prod the SPA and API live on
+// different Render hosts, so we bake the API host into the bundle at
+// build time via `VITE_API_URL`.
+export const API_BASE = import.meta.env.VITE_API_URL ?? "";
+
 class ApiError extends Error {
   constructor(
     public status: number,
@@ -35,7 +41,7 @@ export async function api<T = unknown>(
   // `exactOptionalPropertyTypes`, RequestInit.body must be either
   // omitted or `BodyInit | null` — assigning `undefined` is a violation.
   // Conditional spread keeps the property out of the literal in that case.
-  const res = await fetch(path, {
+  const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers,
     ...(body !== undefined && { body }),

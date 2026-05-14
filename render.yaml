@@ -1,0 +1,51 @@
+# Render Blueprint — two services:
+#   1. fin-api   — Fastify on a free Web Service (cold-starts after 15
+#                  min idle)
+#   2. fin-web   — Vite SPA on a free Static Site (no spin-down)
+#
+# After the first deploy, three values need to be set by hand:
+#   • fin-api `WEB_ORIGIN`     → the fin-web URL Render assigns
+#   • fin-web `VITE_API_URL`   → the fin-api URL Render assigns
+#   • Google Console authorized redirect URI →
+#       <fin-api URL>/api/auth/google/callback
+#
+# Created/updated via "New > Blueprint" in the Render dashboard.
+services:
+  - type: web
+    name: fin-api
+    runtime: node
+    plan: free
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @fin/server build
+    startCommand: pnpm --filter @fin/server start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        sync: false # Neon URL
+      - key: AUTH_SECRET
+        sync: false # `openssl rand -base64 32`
+      - key: AUTH_GOOGLE_ID
+        sync: false
+      - key: AUTH_GOOGLE_SECRET
+        sync: false
+      - key: WEB_ORIGIN
+        sync: false # set to fin-web URL after first deploy
+
+  - type: web # Render Blueprint terminology: a static site is still a "web" type
+    name: fin-web
+    runtime: static
+    # Static sites are always free on Render — no `plan` field allowed.
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @fin/web build
+    staticPublishPath: apps/web/dist
+    # SPA fallback: any unknown route serves index.html so React Router
+    # can take it from there.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: VITE_API_URL
+        sync: false # set to fin-api URL after first deploy

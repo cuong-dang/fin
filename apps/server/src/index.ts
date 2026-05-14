@@ -1,3 +1,4 @@
+import cors from "@fastify/cors";
 import Fastify, { type FastifyError } from "fastify";
 import { ZodError } from "zod";
 
@@ -13,6 +14,12 @@ import { tagRoutes } from "./routes/tags.js";
 import { transactionRoutes } from "./routes/transactions.js";
 
 const app = Fastify({ logger: true });
+
+// CORS for cross-origin SPA → API requests (the SPA is served from a
+// different host than the API in our two-service Render deployment).
+// We use Bearer auth in `Authorization`, not cookies, so
+// `credentials: false`.
+await app.register(cors, { origin: env.WEB_ORIGIN, credentials: false });
 
 await app.register(authPlugin);
 

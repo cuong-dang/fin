@@ -78,7 +78,7 @@ export const authPlugin = fp(async (app) => {
       auth: googleAuth,
     },
     startRedirectPath: "/api/auth/google/start",
-    callbackUri: `http://localhost:${env.PORT}/api/auth/google/callback`,
+    callbackUri: `${env.SERVER_ORIGIN}/api/auth/google/callback`,
   });
 
   app.decorate(

@@ -204,6 +204,30 @@ workspaces, and memberships are preserved.
 - `pnpm db:generate` / `pnpm db:migrate` / `pnpm db:studio` — Drizzle
 - `pnpm db:seed` — wipe + reseed the first user's workspace with demo data
 
+## Deploy
+
+Free-tier [Render](https://render.com) Blueprint at the repo root
+([render.yaml](render.yaml)) defines two services that point at this
+repo:
+
+- **fin-api** — Fastify on a free Web Service (cold-starts after ~15
+  min idle).
+- **fin-web** — Vite SPA on a free Static Site (no spin-down).
+
+One-time wiring after the first deploy:
+
+1. Set `WEB_ORIGIN` on **fin-api** to the **fin-web** public URL Render
+   assigns (used as the CORS allow-origin and the post-OAuth redirect
+   target).
+2. Set `VITE_API_URL` on **fin-web** to the **fin-api** public URL.
+   This gets baked into the SPA bundle, so trigger a manual redeploy
+   of fin-web after setting it.
+3. Add `<fin-api URL>/api/auth/google/callback` to the authorized
+   redirect URIs in Google Cloud Console for your OAuth client.
+
+Database stays wherever you already host Postgres (e.g.
+[Neon](https://neon.tech)); point `DATABASE_URL` on fin-api at it.
+
 ## API shape
 
 Workspace-scoped routes require two headers:
