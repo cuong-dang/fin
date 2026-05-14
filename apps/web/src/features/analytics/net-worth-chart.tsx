@@ -26,11 +26,13 @@ export function NetWorthChart({
   start,
   end,
   currency,
+  withPointLabels,
 }: {
   granularity: Granularity;
   start: string;
   end: string;
   currency: string;
+  withPointLabels: boolean;
 }) {
   const q = useQuery({
     queryKey: ["net-worth", { granularity, start, end, currency }],
@@ -62,6 +64,7 @@ export function NetWorthChart({
             net={{ name: "net", label: "Net worth" }}
             positive={{ name: "assets", label: "Assets" }}
             valueFormatter={fmt?.tooltipFormatter}
+            withPointLabels={withPointLabels}
             yAxisProps={fmt ? { tickFormatter: fmt.axisFormatter } : undefined}
           />
         )}

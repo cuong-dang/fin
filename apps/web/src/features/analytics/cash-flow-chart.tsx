@@ -46,11 +46,13 @@ export function CashFlowChart({
   start,
   end,
   currency,
+  withPointLabels,
 }: {
   granularity: Granularity;
   start: string;
   end: string;
   currency: string;
+  withPointLabels: boolean;
 }) {
   const [state, setState] = useState<ChartState>({
     direction: "out",
@@ -183,6 +185,7 @@ export function CashFlowChart({
             net={{ name: "net", label: "Net" }}
             positive={{ name: "in", label: "Cash in" }}
             valueFormatter={fmt?.tooltipFormatter}
+            withPointLabels={withPointLabels}
             yAxisProps={fmt ? { tickFormatter: fmt.axisFormatter } : undefined}
           />
         ) : (
@@ -194,7 +197,7 @@ export function CashFlowChart({
             series={series}
             type="stacked"
             withLegend
-            withPointLabels
+            withPointLabels={withPointLabels}
             {...(fmt && {
               valueFormatter: fmt.tooltipFormatter,
               yAxisProps: { tickFormatter: fmt.axisFormatter },

@@ -1,6 +1,8 @@
 import { CompositeChart, type CompositeChartSeries } from "@mantine/charts";
 import type { ComponentProps } from "react";
 
+import { POINT_LABEL_MARGIN_RIGHT } from "./chart-config";
+
 type CompositeChartProps = ComponentProps<typeof CompositeChart>;
 
 type SeriesSpec = { name: string; label: string };
@@ -27,6 +29,7 @@ export function DivergingNetChart({
   net,
   valueFormatter,
   yAxisProps,
+  withPointLabels = false,
   h = 300,
 }: {
   data: CompositeChartProps["data"];
@@ -38,6 +41,7 @@ export function DivergingNetChart({
   net: SeriesSpec;
   valueFormatter?: ((v: number) => string) | undefined;
   yAxisProps?: CompositeChartProps["yAxisProps"] | undefined;
+  withPointLabels?: boolean;
   h?: number;
 }) {
   const series: CompositeChartSeries[] = [
@@ -64,9 +68,17 @@ export function DivergingNetChart({
   // custom `content` callback runs).
   const legendOrder = [positive.name, negative.name, net.name];
 
+  // When point labels are on, reserve right-side margin so the
+  // largest-magnitude label (often the negative liabilities stack)
+  // doesn't clip against the SVG edge.
+  const composedChartProps: CompositeChartProps["composedChartProps"] = {
+    stackOffset: "sign",
+    ...(withPointLabels && { margin: { right: POINT_LABEL_MARGIN_RIGHT } }),
+  };
+
   return (
     <CompositeChart
-      composedChartProps={{ stackOffset: "sign" }}
+      composedChartProps={composedChartProps}
       curveType="natural"
       data={data}
       dataKey="period"
@@ -79,7 +91,7 @@ export function DivergingNetChart({
       }}
       series={series}
       withLegend
-      withPointLabels
+      withPointLabels={withPointLabels}
       {...(valueFormatter && { valueFormatter })}
       {...(yAxisProps && { yAxisProps })}
     />

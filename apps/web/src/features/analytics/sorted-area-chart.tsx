@@ -3,6 +3,7 @@ import type { ComponentProps } from "react";
 import { useMemo } from "react";
 import type { TooltipContentProps } from "recharts";
 
+import { POINT_LABEL_MARGIN_RIGHT } from "./chart-config";
 import { PALETTE } from "./palette";
 
 type AreaChartProps = ComponentProps<typeof AreaChart>;
@@ -44,8 +45,16 @@ type SortedAreaChartProps = Omit<AreaChartProps, "series"> & {
  * (top-down) all read biggest-first *and* in the same color order.
  */
 export function SortedAreaChart(props: SortedAreaChartProps) {
-  const { data, series, legendProps, tooltipProps, valueFormatter, ...rest } =
-    props;
+  const {
+    data,
+    series,
+    legendProps,
+    tooltipProps,
+    valueFormatter,
+    areaChartProps,
+    withPointLabels,
+    ...rest
+  } = props;
 
   const sortedSeries = useMemo(() => {
     const totals = new Map<string, number>();
@@ -117,13 +126,25 @@ export function SortedAreaChart(props: SortedAreaChartProps) {
     />
   );
 
+  // When point labels are on, reserve a chunk of right-side margin so
+  // the last period's label doesn't clip against the SVG edge. The
+  // merge preserves any caller-supplied margin values on other sides.
+  const mergedAreaChartProps = withPointLabels
+    ? {
+        ...areaChartProps,
+        margin: { right: POINT_LABEL_MARGIN_RIGHT, ...areaChartProps?.margin },
+      }
+    : areaChartProps;
+
   return (
     <AreaChart
       data={data}
       legendProps={{ itemSorter: legendItemSorter, ...legendProps }}
       series={sortedSeries}
       tooltipProps={{ content: renderTooltip, ...tooltipProps }}
+      {...(withPointLabels !== undefined && { withPointLabels })}
       {...(valueFormatter && { valueFormatter })}
+      {...(mergedAreaChartProps && { areaChartProps: mergedAreaChartProps })}
       {...rest}
     />
   );

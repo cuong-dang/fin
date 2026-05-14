@@ -8,9 +8,11 @@ import { NetWorthChart } from "@/features/analytics/net-worth-chart";
 import { listAccounts } from "@/lib/endpoints";
 
 import type { Granularity } from "@fin/schemas";
-import { Group, Select, Stack } from "@mantine/core";
+import { Group, Select, Stack, Switch } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+const POINT_LABELS_KEY = "fin:charts.withPointLabels";
 
 /**
  * Charts page. Hosts cross-chart controls (granularity + currency) at
@@ -35,10 +37,32 @@ export function ChartsRoute() {
   const activeCurrency = currency || currencies[0] || "";
   const { start, end } = defaultRange(granularity);
 
+  // Persisted across reloads. Cheap UX nicety; localStorage failure
+  // (private mode, quota) is fine — falls back to off.
+  const [withPointLabels, setWithPointLabels] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(POINT_LABELS_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(POINT_LABELS_KEY, withPointLabels ? "1" : "0");
+    } catch {
+      // ignore
+    }
+  }, [withPointLabels]);
+
   return (
     <Stack p="xs">
       <Group>
         <GranularityToggle value={granularity} onChange={setGranularity} />
+        <Switch
+          checked={withPointLabels}
+          label="Point labels"
+          onChange={(e) => setWithPointLabels(e.currentTarget.checked)}
+        />
         {currencies.length > 1 && (
           <Select
             allowDeselect={false}
@@ -54,18 +78,21 @@ export function ChartsRoute() {
         end={end}
         granularity={granularity}
         start={start}
+        withPointLabels={withPointLabels}
       />
       <CategoryTagChart
         currency={activeCurrency}
         end={end}
         granularity={granularity}
         start={start}
+        withPointLabels={withPointLabels}
       />
       <NetWorthChart
         currency={activeCurrency}
         end={end}
         granularity={granularity}
         start={start}
+        withPointLabels={withPointLabels}
       />
     </Stack>
   );
