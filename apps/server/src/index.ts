@@ -18,8 +18,15 @@ const app = Fastify({ logger: true });
 // CORS for cross-origin SPA → API requests (the SPA is served from a
 // different host than the API in our two-service Render deployment).
 // We use Bearer auth in `Authorization`, not cookies, so
-// `credentials: false`.
-await app.register(cors, { origin: env.WEB_ORIGIN, credentials: false });
+// `credentials: false`. The `methods` list must be explicit:
+// `@fastify/cors@11` shipped a default of just `GET,HEAD,POST`, so
+// the SPA's PATCH / PUT / DELETE requests would otherwise be
+// rejected at preflight.
+await app.register(cors, {
+  origin: env.WEB_ORIGIN,
+  credentials: false,
+  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"],
+});
 
 await app.register(authPlugin);
 
