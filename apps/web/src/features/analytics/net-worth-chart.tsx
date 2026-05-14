@@ -1,20 +1,74 @@
+import { getNetWorth } from "@/lib/endpoints";
+
 import type { Granularity } from "@fin/schemas";
-import { Card, Text } from "@mantine/core";
+import { Card, Stack, Text, Title } from "@mantine/core";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
+
+import { DivergingNetChart } from "./diverging-net-chart";
 
 /**
- * Placeholder. Full implementation comes in a follow-up PR, mirroring
- * the cash-flow chart's pattern (toolbar above a Mantine chart, no
- * chart-element clicks).
+ * Net-worth chart. Renders a diverging stacked area:
+ *
+ *   - `assets` stack above zero (positive values from the server)
+ *   - `liabilities` stack below zero (the server signs them negative
+ *     so debts naturally sit under the X axis)
+ *   - `net` line traces assets + liabilities across the period
+ *
+ * Unlike the other two analytics charts, net-worth has only the
+ * shared toolbar (granularity + currency) and no per-chart filters —
+ * every bucket has a fixed shape, so there's nothing to drill or
+ * scope.
  */
-export function NetWorthChart(_: {
+export function NetWorthChart({
+  granularity,
+  start,
+  end,
+  currency,
+}: {
   granularity: Granularity;
   start: string;
   end: string;
   currency: string;
 }) {
+  const q = useQuery({
+    queryKey: ["net-worth", { granularity, start, end, currency }],
+    queryFn: () => getNetWorth({ granularity, start, end, currency }),
+    enabled: !!currency,
+  });
+
+  const buckets = q.data?.buckets ?? [];
+
+  const formatter = useMemo(
+    () =>
+      currency
+        ? new Intl.NumberFormat("en-US", { style: "currency", currency })
+        : null,
+    [currency],
+  );
+
   return (
     <Card>
-      <Text c="dimmed">Net worth chart — coming soon.</Text>
+      <Stack>
+        <Title order={4}>Net worth</Title>
+        {q.isLoading ? (
+          <Text c="dimmed">Loading…</Text>
+        ) : q.error ? (
+          <Text c="red">Failed to load: {(q.error as Error).message}</Text>
+        ) : buckets.length === 0 ? (
+          <Text c="dimmed">No data for this view.</Text>
+        ) : (
+          <DivergingNetChart
+            data={buckets}
+            negative={{ name: "liabilities", label: "Liabilities" }}
+            net={{ name: "net", label: "Net worth" }}
+            positive={{ name: "assets", label: "Assets" }}
+            valueFormatter={
+              formatter ? (v: number) => formatter.format(v) : undefined
+            }
+          />
+        )}
+      </Stack>
     </Card>
   );
 }

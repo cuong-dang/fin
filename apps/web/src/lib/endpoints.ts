@@ -14,6 +14,7 @@ import type {
   CreateTagBody,
   EnrichedTransaction,
   Me,
+  NetWorthQuery,
   ProcessTransactionBody,
   ReorderTransactionsBody,
   Tag,
@@ -196,4 +197,14 @@ export const getCategoryTag = (q: CategoryTagQuery) => {
   if (q.subcategoryId) qs.set("subcategoryId", q.subcategoryId);
   if (q.tagId) qs.set("tagId", q.tagId);
   return api<AnalyticsChartResponse>(`/api/analytics/category-tag?${qs}`);
+};
+
+export const getNetWorth = (q: NetWorthQuery) => {
+  const qs = new URLSearchParams({
+    granularity: q.granularity,
+    start: q.start,
+    end: q.end,
+    currency: q.currency,
+  });
+  return api<AnalyticsChartResponse>(`/api/analytics/net-worth?${qs}`);
 };

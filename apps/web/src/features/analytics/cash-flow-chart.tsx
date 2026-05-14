@@ -27,6 +27,7 @@ import {
   stateToQuery,
   withDirection,
 } from "./cash-flow-state";
+import { DivergingNetChart } from "./diverging-net-chart";
 import { DrillBreadcrumb } from "./drill-breadcrumb";
 import { DrillPicker } from "./drill-picker";
 import { SortedAreaChart } from "./sorted-area-chart";
@@ -84,9 +85,6 @@ export function CashFlowChart({
 
   const items = q.data?.items ?? [];
   const buckets = q.data?.buckets ?? [];
-
-  const chartType: "stacked" | "split" =
-    state.direction === "net" ? "split" : "stacked";
 
   // Bucket ids on the wire are either UUIDs or short enum strings —
   // either way, suitable as a data-row key. Null ids ("Other"
@@ -178,6 +176,20 @@ export function CashFlowChart({
           <Text c="red">Failed to load: {(q.error as Error).message}</Text>
         ) : buckets.length === 0 ? (
           <Text c="dimmed">No data for this view.</Text>
+        ) : state.direction === "net" ? (
+          // Net direction returns three server-side series — `in`,
+          // `out`, `net` — that fit DivergingNetChart's positive /
+          // negative / net contract exactly. The other directions
+          // remain stacked-area territory.
+          <DivergingNetChart
+            data={buckets}
+            negative={{ name: "out", label: "Cash out" }}
+            net={{ name: "net", label: "Net" }}
+            positive={{ name: "in", label: "Cash in" }}
+            valueFormatter={
+              formatter ? (v: number) => formatter.format(v) : undefined
+            }
+          />
         ) : (
           <SortedAreaChart
             curveType="natural"
@@ -185,12 +197,9 @@ export function CashFlowChart({
             dataKey="period"
             h={300}
             series={series}
-            type={chartType}
+            type="stacked"
             withLegend
             withPointLabels
-            {...(chartType === "split" && {
-              splitColors: ["teal.6", "red.6"] as [string, string],
-            })}
             {...(formatter && {
               valueFormatter: (v: number) => formatter.format(v),
             })}

@@ -159,13 +159,24 @@ const CASH_FLOW_HANDLERS: Record<CashFlowDimension, Handler> = {
   net: handleNet,
 };
 
-// Explicit ordering for outTop's 3 buckets — server returns them in
-// CASE-clause order, but we want a stable left-to-right legend.
+// Per-dimension item orderings. The server returns rows in
+// CASE/SUM order, but the wire response should have a stable
+// left-to-right legend; `shapeResponse` honours this when set.
 const OUT_TOP_ORDER: ChartItem[] = [
   { id: "expense", name: "Expenses" },
   { id: "loan", name: "Loans" },
   { id: "bill", name: "Bills" },
 ];
+const NET_ORDER: ChartItem[] = [
+  { id: "in", name: "Cash in" },
+  { id: "out", name: "Cash out" },
+  { id: "net", name: "Net" },
+];
+const ITEM_ORDER_BY_DIMENSION: Partial<Record<CashFlowDimension, ChartItem[]>> =
+  {
+    outTop: OUT_TOP_ORDER,
+    net: NET_ORDER,
+  };
 
 /**
  * Cash-flow chart entry point. Trusts that the caller has already
@@ -178,10 +189,11 @@ export async function runCashFlow(
 ): Promise<AnalyticsChartResponse> {
   const ctx = buildCashFlowCtx(params, workspaceId);
   const rows = await CASH_FLOW_HANDLERS[params.dimension](ctx);
+  const itemOrder = ITEM_ORDER_BY_DIMENSION[params.dimension];
   return shapeResponse(
     rows,
     params.currency,
-    params.dimension === "outTop" ? { itemOrder: OUT_TOP_ORDER } : undefined,
+    itemOrder ? { itemOrder } : undefined,
   );
 }
 
@@ -524,18 +536,17 @@ async function handleNet(ctx: CashFlowCtx): Promise<Row[]> {
     accountGroupId,
     periodExpr,
     truncExpr,
-    signedLegAmountExpr,
   } = ctx;
 
-  // One signed net value per period, fed straight into the Mantine
-  // `<AreaChart type="split">` — that variant supports exactly one
-  // series and colors above/below zero from `splitColors`.
+  // Three series per period — `in` (positive legs), `out`
+  // (signed-negative legs), and `net = in + out`. Mantine's
+  // `<CompositeChart>` with `stackOffset="sign"` then stacks `in`
+  // above zero, `out` below, and the client overlays `net` as a line.
   //
-  // The sum is over all CASA/CC legs. Income (positive legs) and
-  // outflows (negative legs) net naturally; internal transfers
-  // (CASA↔CASA, CC payments) cancel because both legs land on the
-  // user's CASA/CC accounts. A transfer with at least one leg on a
-  // loan account IS real cash flow (the CASA leg surfaces as outflow);
+  // The sum is over CASA/CC legs. Internal transfers (CASA↔CASA, CC
+  // payments) are filtered out — they would inflate both bars equally
+  // without changing net. A transfer with at least one leg on a loan
+  // account IS real cash flow (the CASA leg surfaces as outflow);
   // those are kept by the `NOT (internalTransfer)` clause.
   const internalTransfer = sql`
     ${schema.transactions.type} = 'transfer'
@@ -546,10 +557,14 @@ async function handleNet(ctx: CashFlowCtx): Promise<Row[]> {
         AND a.type = 'loan'
     )
   `;
+  const cashInExpr = sql<string>`SUM(CASE WHEN ${schema.transactionLegs.amount} > 0 THEN ${schema.transactionLegs.amount} ELSE 0 END)::text`;
+  const cashOutExpr = sql<string>`SUM(CASE WHEN ${schema.transactionLegs.amount} < 0 THEN ${schema.transactionLegs.amount} ELSE 0 END)::text`;
+
   const rows = await db
     .select({
       period: periodExpr,
-      amountMinor: signedLegAmountExpr,
+      cashIn: cashInExpr,
+      cashOut: cashOutExpr,
     })
     .from(schema.transactionLegs)
     .innerJoin(
@@ -577,12 +592,30 @@ async function handleNet(ctx: CashFlowCtx): Promise<Row[]> {
     .groupBy(truncExpr)
     .orderBy(truncExpr);
 
-  return rows.map((r) => ({
-    period: r.period,
-    itemId: "net",
-    itemName: "Net",
-    amountMinor: r.amountMinor,
-  }));
+  return rows.flatMap((r) => {
+    const cashIn = BigInt(r.cashIn);
+    const cashOut = BigInt(r.cashOut);
+    return [
+      {
+        period: r.period,
+        itemId: "in",
+        itemName: "in",
+        amountMinor: cashIn.toString(),
+      },
+      {
+        period: r.period,
+        itemId: "out",
+        itemName: "out",
+        amountMinor: cashOut.toString(),
+      },
+      {
+        period: r.period,
+        itemId: "net",
+        itemName: "net",
+        amountMinor: (cashIn + cashOut).toString(),
+      },
+    ];
+  });
 }
 
 // ─── Category & tag ────────────────────────────────────────────────────────
@@ -877,12 +910,16 @@ async function fetchNetWorthRows(ctx: NetWorthCtx): Promise<NetWorthRow[]> {
   `);
 }
 
-// Net-worth has a fixed two-series ordering with user-friendly labels;
-// pass these into `shapeResponse` so the wire response says "Assets"
-// and "Liabilities" rather than the raw enum strings.
+// Net-worth has a fixed three-series ordering with user-friendly
+// labels; pass these into `shapeResponse` so the wire response uses
+// "Assets" / "Liabilities" / "Net worth" rather than the raw enum
+// strings. `net` is emitted alongside assets + liabilities so the
+// client can render it as a line on top of the diverging stacks
+// without an ad-hoc client-side sum.
 const NET_WORTH_ORDER: ChartItem[] = [
   { id: "assets", name: "Assets" },
   { id: "liabilities", name: "Liabilities" },
+  { id: "net", name: "Net worth" },
 ];
 
 /**
@@ -895,13 +932,34 @@ export async function runNetWorth(
 ): Promise<AnalyticsChartResponse> {
   const ctx = buildNetWorthCtx(params, workspaceId);
   const rows = await fetchNetWorthRows(ctx);
+
+  // Compute the per-period net (assets + liabilities — liabilities
+  // arrive already signed-negative from the CTE) in JS. Doing it
+  // here instead of in SQL keeps the (already complex) cumulative-
+  // balance CTE focused on its job.
+  const netByPeriod = new Map<string, bigint>();
+  for (const r of rows) {
+    netByPeriod.set(
+      r.period,
+      (netByPeriod.get(r.period) ?? 0n) + BigInt(r.balance),
+    );
+  }
+
   return shapeResponse(
-    rows.map((r) => ({
-      period: r.period,
-      itemId: r.bucket,
-      itemName: r.bucket,
-      amountMinor: r.balance,
-    })),
+    [
+      ...rows.map((r) => ({
+        period: r.period,
+        itemId: r.bucket,
+        itemName: r.bucket,
+        amountMinor: r.balance,
+      })),
+      ...[...netByPeriod].map(([period, total]) => ({
+        period,
+        itemId: "net",
+        itemName: "net",
+        amountMinor: total.toString(),
+      })),
+    ],
     params.currency,
     { itemOrder: NET_WORTH_ORDER },
   );
