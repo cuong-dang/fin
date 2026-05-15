@@ -9,6 +9,7 @@ import { accountRoutes } from "./routes/accounts.js";
 import { analyticsRoutes } from "./routes/analytics.js";
 import { authRoutes } from "./routes/auth.js";
 import { billRoutes } from "./routes/bills.js";
+import { budgetRoutes } from "./routes/budgets.js";
 import { categoryRoutes, subcategoryRoutes } from "./routes/categories.js";
 import { tagRoutes } from "./routes/tags.js";
 import { transactionRoutes } from "./routes/transactions.js";
@@ -42,6 +43,7 @@ await app.register(subcategoryRoutes, { prefix: "/api/subcategories" });
 await app.register(tagRoutes, { prefix: "/api/tags" });
 await app.register(transactionRoutes, { prefix: "/api/transactions" });
 await app.register(billRoutes, { prefix: "/api/bills" });
+await app.register(budgetRoutes, { prefix: "/api/budgets" });
 await app.register(analyticsRoutes, { prefix: "/api/analytics" });
 
 app.listen({ port: env.PORT, host: "0.0.0.0" }).catch((err) => {

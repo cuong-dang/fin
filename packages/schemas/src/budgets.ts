@@ -1,12 +1,21 @@
 import { z } from "zod";
 
-import {
-  currencyField,
-  moneyString,
-  optionalUuid,
-  type RecurringFrequency,
-  recurringFrequency,
-} from "./common.js";
+import { currencyField, moneyString, optionalUuid } from "./common.js";
+
+/**
+ * Budgets reuse most of the global recurring frequencies, but skip
+ * biweekly — it has no natural calendar anchor and the spec doesn't
+ * call for one. The DB column reuses the shared `recurring_frequency`
+ * enum (bills + loans need biweekly); this narrower enum just clamps
+ * what the budgets endpoint accepts on the wire.
+ */
+export const budgetFrequency = z.enum([
+  "weekly",
+  "monthly",
+  "quarterly",
+  "yearly",
+]);
+export type BudgetFrequency = z.infer<typeof budgetFrequency>;
 
 /**
  * Budget create — pins to either a category OR a subcategory, never
@@ -22,7 +31,7 @@ export const createBudgetBody = z
     subcategoryId: optionalUuid,
     amount: moneyString,
     currency: currencyField,
-    frequency: recurringFrequency,
+    frequency: budgetFrequency,
   })
   .strict()
   .refine(
@@ -41,7 +50,7 @@ export type CreateBudgetBody = z.infer<typeof createBudgetBody>;
 export const updateBudgetBody = z
   .object({
     amount: moneyString,
-    frequency: recurringFrequency,
+    frequency: budgetFrequency,
   })
   .strict();
 export type UpdateBudgetBody = z.infer<typeof updateBudgetBody>;
@@ -59,7 +68,7 @@ export type Budget = {
   subcategoryId: string | null;
   amount: string;
   currency: string;
-  frequency: RecurringFrequency;
+  frequency: BudgetFrequency;
 };
 
 /**
@@ -82,7 +91,7 @@ export type BudgetSnapshot = {
   subcategoryName: string | null;
   amount: string;
   currency: string;
-  frequency: RecurringFrequency;
+  frequency: BudgetFrequency;
   cycleStart: string;
   cycleEnd: string;
   actual: string;
