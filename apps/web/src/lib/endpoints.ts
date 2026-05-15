@@ -4,11 +4,15 @@ import type {
   AdjustmentUpdateBody,
   AnalyticsChartResponse,
   Bill,
+  Budget,
+  BudgetHistoryResponse,
+  BudgetSnapshot,
   CashFlowQuery,
   CategoryTagQuery,
   CategoryWithSubs,
   CreateAccountBody,
   CreateBillBody,
+  CreateBudgetBody,
   CreateCategoryBody,
   CreateSubcategoryBody,
   CreateTagBody,
@@ -23,6 +27,7 @@ import type {
   UpdateAccountBody,
   UpdateAccountGroupBody,
   UpdateBillBody,
+  UpdateBudgetBody,
   UpdateCategoryBody,
   UpdateSubcategoryBody,
   UpdateTagBody,
@@ -165,6 +170,29 @@ export const resumeBill = (id: string) =>
 
 export const deleteBill = (id: string) =>
   api<void>(`/api/bills/${id}`, { method: "DELETE" });
+
+// ─── Budgets ──────────────────────────────────────────────────────────────
+
+export const listBudgets = () => api<Budget[]>("/api/budgets");
+
+export const createBudget = (body: CreateBudgetBody) =>
+  api<{ id: string }>("/api/budgets", { method: "POST", json: body });
+
+export const updateBudget = (id: string, body: UpdateBudgetBody) =>
+  api<void>(`/api/budgets/${id}`, { method: "PATCH", json: body });
+
+export const deleteBudget = (id: string) =>
+  api<void>(`/api/budgets/${id}`, { method: "DELETE" });
+
+export const getBudgetSnapshot = (today: string) =>
+  api<BudgetSnapshot[]>(
+    `/api/budgets/snapshot?today=${encodeURIComponent(today)}`,
+  );
+
+export const getBudgetHistory = (id: string, today: string, cycles = 12) =>
+  api<BudgetHistoryResponse>(
+    `/api/budgets/${id}/history?today=${encodeURIComponent(today)}&cycles=${cycles}`,
+  );
 
 // ─── Analytics ────────────────────────────────────────────────────────────
 

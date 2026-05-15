@@ -24,6 +24,12 @@ export function SettingsRoute() {
         label="Bills"
         to="/settings/bills"
       />
+      <NavLink
+        component={Link}
+        description="Set spending caps and income targets per category"
+        label="Budgets"
+        to="/settings/budgets"
+      />
     </PageShell>
   );
 }

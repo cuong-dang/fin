@@ -13,6 +13,7 @@ import { RequireAuth } from "./routes/require-auth.js";
 import { SettingsRoute } from "./routes/settings.js";
 import { SettingsAccountsRoute } from "./routes/settings-accounts.js";
 import { SettingsBillsRoute } from "./routes/settings-bills.js";
+import { SettingsBudgetsRoute } from "./routes/settings-budgets.js";
 import { SettingsCategoriesRoute } from "./routes/settings-categories.js";
 import { SignInRoute } from "./routes/signin.js";
 import { TransactionEditRoute } from "./routes/transaction-edit.js";
@@ -40,6 +41,7 @@ export function App() {
           path="/settings/categories"
         />
         <Route element={<SettingsBillsRoute />} path="/settings/bills" />
+        <Route element={<SettingsBudgetsRoute />} path="/settings/budgets" />
         <Route element={<AccountEditRoute />} path="/accounts/:id/edit" />
         <Route
           element={<AccountGroupEditRoute />}
