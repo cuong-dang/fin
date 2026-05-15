@@ -483,3 +483,59 @@ export const loanDefaultLineTags = pgTable(
   },
   (t) => [primaryKey({ columns: [t.lineId, t.tagId] })],
 );
+
+// ─── Budgets ───────────────────────────────────────────────────────────────
+
+// A budget caps spending (or sets a target for income) on a single
+// category OR a single subcategory — never both. The parent-category
+// "effective" budget when only its subcategories are budgeted is a
+// read-time roll-up (sum of subcat budgets); the parent's own row is
+// genuinely absent in that case.
+//
+// Currency is per-budget: the same category can have separate budgets
+// in different currencies (matching the workspace's multi-currency
+// support on accounts). Frequency reuses the global enum; cycle
+// windows are computed from the calendar (1st of month, Sunday-start
+// week, etc.) with a fixed epoch for biweekly (Sun 1970-01-04).
+export const budgets = pgTable(
+  "budgets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    // Exactly one of these is non-null (see CHECK below).
+    categoryId: uuid("category_id").references(() => categories.id, {
+      onDelete: "cascade",
+    }),
+    subcategoryId: uuid("subcategory_id").references(() => subcategories.id, {
+      onDelete: "cascade",
+    }),
+    amount: bigint("amount", { mode: "bigint" }).notNull(),
+    currency: char("currency", { length: 3 }).notNull(),
+    frequency: recurringFrequencyEnum("frequency").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (t) => [
+    // Exactly one of (category_id, subcategory_id) is set.
+    check(
+      "budgets_target_xor",
+      sql`(${t.categoryId} IS NULL) <> (${t.subcategoryId} IS NULL)`,
+    ),
+    // One active budget per (workspace, category, currency).
+    uniqueIndex("budgets_workspace_category_currency_unique")
+      .on(t.workspaceId, t.categoryId, t.currency)
+      .where(sql`${t.deletedAt} IS NULL AND ${t.subcategoryId} IS NULL`),
+    // One active budget per (workspace, subcategory, currency).
+    uniqueIndex("budgets_workspace_subcategory_currency_unique")
+      .on(t.workspaceId, t.subcategoryId, t.currency)
+      .where(sql`${t.deletedAt} IS NULL AND ${t.categoryId} IS NULL`),
+    index("budgets_workspace_idx").on(t.workspaceId),
+  ],
+);
