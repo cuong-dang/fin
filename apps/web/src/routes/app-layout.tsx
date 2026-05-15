@@ -17,7 +17,7 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useQuery } from "@tanstack/react-query";
-import { LogOut, Plus, Receipt, Repeat, Settings, Wallet } from "lucide-react";
+import { Landmark, LogOut, Plus, Repeat, Settings, Wallet } from "lucide-react";
 import { useEffect } from "react";
 import { Link, Outlet, useLocation, useMatch, useNavigate } from "react-router";
 
@@ -73,7 +73,8 @@ export function AppLayoutRoute() {
             </Title>
           </Group>
           <Group>
-            <CreateMenu />
+            <NewTransactionButton />
+            <SetupMenu />
             <UserMenu />
           </Group>
         </Group>
@@ -103,24 +104,37 @@ function PageNavLink({ to, label }: { to: string; label: string }) {
 }
 
 /**
- * "+" dropdown next to the user menu.
+ * The hot path — almost every "create" in fin is a new transaction,
+ * so the "+" button skips the menu and links straight to the new-
+ * transaction form. Less-common creates (accounts, bills) live under
+ * the wallet menu next to it.
  */
-function CreateMenu() {
+function NewTransactionButton() {
+  return (
+    <ActionIcon
+      aria-label="New transaction"
+      component={Link}
+      to="/transactions/new"
+    >
+      <Plus size={18} />
+    </ActionIcon>
+  );
+}
+
+/**
+ * Account / bill setup menu — the longer-lived create flows that
+ * users hit rarely (typically once when onboarding, then occasional
+ * top-ups).
+ */
+function SetupMenu() {
   return (
     <Menu position="bottom-end" shadow="md">
       <Menu.Target>
-        <ActionIcon aria-label="Create">
-          <Plus size={18} />
+        <ActionIcon aria-label="Set up account or bill">
+          <Landmark size={18} />
         </ActionIcon>
       </Menu.Target>
       <Menu.Dropdown>
-        <Menu.Item
-          component={Link}
-          leftSection={<Receipt size={14} />}
-          to="/transactions/new"
-        >
-          New transaction
-        </Menu.Item>
         <Menu.Item
           component={Link}
           leftSection={<Wallet size={14} />}
