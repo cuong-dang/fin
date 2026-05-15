@@ -3,6 +3,7 @@ export * from "./accounts.js";
 export * from "./analytics.js";
 export * from "./auth.js";
 export * from "./bills.js";
+export * from "./budgets.js";
 export * from "./categories.js";
 export * from "./common.js";
 export * from "./loans.js";
