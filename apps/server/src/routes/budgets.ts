@@ -17,8 +17,8 @@ import { z } from "zod";
 import { db, schema } from "../db/index.js";
 import { findOwned, ownedActive } from "../lib/authz.js";
 import {
-  type CycleWindow,
   currentCycle,
+  type CycleWindow,
   pastCycles,
 } from "../lib/budget-cycle.js";
 import { parseMoney } from "../lib/money.js";
@@ -273,41 +273,44 @@ export const budgetRoutes: FastifyPluginAsync = async (app) => {
 
   // ─── Per-budget history (drill chart) ─────────────────────────────────
 
-  app.get("/:id/history", async (req, reply): Promise<BudgetHistoryResponse> => {
-    const { id } = idParam.parse(req.params);
-    const { today, cycles } = historyQuery.parse(req.query);
-    const owned = await findOwned(schema.budgets, id, req.auth.workspaceId);
-    if (!owned) return reply.code(404).send({ error: "Not found" });
-    const frequency = asBudgetFrequency(owned.frequency);
+  app.get(
+    "/:id/history",
+    async (req, reply): Promise<BudgetHistoryResponse> => {
+      const { id } = idParam.parse(req.params);
+      const { today, cycles } = historyQuery.parse(req.query);
+      const owned = await findOwned(schema.budgets, id, req.auth.workspaceId);
+      if (!owned) return reply.code(404).send({ error: "Not found" });
+      const frequency = asBudgetFrequency(owned.frequency);
 
-    const windows = pastCycles(frequency, today, cycles);
-    const points: BudgetHistoryPoint[] = [];
-    for (const w of windows) {
-      const actual = await sumLineAmounts(req.auth.workspaceId, {
-        cycle: w,
-        categoryId: owned.categoryId,
-        subcategoryId: owned.subcategoryId,
-        currency: owned.currency,
-      });
-      points.push({
-        cycleStart: w.start,
-        cycleEnd: w.end,
-        actual: actual.toString(),
-      });
-    }
+      const windows = pastCycles(frequency, today, cycles);
+      const points: BudgetHistoryPoint[] = [];
+      for (const w of windows) {
+        const actual = await sumLineAmounts(req.auth.workspaceId, {
+          cycle: w,
+          categoryId: owned.categoryId,
+          subcategoryId: owned.subcategoryId,
+          currency: owned.currency,
+        });
+        points.push({
+          cycleStart: w.start,
+          cycleEnd: w.end,
+          actual: actual.toString(),
+        });
+      }
 
-    return {
-      budget: {
-        id: owned.id,
-        categoryId: owned.categoryId,
-        subcategoryId: owned.subcategoryId,
-        amount: owned.amount.toString(),
-        currency: owned.currency,
-        frequency,
-      },
-      points,
-    };
-  });
+      return {
+        budget: {
+          id: owned.id,
+          categoryId: owned.categoryId,
+          subcategoryId: owned.subcategoryId,
+          amount: owned.amount.toString(),
+          currency: owned.currency,
+          frequency,
+        },
+        points,
+      };
+    },
+  );
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────

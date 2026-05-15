@@ -3,7 +3,14 @@ import { deleteBudget, updateBudget } from "@/lib/endpoints";
 import { formatMoney, formatMoneyPlain } from "@/lib/money";
 
 import type { Budget, BudgetFrequency } from "@fin/schemas";
-import { ActionIcon, Button, Group, Select, Text, TextInput } from "@mantine/core";
+import {
+  ActionIcon,
+  Button,
+  Group,
+  Select,
+  Text,
+  TextInput,
+} from "@mantine/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
 import { useState } from "react";

@@ -22,6 +22,7 @@ import { useEffect } from "react";
 import { Link, Outlet, useLocation, useMatch, useNavigate } from "react-router";
 
 const PAGES: { to: string; label: string }[] = [
+  { to: "/budgets", label: "Budgets" },
   { to: "/charts", label: "Charts" },
   { to: "/transactions", label: "Transactions" },
 ];

@@ -7,6 +7,7 @@ import { AppLayoutRoute } from "./routes/app-layout.js";
 import { AuthCallbackRoute } from "./routes/auth-callback.js";
 import { BillEditRoute } from "./routes/bill-edit.js";
 import { BillNewRoute } from "./routes/bill-new.js";
+import { BudgetsRoute } from "./routes/budgets.js";
 import { ChartsRoute } from "./routes/charts.js";
 import { NotFoundRoute } from "./routes/not-found.js";
 import { RequireAuth } from "./routes/require-auth.js";
@@ -29,6 +30,7 @@ export function App() {
         <Route element={<AppLayoutRoute />}>
           <Route element={<Navigate replace to="/charts" />} index />
           <Route element={<TransactionsRoute />} path="/transactions" />
+          <Route element={<BudgetsRoute />} path="/budgets" />
           <Route element={<ChartsRoute />} path="/charts" />
         </Route>
         <Route element={<AccountNewRoute />} path="/accounts/new" />

@@ -34,10 +34,9 @@ export const createBudgetBody = z
     frequency: budgetFrequency,
   })
   .strict()
-  .refine(
-    (v) => Boolean(v.categoryId) !== Boolean(v.subcategoryId),
-    { message: "Provide exactly one of categoryId or subcategoryId" },
-  );
+  .refine((v) => Boolean(v.categoryId) !== Boolean(v.subcategoryId), {
+    message: "Provide exactly one of categoryId or subcategoryId",
+  });
 export type CreateBudgetBody = z.infer<typeof createBudgetBody>;
 
 /**

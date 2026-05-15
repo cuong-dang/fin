@@ -2,11 +2,7 @@ import { PageShell } from "@/components/page-shell";
 import { SectionHeader } from "@/components/section-header";
 import { AddBudgetForm } from "@/features/budgets/add-budget-form";
 import { BudgetRow } from "@/features/budgets/budget-row";
-import {
-  listAccounts,
-  listBudgets,
-  listCategories,
-} from "@/lib/endpoints";
+import { listAccounts, listBudgets, listCategories } from "@/lib/endpoints";
 
 import type { Budget, CategoryKind, CategoryWithSubs } from "@fin/schemas";
 import { Card, Divider, Stack, Text } from "@mantine/core";
@@ -31,38 +27,38 @@ export function SettingsBudgetsRoute() {
   const accountsQ = useQuery({ queryKey: ACCOUNTS_KEY, queryFn: listAccounts });
 
   const cats = catsQ.data ?? [];
-  const budgets = budgetsQ.data ?? [];
-  const accounts = accountsQ.data ?? [];
 
   // AddBudgetForm needs a currency choice list. Derive from the
   // workspace's account currencies — same source as the chart page.
+  // Depend on `accountsQ.data` (stable ref from the query cache) so
+  // the memo doesn't re-run on every render via a fresh `?? []`.
   const currencies = useMemo(() => {
     const seen = new Set<string>();
-    for (const a of accounts) seen.add(a.currency);
+    for (const a of accountsQ.data ?? []) seen.add(a.currency);
     return [...seen].sort();
-  }, [accounts]);
+  }, [accountsQ.data]);
 
   // Pre-group budgets by target id for O(1) lookup inside the tree.
   const byCategoryId = useMemo(() => {
     const m = new Map<string, Budget[]>();
-    for (const b of budgets) {
+    for (const b of budgetsQ.data ?? []) {
       if (b.categoryId === null) continue;
       const arr = m.get(b.categoryId) ?? [];
       arr.push(b);
       m.set(b.categoryId, arr);
     }
     return m;
-  }, [budgets]);
+  }, [budgetsQ.data]);
   const bySubcategoryId = useMemo(() => {
     const m = new Map<string, Budget[]>();
-    for (const b of budgets) {
+    for (const b of budgetsQ.data ?? []) {
       if (b.subcategoryId === null) continue;
       const arr = m.get(b.subcategoryId) ?? [];
       arr.push(b);
       m.set(b.subcategoryId, arr);
     }
     return m;
-  }, [budgets]);
+  }, [budgetsQ.data]);
 
   const income = cats.filter((c) => c.kind === "income");
   const expense = cats.filter((c) => c.kind === "expense");
@@ -70,10 +66,10 @@ export function SettingsBudgetsRoute() {
   return (
     <PageShell title="Budgets">
       <Text c="dimmed" size="sm">
-        Set spending caps (or income targets) on any category or
-        subcategory. Each target can carry one budget per currency.
-        Parent categories with no budget of their own roll up the sum
-        of their subcategories on the budgets chart.
+        Set spending caps (or income targets) on any category or subcategory.
+        Each target can carry one budget per currency. Parent categories with no
+        budget of their own roll up the sum of their subcategories on the
+        budgets chart.
       </Text>
       <KindSection
         byCategoryId={byCategoryId}

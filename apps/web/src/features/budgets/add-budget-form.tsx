@@ -68,16 +68,16 @@ export function AddBudgetForm({
           allowDeselect={false}
           aria-label="Currency"
           data={currencies.length > 0 ? currencies : ["USD"]}
-          value={currency}
           flex={1}
+          value={currency}
           onChange={(v) => v && setCurrency(v)}
         />
         <Select
           allowDeselect={false}
           aria-label="Frequency"
           data={BUDGET_FREQUENCY_OPTIONS}
-          value={frequency}
           flex={1}
+          value={frequency}
           onChange={(v) => v && setFrequency(v as BudgetFrequency)}
         />
         <Button
