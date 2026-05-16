@@ -4,6 +4,73 @@ All notable changes to this project will be documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] — 2026-05-16
+
+### Budgets
+
+- **Per-category or per-subcategory caps** on weekly / biweekly /
+  monthly / quarterly / yearly cycles. Amount + currency stored per
+  budget; the same category can hold separate budgets in different
+  currencies. Exactly one of `category_id` / `subcategory_id` is set
+  per row (DB-level XOR check).
+- **Cycle windows are purely calendar-based** — monthly = 1st through
+  last day, weekly = Sun-Sat, quarterly = Jan-Mar / Apr-Jun / …,
+  yearly = Jan 1 - Dec 31. `today` comes from the client so the
+  server doesn't have to guess the viewer's timezone.
+- **Snapshot view** (`GET /api/budgets/snapshot?today=`) — every
+  active budget for the cycle containing `today`, plus synthetic
+  parent rollups summing sibling subcategory budgets. Lone rollups
+  are suppressed (a parent with only one subcategory budget would
+  just duplicate the same numbers).
+- **Pace-aware progress bars** — a vertical tick at "where spending
+  should be" if pace were perfectly even; over/under-pace dollar
+  caption below. Three-band color: teal under pace, yellow over
+  pace + under cap, red over cap.
+- **History view** (`GET /api/budgets/:id/history?today=&cycles=`,
+  default 12 cycles) — bar chart of past actuals against the budget's
+  **current** amount as a reference line. Historical budget changes
+  aren't tracked in v1 — past bars compare against today's cap.
+- **Routes** — `/budgets` for snapshot + history; `/settings/budgets`
+  for CRUD.
+- Soft-delete via `deleted_at` with active-only partial unique
+  indexes per (workspace, category|sub, currency) — matches the
+  existing pattern for other reference entities.
+
+### UI
+
+- **Top-bar action split** — the `+` button goes direct to "New
+  transaction"; a separate Landmark-icon menu handles account / bill
+  setup. Removes the previous single-menu indirection for the most
+  common action.
+- **Chart point labels toggle** on cash-flow, category-tag, and
+  net-worth charts.
+- **Mobile fix for tag suggestion pills** — `onPointerDown` +
+  `preventDefault` so the touch-focus-shift race doesn't unmount the
+  dropdown before the tap registers. Mouse path unchanged.
+- Loading-state cosmetics in the transactions list; sidebar visual
+  polish.
+
+### Server
+
+- New `error-handler.ts` Fastify plugin replaces the inline `setErrorHandler`
+  call in `index.ts` — same shape, cleaner module.
+- CORS preflight now allows PATCH / PUT / DELETE (PATCH calls were
+  previously bouncing off browsers' OPTIONS preflight in some
+  configurations).
+
+### Data model
+
+- New `budgets` table (workspace-scoped, soft-delete, FK cascades from
+  categories / subcategories so the row disappears with its target).
+  See migration `0001_hesitant_hemingway.sql`.
+
+### Tooling
+
+- `pnpm db:seed` now creates four budgets (Groceries parent,
+  Utilities → Water, Entertainment → Streaming, Utilities → Electric)
+  sized to land in each pace/cap band at the seed's "today" of
+  2026-05-14, plus a Utilities-parent rollup row.
+
 ## [0.1.0] — 2026-05-14
 
 Initial private preview.
