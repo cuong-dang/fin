@@ -58,7 +58,8 @@ export function BudgetsRoute() {
     <Stack p="xs">
       <Group justify="space-between">
         <ChartTitle
-          info="A snapshot of every active budget against this cycle's spend. Pick a budget on the right to see its last 12 cycles."
+          info="A snapshot of every active budget against this cycle's spend.
+          Pick a budget on the right to see its last 12 cycles."
           title="Budgets"
         />
         <Select

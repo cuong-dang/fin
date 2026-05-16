@@ -1,9 +1,10 @@
 import { useCurrencyFormatters } from "@/features/analytics/use-currency-formatters";
-import { formatMoney } from "@/lib/money";
+import { currencyDivisor, formatMoney } from "@/lib/money";
 
 import type { BudgetHistoryResponse } from "@fin/schemas";
 import { BarChart } from "@mantine/charts";
-import { Group, Stack, Text } from "@mantine/core";
+import { Group, Stack, Text, Tooltip } from "@mantine/core";
+import { Info } from "lucide-react";
 import { useMemo } from "react";
 
 import { BUDGET_FREQUENCY_SHORT } from "./frequency-label";
@@ -51,7 +52,18 @@ export function BudgetHistoryChart({
   return (
     <Stack>
       <Group justify="space-between">
-        <Text fw={500}>{label}</Text>
+        <Group>
+          <Text fw={500}>{label}</Text>
+          <Tooltip
+            label="Comparing each cycle's spend against the budget's current amount.
+            We don't track historical budget changes yet — bars prior to your most
+            recent edit still compare against today's cap."
+            multiline
+            w={300}
+          >
+            <Info color="var(--mantine-color-dimmed)" size={14} />
+          </Tooltip>
+        </Group>
         <Text c="dimmed" ff="monospace">
           {formatMoney(BigInt(budget.amount), budget.currency)}
           {BUDGET_FREQUENCY_SHORT[budget.frequency]}
@@ -61,7 +73,7 @@ export function BudgetHistoryChart({
         data={data}
         dataKey="period"
         getBarColor={(v) => (v >= amountMajor ? "red.6" : "teal.6")}
-        h={280}
+        h={300}
         referenceLines={[
           {
             y: amountMajor,
@@ -71,29 +83,11 @@ export function BudgetHistoryChart({
           },
         ]}
         series={[{ name: "actual", label: "Spent", color: "teal.6" }]}
+        withBarValueLabel
         withTooltip
         yAxisProps={yAxisProps}
         {...(fmt && { valueFormatter: fmt.tooltipFormatter })}
       />
-      <Text c="dimmed" size="xs">
-        Comparing each cycle's spend against the budget's current amount. We
-        don't track historical budget changes yet — bars prior to your most
-        recent edit still compare against today's cap.
-      </Text>
     </Stack>
   );
-}
-
-// Local copy of "minor → major" divisor: we don't import the helper
-// from money.ts because it doesn't expose just the decimals. Cheap
-// to inline.
-function currencyDivisor(currency: string): number {
-  const decimals = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-  }).resolvedOptions().maximumFractionDigits;
-  if (decimals === undefined) {
-    throw new Error(`No decimal count resolved for currency ${currency}`);
-  }
-  return 10 ** decimals;
 }
