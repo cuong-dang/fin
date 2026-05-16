@@ -1,12 +1,12 @@
+import { ChartTitle } from "@/features/analytics/chart-title";
 import { BudgetHistoryChart } from "@/features/budgets/budget-history-chart";
 import { BudgetsChart } from "@/features/budgets/budgets-chart";
 import { localDateKey } from "@/lib/dates";
 import { getBudgetHistory, getBudgetSnapshot } from "@/lib/endpoints";
 
-import type { BudgetHistoryResponse } from "@fin/schemas";
-import { Anchor, Card, Stack, Text } from "@mantine/core";
+import type { BudgetSnapshot } from "@fin/schemas";
+import { Card, Group, Select, Stack, Text } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft } from "lucide-react";
 import { useMemo } from "react";
 import { useSearchParams } from "react-router";
 
@@ -15,8 +15,13 @@ import { useSearchParams } from "react-router";
  *
  *   - Snapshot list (default): every active budget rendered as a
  *     progress-bar row, grouped by currency.
- *   - Drill-down (when `budgetId` is set): one budget's last 12
- *     cycles as a bar chart with a current-budget reference line.
+ *   - History (when `budgetId` is set): one budget's last 12 cycles
+ *     as a bar chart with a current-budget reference line.
+ *
+ * The header (title + budget picker) is constant across both modes —
+ * the picker doubles as both "view history of X" and (when cleared)
+ * "back to all budgets," matching how the other analytics charts
+ * expose a single filter / picker next to the title.
  *
  * "Today" comes from the client because cycle boundaries depend on
  * the user's local timezone — server math is in UTC, so we send the
@@ -27,105 +32,123 @@ export function BudgetsRoute() {
   const today = useMemo(() => localDateKey(new Date()), []);
   const budgetId = params.get("budgetId");
 
+  // Snapshot powers both the default view AND the picker's option
+  // list (only real DB-row budgets are pickable — synthetic parent
+  // rollups have `id: null`). Fetching it at the route level avoids
+  // double-fetching when switching between modes.
+  const snapshotQ = useQuery({
+    queryKey: ["budget-snapshot", today],
+    queryFn: () => getBudgetSnapshot(today),
+  });
+  const snapshots = snapshotQ.data ?? [];
+  const selectOptions = snapshots
+    .filter((s): s is BudgetSnapshot & { id: string } => s.id !== null)
+    .map((s) => ({ value: s.id, label: budgetLabel(s) }));
+
+  const onBudgetChange = (next: string | null) => {
+    setParams((p) => {
+      const params = new URLSearchParams(p);
+      if (next) params.set("budgetId", next);
+      else params.delete("budgetId");
+      return params;
+    });
+  };
+
   return (
-    <>
+    <Stack p="xs">
+      <Group justify="space-between">
+        <ChartTitle
+          info="A snapshot of every active budget against this cycle's spend. Pick a budget on the right to see its last 12 cycles."
+          title="Budgets"
+        />
+        <Select
+          aria-label="Budget history"
+          clearable
+          data={selectOptions}
+          placeholder="View history of…"
+          searchable
+          value={budgetId}
+          onChange={onBudgetChange}
+        />
+      </Group>
+
       {budgetId ? (
         <DrillView
           budgetId={budgetId}
+          // Look up the snapshot for the selected id so the history
+          // chart can show the same "Food › Eating Out" label users
+          // see in the snapshot view. Falls back to a generic label
+          // if the snapshot list hasn't loaded yet or the budget was
+          // deleted out from under a stale URL.
+          label={
+            snapshots.filter((s) => s.id === budgetId).map(budgetLabel)[0] ??
+            "Budget history"
+          }
           today={today}
-          onBack={() => {
-            setParams((p) => {
-              const next = new URLSearchParams(p);
-              next.delete("budgetId");
-              return next;
-            });
-          }}
         />
       ) : (
         <SnapshotView
+          error={snapshotQ.error}
+          isLoading={snapshotQ.isLoading}
+          snapshots={snapshots}
           today={today}
-          onSelect={(id) => {
-            setParams((p) => {
-              const next = new URLSearchParams(p);
-              next.set("budgetId", id);
-              return next;
-            });
-          }}
         />
       )}
-    </>
+    </Stack>
   );
 }
 
 function SnapshotView({
+  snapshots,
   today,
-  onSelect,
+  isLoading,
+  error,
 }: {
+  snapshots: BudgetSnapshot[];
   today: string;
-  onSelect: (id: string) => void;
+  isLoading: boolean;
+  error: unknown;
 }) {
-  const q = useQuery({
-    queryKey: ["budget-snapshot", today],
-    queryFn: () => getBudgetSnapshot(today),
-  });
-  if (q.isLoading) return <Text c="dimmed">Loading…</Text>;
-  if (q.error)
-    return <Text c="red">Failed to load: {(q.error as Error).message}</Text>;
-  const snapshots = q.data ?? [];
+  if (isLoading) return <Text c="dimmed">Loading…</Text>;
+  if (error)
+    return <Text c="red">Failed to load: {(error as Error).message}</Text>;
   if (snapshots.length === 0) {
     return (
-      <Card>
-        <Text c="dimmed">
-          No budgets yet. Add one under{" "}
-          <Anchor component="a" href="/settings/budgets">
-            Settings › Budgets
-          </Anchor>
-          .
-        </Text>
-      </Card>
+      <Text c="dimmed" ta="center">
+        No budgets yet.
+      </Text>
     );
   }
-  return (
-    <BudgetsChart snapshots={snapshots} today={today} onSelect={onSelect} />
-  );
+  return <BudgetsChart snapshots={snapshots} today={today} />;
 }
 
 function DrillView({
   budgetId,
   today,
-  onBack,
+  label,
 }: {
   budgetId: string;
   today: string;
-  onBack: () => void;
+  label: string;
 }) {
   const q = useQuery({
     queryKey: ["budget-history", budgetId, today],
     queryFn: () => getBudgetHistory(budgetId, today),
   });
+  if (q.isLoading) return <Text c="dimmed">Loading…</Text>;
+  if (q.error)
+    return <Text c="red">Failed to load: {(q.error as Error).message}</Text>;
+  if (!q.data) return null;
   return (
-    <Stack>
-      <Anchor onClick={onBack}>
-        <ChevronLeft size={14} style={{ verticalAlign: "middle" }} /> All
-        budgets
-      </Anchor>
-      {q.isLoading ? (
-        <Text c="dimmed">Loading…</Text>
-      ) : q.error ? (
-        <Text c="red">Failed to load: {(q.error as Error).message}</Text>
-      ) : q.data ? (
-        <Card>
-          <BudgetHistoryChart history={q.data} label={drillLabel(q.data)} />
-        </Card>
-      ) : null}
-    </Stack>
+    <Card>
+      <BudgetHistoryChart history={q.data} label={label} />
+    </Card>
   );
 }
 
-function drillLabel(h: BudgetHistoryResponse): string {
-  // The history payload only carries ids, not names. For now we just
-  // show "Budget history" — when we have a categories cache in the
-  // page we can resolve names here. Acceptable for v1.
-  void h;
-  return "Budget history";
+function budgetLabel(s: BudgetSnapshot): string {
+  const base = s.subcategoryName
+    ? `${s.categoryName} › ${s.subcategoryName}`
+    : s.categoryName;
+  return s.parentRollup ? `${base} (rollup)` : base;
 }

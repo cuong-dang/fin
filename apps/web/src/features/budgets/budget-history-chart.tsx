@@ -37,6 +37,17 @@ export function BudgetHistoryChart({
     [points, divisor],
   );
 
+  // Pin the Y axis so the budget reference line is always visible.
+  // Without this, Recharts auto-scales to the bar heights alone — for
+  // cycles well under budget the line ends up clipped off the top of
+  // the chart.
+  const maxActual = data.reduce((m, d) => Math.max(m, d.actual), 0);
+  const yMax = Math.max(amountMajor, maxActual);
+  const yAxisProps = {
+    domain: [0, yMax] as [number, number],
+    ...(fmt && { tickFormatter: fmt.axisFormatter }),
+  };
+
   return (
     <Stack>
       <Group justify="space-between">
@@ -61,10 +72,8 @@ export function BudgetHistoryChart({
         ]}
         series={[{ name: "actual", label: "Spent", color: "teal.6" }]}
         withTooltip
-        {...(fmt && {
-          valueFormatter: fmt.tooltipFormatter,
-          yAxisProps: { tickFormatter: fmt.axisFormatter },
-        })}
+        yAxisProps={yAxisProps}
+        {...(fmt && { valueFormatter: fmt.tooltipFormatter })}
       />
       <Text c="dimmed" size="xs">
         Comparing each cycle's spend against the budget's current amount. We

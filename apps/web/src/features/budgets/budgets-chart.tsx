@@ -9,32 +9,26 @@ import {
   Stack,
   Text,
   Title,
-  UnstyledButton,
+  Tooltip,
 } from "@mantine/core";
+import { Sigma } from "lucide-react";
 import { useMemo } from "react";
 
 import { BUDGET_FREQUENCY_SHORT } from "./frequency-label";
 
 /**
- * Budget chart — one progress-bar row per budget, sorted by percent
- * consumed (desc). Grouped by currency since budgets aren't FX-
- * converted in v1. Income vs expense are also separated within each
- * currency because "100%" means opposite things for the two kinds:
- * for expense it's a danger threshold (red), for income it's the
- * target (green).
- *
- * Each row is clickable when the budget is a real DB row (`id` is
- * set); synthetic parent-rollups have `id: null` and aren't
- * drillable.
+ * Budget chart — one progress-bar row per budget. Grouped by currency since
+ * budgets aren't FX-converted in v1. Income vs expense are also separated
+ * within each currency because "100%" means opposite things for the two kinds:
+ * for expense it's a danger threshold (red), for income it's the target
+ * (green).
  */
 export function BudgetsChart({
   snapshots,
   today,
-  onSelect,
 }: {
   snapshots: BudgetSnapshot[];
   today: string;
-  onSelect: (id: string) => void;
 }) {
   // Group by (currency, kind) where kind is inferred from amount sign
   // intent — there's no `kind` on the snapshot, so we'll just group
@@ -42,8 +36,31 @@ export function BudgetsChart({
   // Income coloring is a small follow-up; meanwhile income budgets
   // still render usefully against teal/yellow/red.
   const byCurrency = useMemo(() => {
-    const map = new Map<string, BudgetSnapshot[]>();
+    // Suppress synthetic parent rollups that aren't telling the user
+    // anything new — a "Food rollup" above a lone "Food › Restaurants"
+    // row would just duplicate the same numbers. Count sibling
+    // subcategory budgets per (categoryName, currency, frequency); if
+    // there's only one, drop the rollup.
+    //
+    // Keying on `categoryName` rather than `categoryId` is deliberate:
+    // subcategory snapshots come in with `categoryId: null` (the
+    // budgets table only stores one of categoryId / subcategoryId per
+    // row), but `categoryName` is COALESCE'd to the parent category
+    // on the server, and category names are unique per workspace.
+    const subCount = new Map<string, number>();
     for (const s of snapshots) {
+      if (s.subcategoryId === null) continue;
+      const key = `${s.categoryName}|${s.currency}|${s.frequency}`;
+      subCount.set(key, (subCount.get(key) ?? 0) + 1);
+    }
+    const visible = snapshots.filter((s) => {
+      if (!s.parentRollup) return true;
+      const key = `${s.categoryName}|${s.currency}|${s.frequency}`;
+      return (subCount.get(key) ?? 0) > 1;
+    });
+
+    const map = new Map<string, BudgetSnapshot[]>();
+    for (const s of visible) {
       const arr = map.get(s.currency) ?? [];
       arr.push(s);
       map.set(s.currency, arr);
@@ -63,25 +80,20 @@ export function BudgetsChart({
           if (a.parentRollup !== b.parentRollup) return a.parentRollup ? 1 : -1;
           return a.frequency.localeCompare(b.frequency);
         }
-        return (a.subcategoryName ?? "").localeCompare(b.subcategoryName ?? "");
+        return a.subcategoryName!.localeCompare(b.subcategoryName!);
       });
     }
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [snapshots]);
 
   return (
-    <Stack p="xs">
+    <Stack>
       {byCurrency.map(([currency, rows]) => (
         <Card key={currency}>
           <Stack>
             <Title order={5}>{currency}</Title>
             {rows.map((s) => (
-              <BudgetRow
-                key={rowKey(s)}
-                snapshot={s}
-                today={today}
-                onSelect={onSelect}
-              />
+              <BudgetRow key={rowKey(s)} snapshot={s} today={today} />
             ))}
           </Stack>
         </Card>
@@ -93,11 +105,9 @@ export function BudgetsChart({
 function BudgetRow({
   snapshot,
   today,
-  onSelect,
 }: {
   snapshot: BudgetSnapshot;
   today: string;
-  onSelect: (id: string) => void;
 }) {
   const actual = BigInt(snapshot.actual);
   const amount = BigInt(snapshot.amount);
@@ -105,7 +115,6 @@ function BudgetRow({
   const label = snapshot.subcategoryName
     ? `${snapshot.categoryName} › ${snapshot.subcategoryName}`
     : snapshot.categoryName;
-  const drillable = snapshot.id !== null;
 
   // Pro-rated target: where the bar "should" be at this point in the
   // cycle if spending were perfectly even. The vertical tick on the
@@ -122,17 +131,25 @@ function BudgetRow({
   //   red    — over the full cap
   const color = pct >= 100 ? "red.6" : pct > pctElapsed ? "yellow.6" : "teal.6";
 
-  const body = (
-    <Stack gap={4}>
+  return (
+    <Stack gap={0}>
       <Group justify="space-between">
-        <Text fw={500}>
-          {label}
+        <Group gap={6}>
+          <Text fw={500}>{label}</Text>
           {snapshot.parentRollup && (
-            <Text c="dimmed" component="span" ml={6} size="xs">
-              (rollup)
-            </Text>
+            <Tooltip
+              label="Rollup — sums the per-cycle amounts of every subcategory budget under this category. No standalone budget row exists for the parent."
+              multiline
+              w={300}
+            >
+              <Sigma
+                aria-label="Rollup of subcategory budgets"
+                color="var(--mantine-color-dimmed)"
+                size={14}
+              />
+            </Tooltip>
           )}
-        </Text>
+        </Group>
         <Text c="dimmed" ff="monospace" size="sm">
           {formatMoney(actual, snapshot.currency)} of{" "}
           {formatMoney(amount, snapshot.currency)}
@@ -140,7 +157,7 @@ function BudgetRow({
         </Text>
       </Group>
       <Box pos="relative">
-        <Progress.Root size="lg">
+        <Progress.Root size="xl">
           <Progress.Section color={color} value={Math.min(pct, 100)}>
             {pct >= 15 && <Progress.Label>{Math.round(pct)}%</Progress.Label>}
           </Progress.Section>
@@ -160,7 +177,7 @@ function BudgetRow({
           }}
         />
       </Box>
-      <Group gap="xs" justify="space-between">
+      <Group justify="space-between">
         <Text c="dimmed" size="xs">
           {snapshot.cycleStart} → {snapshot.cycleEnd}
         </Text>
@@ -175,13 +192,6 @@ function BudgetRow({
         </Text>
       </Group>
     </Stack>
-  );
-
-  if (!drillable) return body;
-  return (
-    <UnstyledButton onClick={() => onSelect(snapshot.id!)}>
-      {body}
-    </UnstyledButton>
   );
 }
 

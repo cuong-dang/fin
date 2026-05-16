@@ -258,7 +258,7 @@ function CreditLimitBar({
     pctRemaining >= 75 ? "teal.6" : pctRemaining >= 50 ? "yellow.6" : "red.6";
 
   return (
-    <Stack>
+    <Stack gap={0}>
       <Progress color={color} size="sm" value={pctRemaining} />
       <Text c="dimmed" ff="monospace" size="xs">
         {formatMoney(limitRemaining, currency)} of{" "}
