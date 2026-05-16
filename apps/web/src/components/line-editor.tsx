@@ -358,10 +358,19 @@ function TagsField({
             <UnstyledButton
               key={t}
               aria-label={`Add tag ${t}`}
+              // Prevent the pill from stealing focus from the
+              // TagsInput. We need `pointerdown` (not `mousedown`)
+              // because on touch the synthesized mousedown fires
+              // *after* touchend → blur → unmount, far too late to
+              // matter. `pointerdown` fires for mouse + touch + pen
+              // before blur, and `preventDefault()` on it suppresses
+              // the focus shift without canceling the click that
+              // follows.
               onClick={() => {
                 onChange([...value, t]);
                 setSearch("");
               }}
+              onPointerDown={(e) => e.preventDefault()}
             >
               <Badge
                 color="black"
