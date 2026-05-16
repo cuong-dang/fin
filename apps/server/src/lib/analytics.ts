@@ -33,16 +33,7 @@ import {
   type ChartItem,
   type Granularity,
 } from "@fin/schemas";
-import {
-  aliasedTable,
-  and,
-  eq,
-  gte,
-  lte,
-  ne,
-  type SQL,
-  sql,
-} from "drizzle-orm";
+import { aliasedTable, and, between, eq, ne, type SQL, sql } from "drizzle-orm";
 
 import { db, schema } from "../db/index.js";
 
@@ -112,7 +103,38 @@ type Row = {
   amountMinor: string;
 };
 
+// Inclusive date-range filter on `transactions.date`. Every chart
+// query is date-bounded; this expresses the bound in one place.
+function inDateRange(start: string, end: string) {
+  return between(schema.transactions.date, start, end);
+}
+
 // ─── Cash flow ─────────────────────────────────────────────────────────────
+
+// Outgoing leg side of a transaction (debit) — used by every "out"
+// dimension to restrict to legs whose amount is signed-negative.
+const outflowLegFilter = sql`${schema.transactionLegs.amount} < 0`;
+
+// Adjustments are bookkeeping touch-ups, not real cash-flow events;
+// excluded from the outflow and net dimensions.
+const excludeAdjustments = ne(schema.transactions.type, "adjustment");
+
+// Cash flow is "money moving through everyday accounts" — only legs
+// on checking/savings or credit-card accounts count as real outflow.
+// A leg on a loan account (e.g., a BNPL purchase landing on the loan,
+// or a payment whose source happens to be another loan) is debt
+// incurred or shuffled, not cash leaving the user's pocket. Every
+// out-side handler and `handleNet` apply this filter uniformly so the
+// chart can't double-count financed purchases as both expense and
+// loan payment.
+const everydayAccountFilter = sql`${schema.accounts.type} IN ('checking_savings', 'credit_card')`;
+
+// Optional drill on a single account group (the "Spending" /
+// "Savings" picker on the cash-flow chart). Returns `undefined` when
+// nothing's picked so `and(...)` collapses it cleanly.
+function accountGroupFilter(id: string | undefined | null) {
+  return id ? eq(schema.accounts.accountGroupId, id) : undefined;
+}
 
 type CashFlowCtx = { workspaceId: string } & CashFlowQuery & {
     periodExpr: SQL<string>;
@@ -243,13 +265,11 @@ async function handleOutTop(ctx: CashFlowCtx): Promise<Row[]> {
       and(
         eq(schema.transactions.workspaceId, workspaceId),
         eq(schema.accounts.currency, currency),
-        ne(schema.transactions.type, "adjustment"),
-        sql`${schema.transactionLegs.amount} < 0`,
-        gte(schema.transactions.date, start),
-        lte(schema.transactions.date, end),
-        accountGroupId
-          ? eq(schema.accounts.accountGroupId, accountGroupId)
-          : undefined,
+        excludeAdjustments,
+        outflowLegFilter,
+        everydayAccountFilter,
+        inDateRange(start, end),
+        accountGroupFilter(accountGroupId),
       ),
     )
     .groupBy(truncExpr, bucket)
@@ -317,11 +337,9 @@ async function handleCategory(
     eq(schema.transactionLines.currency, currency),
     eq(schema.transactions.type, isIncome ? "income" : "expense"),
     !isIncome ? sql`${schema.transactions.billId} IS NULL` : undefined,
-    gte(schema.transactions.date, start),
-    lte(schema.transactions.date, end),
-    accountGroupId
-      ? eq(schema.accounts.accountGroupId, accountGroupId)
-      : undefined,
+    !isIncome ? everydayAccountFilter : undefined,
+    inDateRange(start, end),
+    accountGroupFilter(accountGroupId),
   );
 
   if (drilling) {
@@ -413,12 +431,10 @@ async function handleOutLoans(ctx: CashFlowCtx): Promise<Row[]> {
       and(
         eq(schema.transactions.workspaceId, workspaceId),
         eq(schema.accounts.currency, currency),
-        sql`${schema.transactionLegs.amount} < 0`,
-        gte(schema.transactions.date, start),
-        lte(schema.transactions.date, end),
-        accountGroupId
-          ? eq(schema.accounts.accountGroupId, accountGroupId)
-          : undefined,
+        outflowLegFilter,
+        everydayAccountFilter,
+        inDateRange(start, end),
+        accountGroupFilter(accountGroupId),
         loanId ? eq(destAcc.id, loanId) : undefined,
       ),
     )
@@ -463,12 +479,10 @@ async function handleOutBills(ctx: CashFlowCtx): Promise<Row[]> {
       and(
         eq(schema.transactions.workspaceId, workspaceId),
         eq(schema.accounts.currency, currency),
-        sql`${schema.transactionLegs.amount} < 0`,
-        gte(schema.transactions.date, start),
-        lte(schema.transactions.date, end),
-        accountGroupId
-          ? eq(schema.accounts.accountGroupId, accountGroupId)
-          : undefined,
+        outflowLegFilter,
+        everydayAccountFilter,
+        inDateRange(start, end),
+        accountGroupFilter(accountGroupId),
       ),
     )
     .groupBy(truncExpr, schema.bills.type)
@@ -513,12 +527,10 @@ async function handleOutBillsByType(ctx: CashFlowCtx): Promise<Row[]> {
       and(
         eq(schema.transactions.workspaceId, workspaceId),
         eq(schema.accounts.currency, currency),
-        sql`${schema.transactionLegs.amount} < 0`,
-        gte(schema.transactions.date, start),
-        lte(schema.transactions.date, end),
-        accountGroupId
-          ? eq(schema.accounts.accountGroupId, accountGroupId)
-          : undefined,
+        outflowLegFilter,
+        everydayAccountFilter,
+        inDateRange(start, end),
+        accountGroupFilter(accountGroupId),
         billTypeFilter ? eq(schema.bills.type, billTypeFilter) : undefined,
         billId ? eq(schema.bills.id, billId) : undefined,
       ),
@@ -543,11 +555,12 @@ async function handleNet(ctx: CashFlowCtx): Promise<Row[]> {
   // `<CompositeChart>` with `stackOffset="sign"` then stacks `in`
   // above zero, `out` below, and the client overlays `net` as a line.
   //
-  // The sum is over CASA/CC legs. Internal transfers (CASA↔CASA, CC
-  // payments) are filtered out — they would inflate both bars equally
-  // without changing net. A transfer with at least one leg on a loan
-  // account IS real cash flow (the CASA leg surfaces as outflow);
-  // those are kept by the `NOT (internalTransfer)` clause.
+  // Loan-account legs are excluded by `everydayAccountFilter` (see
+  // top of this section). Internal transfers (CASA↔CASA, CC payments)
+  // are filtered out too — they'd inflate both bars equally without
+  // changing net. A transfer with at least one leg on a loan account
+  // IS real cash flow (the CASA leg surfaces as outflow), so it's
+  // kept by the `NOT (internalTransfer)` clause.
   const internalTransfer = sql`
     ${schema.transactions.type} = 'transfer'
     AND NOT EXISTS (
@@ -579,14 +592,11 @@ async function handleNet(ctx: CashFlowCtx): Promise<Row[]> {
       and(
         eq(schema.transactions.workspaceId, workspaceId),
         eq(schema.accounts.currency, currency),
-        sql`${schema.accounts.type} IN ('checking_savings', 'credit_card')`,
-        ne(schema.transactions.type, "adjustment"),
+        everydayAccountFilter,
+        excludeAdjustments,
         sql`NOT (${internalTransfer})`,
-        gte(schema.transactions.date, start),
-        lte(schema.transactions.date, end),
-        accountGroupId
-          ? eq(schema.accounts.accountGroupId, accountGroupId)
-          : undefined,
+        inDateRange(start, end),
+        accountGroupFilter(accountGroupId),
       ),
     )
     .groupBy(truncExpr)
@@ -726,8 +736,7 @@ async function handleCategoryTag(ctx: CategoryTagCtx): Promise<Row[]> {
   const where = and(
     eq(schema.transactions.workspaceId, workspaceId),
     eq(schema.transactionLines.currency, currency),
-    gte(schema.transactions.date, start),
-    lte(schema.transactions.date, end),
+    inDateRange(start, end),
     tagFilter,
   );
 
