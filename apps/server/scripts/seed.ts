@@ -16,6 +16,7 @@
  *     immediately, but doesn't move cash flow until the loan is paid.
  *   - Tags (vacation / family / business / gift) on a sampling of lines.
  *   - One balance adjustment per account to establish opening balances.
+ *   - Budgets covering under-pace, over-pace, and over-budget states.
  *
  * Reproducible: seeded PRNG so reruns produce the same dataset.
  *
@@ -189,6 +190,10 @@ async function resetWorkspace(workspaceId: string) {
     await tx
       .delete(schema.transactions)
       .where(eq(schema.transactions.workspaceId, workspaceId));
+    // Budgets reference categories/subcategories — clear before categories.
+    await tx
+      .delete(schema.budgets)
+      .where(eq(schema.budgets.workspaceId, workspaceId));
     // Bills cascade to bill_default_lines and bill_default_line_tags.
     await tx
       .delete(schema.bills)
@@ -589,6 +594,50 @@ async function main() {
       },
     ],
   });
+
+  // Budgets — picked to exercise all three pace/cap bands when viewed
+  // at the seed's "today" of 2026-05-14 (~45% through the May cycle):
+  //
+  //   teal   (under pace)        actual <  45% × cap
+  //   yellow (over pace, in cap) actual >= 45% but < 100% × cap
+  //   red    (over budget)       actual >= 100% × cap
+  //
+  // The two Utilities subcategory budgets also produce a rollup row
+  // (`Σ` icon) at the Utilities parent.
+  await db.insert(schema.budgets).values([
+    // Under pace: ~$150 spent on Groceries (2 trips) vs $316 pace target.
+    {
+      workspaceId,
+      categoryId: cat(expense, "Groceries"),
+      amount: USD(700),
+      currency: CURRENCY,
+      frequency: "monthly",
+    },
+    // Over pace, under cap: water ~$45 vs $60 cap (pace target ~$27).
+    {
+      workspaceId,
+      subcategoryId: sub(expense, "Utilities", "Water"),
+      amount: USD(60),
+      currency: CURRENCY,
+      frequency: "monthly",
+    },
+    // Over budget: streaming $27.48 (Netflix + Spotify) vs $20 cap.
+    {
+      workspaceId,
+      subcategoryId: sub(expense, "Entertainment", "Streaming"),
+      amount: USD(20),
+      currency: CURRENCY,
+      frequency: "monthly",
+    },
+    // Over budget: electric ~$120 vs $80 cap.
+    {
+      workspaceId,
+      subcategoryId: sub(expense, "Utilities", "Electric"),
+      amount: USD(80),
+      currency: CURRENCY,
+      frequency: "monthly",
+    },
+  ]);
 
   // Loan default lines (interest + fees portion; principal = leg − Σ lines)
   await db.insert(schema.loanDefaultLines).values([
@@ -1223,7 +1272,8 @@ async function main() {
       (SELECT count(*) FROM accounts WHERE account_group_id IN (SELECT id FROM account_groups WHERE workspace_id = ${workspaceId})) AS accounts,
       (SELECT count(*) FROM bills WHERE workspace_id = ${workspaceId}) AS bills,
       (SELECT count(*) FROM loans WHERE workspace_id = ${workspaceId}) AS loans,
-      (SELECT count(*) FROM categories WHERE workspace_id = ${workspaceId}) AS categories
+      (SELECT count(*) FROM categories WHERE workspace_id = ${workspaceId}) AS categories,
+      (SELECT count(*) FROM budgets WHERE workspace_id = ${workspaceId}) AS budgets
   `);
   console.log("✔ Seed complete");
   console.log(counts[0]);
