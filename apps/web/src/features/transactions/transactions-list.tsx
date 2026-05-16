@@ -143,21 +143,18 @@ export function TransactionsList({
     setLocalByDay(reordered);
   }
 
-  if (pending.length === 0 && localByDay.size === 0) {
-    return (
-      <Text c="dimmed" ta="center">
-        No transactions yet.
-      </Text>
-    );
-  }
-
   return (
     <>
       {q.error && <Alert color="red">{(q.error as Error).message}</Alert>}
-      {q.isLoading && (
-        <Text c="dimmed" px="xs">
-          Loading...
-        </Text>
+      {q.isLoading ? (
+        <Text c="dimmed">Loading...</Text>
+      ) : (
+        pending.length === 0 &&
+        localByDay.size === 0 && (
+          <Text c="dimmed" ta="center">
+            No transactions yet.
+          </Text>
+        )
       )}
       {pending.length > 0 && (
         <Section title="Pending">
