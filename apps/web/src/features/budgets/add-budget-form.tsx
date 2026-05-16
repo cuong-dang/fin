@@ -65,7 +65,6 @@ export function AddBudgetForm({
           onChange={(e) => setAmount(e.target.value)}
         />
         <Select
-          allowDeselect={false}
           aria-label="Currency"
           data={currencies.length > 0 ? currencies : ["USD"]}
           flex={1}
@@ -73,7 +72,6 @@ export function AddBudgetForm({
           onChange={(v) => v && setCurrency(v)}
         />
         <Select
-          allowDeselect={false}
           aria-label="Frequency"
           data={BUDGET_FREQUENCY_OPTIONS}
           flex={1}

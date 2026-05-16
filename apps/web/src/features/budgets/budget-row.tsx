@@ -75,7 +75,6 @@ export function BudgetRow({
             onChange={(e) => setAmountDraft(e.target.value)}
           />
           <Select
-            allowDeselect={false}
             aria-label="Frequency"
             data={BUDGET_FREQUENCY_OPTIONS}
             value={freqDraft}

@@ -63,14 +63,12 @@ export function SettingsBudgetsRoute() {
   const income = cats.filter((c) => c.kind === "income");
   const expense = cats.filter((c) => c.kind === "expense");
 
+  const isLoading =
+    catsQ.isLoading || budgetsQ.isLoading || accountsQ.isLoading;
+  if (isLoading) return null;
+
   return (
     <PageShell title="Budgets">
-      <Text c="dimmed" size="sm">
-        Set spending caps (or income targets) on any category or subcategory.
-        Each target can carry one budget per currency. Parent categories with no
-        budget of their own roll up the sum of their subcategories on the
-        budgets chart.
-      </Text>
       <KindSection
         byCategoryId={byCategoryId}
         bySubcategoryId={bySubcategoryId}
@@ -143,7 +141,7 @@ function CategorySection({
     <Card>
       <Stack>
         <SectionHeader compact>{category.name}</SectionHeader>
-        <Stack gap="xs" pl="md">
+        <Stack pl="md">
           {budgets.map((b) => (
             <BudgetRow key={b.id} budget={b} invalidate={INVALIDATE} />
           ))}
@@ -156,11 +154,11 @@ function CategorySection({
         {category.subcategories.length > 0 && (
           <>
             <Divider />
-            <Stack gap="md" pl="md">
+            <Stack pl="md">
               {category.subcategories.map((s) => {
                 const subBudgets = subcategoryBudgets.get(s.id) ?? [];
                 return (
-                  <Stack key={s.id} gap="xs">
+                  <Stack key={s.id}>
                     <Text fw={500}>{s.name}</Text>
                     {subBudgets.map((b) => (
                       <BudgetRow

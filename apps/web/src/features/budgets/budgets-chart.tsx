@@ -138,7 +138,8 @@ function BudgetRow({
           <Text fw={500}>{label}</Text>
           {snapshot.parentRollup && (
             <Tooltip
-              label="Rollup — sums the per-cycle amounts of every subcategory budget under this category. No standalone budget row exists for the parent."
+              label="Rollup — sums the per-cycle amounts of every subcategory budget
+              under this category."
               multiline
               w={300}
             >
