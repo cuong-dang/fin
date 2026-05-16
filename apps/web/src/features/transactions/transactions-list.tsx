@@ -354,14 +354,14 @@ function RowBody({
     filterAccountId,
   );
   return (
-    <Group pr="xs">
-      <Box flex={1}>
+    <Group justify="space-between" pr="xs">
+      <Stack gap={0}>
         <Text fw={500}>{primary}</Text>
         <Text c="dimmed" size="xs">
           {metaParts.join(" · ")}
         </Text>
-      </Box>
-      <Stack align="flex-end">
+      </Stack>
+      <Stack align="flex-end" gap={0}>
         <Text c={amountColor(tx, amount)} ff="monospace" fw={500}>
           {formatMoney(amount, currency)}
         </Text>

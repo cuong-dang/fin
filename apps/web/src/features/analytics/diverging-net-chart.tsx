@@ -48,16 +48,16 @@ export function DivergingNetChart({
     {
       name: positive.name,
       label: positive.label,
-      color: "teal.6",
+      color: "teal",
       type: "area",
     },
     {
       name: negative.name,
       label: negative.label,
-      color: "red.6",
+      color: "red",
       type: "area",
     },
-    { name: net.name, label: net.label, color: "dark.6", type: "line" },
+    { name: net.name, label: net.label, color: "dark", type: "line" },
   ];
 
   // Recharts' ComposedChart, with `stackOffset="sign"`, can slot the

@@ -72,17 +72,17 @@ export function BudgetHistoryChart({
       <BarChart
         data={data}
         dataKey="period"
-        getBarColor={(v) => (v >= amountMajor ? "red.6" : "teal.6")}
+        getBarColor={(v) => (v >= amountMajor ? "red" : "teal")}
         h={300}
         referenceLines={[
           {
             y: amountMajor,
             label: "Budget",
-            color: "dark.6",
+            color: "dark",
             labelPosition: "insideTopRight",
           },
         ]}
-        series={[{ name: "actual", label: "Spent", color: "teal.6" }]}
+        series={[{ name: "actual", label: "Spent", color: "teal" }]}
         withBarValueLabel
         withTooltip
         yAxisProps={yAxisProps}

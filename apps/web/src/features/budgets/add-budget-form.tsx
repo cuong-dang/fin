@@ -84,7 +84,7 @@ export function AddBudgetForm({
           size="xs"
           type="submit"
         >
-          Add budget
+          Add
         </Button>
       </Group>
     </form>

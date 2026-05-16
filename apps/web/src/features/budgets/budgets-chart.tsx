@@ -110,7 +110,7 @@ function BudgetRow({
   today: string;
 }) {
   const actual = BigInt(snapshot.actual);
-  const amount = BigInt(snapshot.amount);
+  const budgeted = BigInt(snapshot.amount);
   const pct = pctConsumed(snapshot);
   const label = snapshot.subcategoryName
     ? `${snapshot.categoryName} › ${snapshot.subcategoryName}`
@@ -121,7 +121,7 @@ function BudgetRow({
   // bar marks this; the text below summarizes under/over pace.
   const pctElapsed = elapsedPct(snapshot.cycleStart, snapshot.cycleEnd, today);
   const expectedMinor =
-    (amount * BigInt(Math.round(pctElapsed * 100))) / 10000n;
+    (budgeted * BigInt(Math.round(pctElapsed * 100))) / 10000n;
   const delta = actual - expectedMinor; // positive = over pace
 
   // Color reflects status relative to two thresholds, matching the
@@ -129,7 +129,7 @@ function BudgetRow({
   //   teal   — under (or on) pace
   //   yellow — over pace but still inside the cycle's budget cap
   //   red    — over the full cap
-  const color = pct >= 100 ? "red.6" : pct > pctElapsed ? "yellow.6" : "teal.6";
+  const color = pct >= 100 ? "red" : pct > pctElapsed ? "yellow" : "teal";
 
   return (
     <Stack gap={0}>
@@ -151,17 +151,14 @@ function BudgetRow({
             </Tooltip>
           )}
         </Group>
-        <Text c="dimmed" ff="monospace" size="sm">
-          {formatMoney(actual, snapshot.currency)} of{" "}
-          {formatMoney(amount, snapshot.currency)}
-          {BUDGET_FREQUENCY_SHORT[snapshot.frequency]}
+        <Text c="dimmed" ff="monospace" size="xs">
+          {formatMoney(actual, snapshot.currency)} spent {" · "}
+          {formatMoney(budgeted - actual, snapshot.currency)} left
         </Text>
       </Group>
       <Box pos="relative">
-        <Progress.Root size="xl">
-          <Progress.Section color={color} value={Math.min(pct, 100)}>
-            {pct >= 15 && <Progress.Label>{Math.round(pct)}%</Progress.Label>}
-          </Progress.Section>
+        <Progress.Root size="lg">
+          <Progress.Section color={color} value={Math.min(pct, 100)} />
         </Progress.Root>
         {/* Today-pace tick: a 2px vertical line at pctElapsed%. */}
         <Box
@@ -179,8 +176,9 @@ function BudgetRow({
         />
       </Box>
       <Group justify="space-between">
-        <Text c="dimmed" size="xs">
-          {snapshot.cycleStart} → {snapshot.cycleEnd}
+        <Text c="dimmed" ff="monospace" size="xs">
+          {formatMoney(budgeted, snapshot.currency)}
+          {BUDGET_FREQUENCY_SHORT[snapshot.frequency]}
         </Text>
         <Text c={color} ff="monospace" size="xs">
           Pace {formatMoney(expectedMinor, snapshot.currency)}

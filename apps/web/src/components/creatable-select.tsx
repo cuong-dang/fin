@@ -67,16 +67,16 @@ export function CreatableSelect({
       </Combobox.Target>
       <Combobox.Dropdown>
         <Combobox.Options>
-          {showCreate && (
-            <Combobox.Option value={trimmed}>
-              + Create &ldquo;{trimmed}&rdquo;
-            </Combobox.Option>
-          )}
           {filtered.map((d) => (
             <Combobox.Option key={d} value={d}>
               {d}
             </Combobox.Option>
           ))}
+          {showCreate && (
+            <Combobox.Option c="dimmed" value={trimmed}>
+              + Create &ldquo;{trimmed}&rdquo;
+            </Combobox.Option>
+          )}
           {!showCreate && filtered.length === 0 && (
             <Combobox.Empty>No options</Combobox.Empty>
           )}

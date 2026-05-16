@@ -190,7 +190,7 @@ export function CashFlowChart({
           />
         ) : (
           <SortedAreaChart
-            curveType="natural"
+            curveType="monotone"
             data={buckets}
             dataKey="period"
             h={300}

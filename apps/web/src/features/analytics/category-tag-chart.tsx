@@ -204,7 +204,7 @@ export function CategoryTagChart({
           <Text c="dimmed">No data for this view.</Text>
         ) : (
           <SortedAreaChart
-            curveType="natural"
+            curveType="monotone"
             data={buckets}
             dataKey="period"
             h={300}

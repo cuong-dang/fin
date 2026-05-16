@@ -255,7 +255,7 @@ function CreditLimitBar({
   const pctRemaining =
     creditLimit > 0n ? Number((clamped * 100n) / creditLimit) : 0;
   const color =
-    pctRemaining >= 75 ? "teal.6" : pctRemaining >= 50 ? "yellow.6" : "red.6";
+    pctRemaining >= 75 ? "teal" : pctRemaining >= 50 ? "yellow" : "red";
 
   return (
     <Stack gap={0}>
