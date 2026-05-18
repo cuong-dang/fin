@@ -18,6 +18,7 @@ import { SettingsCategoriesRoute } from "./routes/settings-categories.js";
 import { SignInRoute } from "./routes/signin.js";
 import { TransactionEditRoute } from "./routes/transaction-edit.js";
 import { TransactionNewRoute } from "./routes/transaction-new.js";
+import { TransactionRefundRoute } from "./routes/transaction-refund.js";
 import { TransactionsRoute } from "./routes/transactions.js";
 
 export function App() {
@@ -50,6 +51,10 @@ export function App() {
         <Route
           element={<TransactionEditRoute />}
           path="/transactions/:id/edit"
+        />
+        <Route
+          element={<TransactionRefundRoute />}
+          path="/transactions/:id/refund"
         />
         <Route element={<BillEditRoute />} path="/bills/:id/edit" /> */
       </Route>

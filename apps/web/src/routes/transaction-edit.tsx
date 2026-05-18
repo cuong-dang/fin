@@ -24,7 +24,7 @@ import type {
 import { Alert, Button, Group, Stack, TextInput } from "@mantine/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 
 import { NotFoundRoute } from "./not-found";
 
@@ -93,6 +93,9 @@ export function TransactionEditRoute() {
   if (tx.type === "adjustment") {
     return <AdjustmentEdit tx={tx} />;
   }
+  if (tx.type === "refund") {
+    return <RefundView tx={tx} />;
+  }
 
   return (
     <FullEdit
@@ -124,6 +127,8 @@ export function TransactionEditRoute() {
 
     const initial = deriveInitial(props.tx);
 
+    const canRefund = props.tx.type === "expense" && props.tx.date !== null;
+
     return (
       <PageShell title="Edit transaction">
         <TransactionForm
@@ -131,6 +136,18 @@ export function TransactionEditRoute() {
           bills={props.bills}
           categories={props.categories}
           error={mutation.error ? (mutation.error as Error).message : null}
+          extraActions={
+            canRefund ? (
+              <Button
+                color="teal"
+                component={Link}
+                to={`/transactions/${props.tx.id}/refund`}
+                variant="light"
+              >
+                Refund
+              </Button>
+            ) : null
+          }
           initialValues={initial}
           pending={mutation.isPending}
           submitLabel="Save"
@@ -156,6 +173,43 @@ export function TransactionEditRoute() {
             Delete transaction
           </Button>
         </DangerZone>
+      </PageShell>
+    );
+  }
+
+  function RefundView({ tx }: { tx: EnrichedTransaction }) {
+    // Refunds are read-only post-create in v1. UX simplification, not
+    // an analytics requirement: editing would need TransactionForm to
+    // learn `type: 'refund'` and surface the (immutable)
+    // `refundedTransactionId`. Refunds are typically small + few, so
+    // delete-and-recreate is fine for now.
+    const del = useMutation({
+      mutationFn: () => deleteTransaction(tx.id),
+      onSuccess: go,
+      onError: (e) => alert((e as Error).message),
+    });
+    return (
+      <PageShell title="Refund">
+        <Stack>
+          <Alert color="blue">
+            Refund transactions are read-only. Delete and create a new refund if
+            changes are needed.
+          </Alert>
+          <DangerZone description="Deleting removes this refund and its leg/lines. The original transaction is unaffected.">
+            <Button
+              color="red"
+              variant="light"
+              w="fit-content"
+              onClick={() => {
+                if (confirm("Delete this refund? This cannot be undone.")) {
+                  del.mutate();
+                }
+              }}
+            >
+              Delete refund
+            </Button>
+          </DangerZone>
+        </Stack>
       </PageShell>
     );
   }
@@ -261,7 +315,11 @@ function deriveInitial(tx: EnrichedTransaction): InitialTxValues {
     } else {
       formType = "transfer";
     }
-  } else if (tx.type === "adjustment") {
+  } else if (tx.type === "adjustment" || tx.type === "refund") {
+    // Adjustments and refunds are routed to their own dedicated views
+    // upstream (`AdjustmentEdit`, `RefundView`) and never reach this
+    // form. The fallback to "expense" is defensive — picking a real
+    // `TxType` so the form would still render rather than crashing.
     formType = "expense";
   } else {
     formType = tx.type;

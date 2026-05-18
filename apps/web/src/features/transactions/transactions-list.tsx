@@ -24,7 +24,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { EnrichedTransaction, TxLeg, TxLine } from "@fin/schemas";
+import type { EnrichedTransaction } from "@fin/schemas";
 import {
   ActionIcon,
   Anchor,
@@ -39,6 +39,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronDown, ChevronRight, GripVertical } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 import { Link } from "react-router";
+
+import { categoryLabel, isDebtPayment, primaryLabel } from "./tx-display";
 
 export function TransactionsList({
   accountId,
@@ -441,35 +443,18 @@ function displayShape(
         accountLabel: leg?.accountName ?? "",
       };
     }
+    case "refund": {
+      // Refund is income-shaped on the wire: a single positive leg
+      // on the receiving account, with positive lines mirroring the
+      // original's categories. Display as the leg's positive amount.
+      const total = tx.lines.reduce((s, l) => s + BigInt(l.amount), 0n);
+      return {
+        amount: total,
+        currency: tx.lines[0]?.currency ?? tx.legs[0]?.accountCurrency ?? "USD",
+        accountLabel: tx.legs[0]?.accountName ?? "",
+      };
+    }
   }
-}
-
-function primaryLabel(tx: EnrichedTransaction): string {
-  if (tx.description) return tx.description;
-  if (tx.type === "transfer") {
-    // Payments to a debt account (CC / loan) read more naturally as
-    // "{destination} payment" than as a generic transfer. The line
-    // breakdown (e.g., interest) is shown in the row's expansion.
-    const inLeg = tx.legs.find((l) => BigInt(l.amount) > 0n);
-    if (inLeg && isDebtPayment(inLeg)) return `${inLeg.accountName} payment`;
-    return "Transfer";
-  }
-  if (tx.lines.length > 1) return `${tx.lines.length} categories`;
-  if (tx.lines[0]) return categoryLabel(tx.lines[0]);
-  if (tx.type === "adjustment") return "Balance adjustment";
-  return "";
-}
-
-// A transfer whose destination is a debt account is a settlement payment
-// (paying down a CC or a loan), not a plain account-to-account transfer.
-function isDebtPayment(inLeg: TxLeg): boolean {
-  return inLeg.accountType === "credit_card" || inLeg.accountType === "loan";
-}
-
-function categoryLabel(line: TxLine): string {
-  return line.subcategoryName
-    ? `${line.categoryName} / ${line.subcategoryName}`
-    : line.categoryName;
 }
 
 function amountColor(tx: EnrichedTransaction, amount: bigint): string {
@@ -495,6 +480,8 @@ function rowContent(
   if (accountLabel) metaParts.push(accountLabel);
   const recurringLabel = recurringSourceLabel(tx);
   if (recurringLabel) metaParts.push(recurringLabel);
+  const refundLabel = refundSourceLabel(tx);
+  if (refundLabel) metaParts.push(refundLabel);
   const tagLabel = tagsLabel(tx);
   if (tagLabel) metaParts.push(tagLabel);
   return { primary, metaParts, amount, currency };
@@ -507,6 +494,16 @@ function rowContent(
 function recurringSourceLabel(tx: EnrichedTransaction): string {
   if (tx.billName) return `↻ ${tx.billName}`;
   return "";
+}
+
+/**
+ * "↶ Refund of <original>" for refund transactions. Mirrors the bill
+ * indicator — single glyph + source name — but uses ↶ to signal
+ * "reversal" rather than the recurring/cyclical ↻.
+ */
+function refundSourceLabel(tx: EnrichedTransaction): string {
+  if (!tx.refundedTransactionId) return "";
+  return `↶ Refund of ${tx.refundedTransactionDescription ?? "transaction"}`;
 }
 
 /** Dedupes tags across lines and renders as `#tag1 #tag2`. */

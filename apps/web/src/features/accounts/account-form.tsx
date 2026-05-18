@@ -28,8 +28,7 @@ import {
   Stack,
   TextInput,
 } from "@mantine/core";
-import type { FormEvent } from "react";
-import { useState } from "react";
+import { type ComponentProps, useState } from "react";
 
 export type InitialAccountValues = {
   type: AccountType;
@@ -142,7 +141,7 @@ export function AccountForm({
   );
   const loanPayFromAccounts = allAccounts.filter((a) => a.type !== "loan");
 
-  function handleSubmit(e: FormEvent) {
+  const handleSubmit: ComponentProps<"form">["onSubmit"] = (e) => {
     e.preventDefault();
     const creatingNewGroup = !hasGroups || accountGroupId === "";
 
@@ -203,7 +202,7 @@ export function AccountForm({
     } else {
       mode.onSubmit({ type: "checking_savings", ...common });
     }
-  }
+  };
 
   return (
     <form onSubmit={handleSubmit}>

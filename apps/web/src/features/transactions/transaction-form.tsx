@@ -24,7 +24,7 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import { type ComponentProps, useState } from "react";
+import { type ComponentProps, type ReactNode, useState } from "react";
 import { Link } from "react-router";
 
 type TxType = "income" | "expense" | "transfer" | "payment";
@@ -83,6 +83,7 @@ export function TransactionForm({
   onCancel,
   pending,
   error,
+  extraActions,
 }: {
   accounts: Account[];
   categories: CategoryWithSubs[];
@@ -94,6 +95,8 @@ export function TransactionForm({
   onCancel: () => void;
   pending: boolean;
   error: string | null;
+  /** Extra buttons rendered alongside Save / Cancel (e.g., "Refund"). */
+  extraActions?: ReactNode;
 }) {
   const defaults: InitialTxValues = initialValues ?? {
     type: "expense",
@@ -501,6 +504,7 @@ export function TransactionForm({
               <Button loading={pending} type="submit">
                 {submitLabel}
               </Button>
+              {extraActions}
               <Button variant="subtle" onClick={onCancel}>
                 Cancel
               </Button>
