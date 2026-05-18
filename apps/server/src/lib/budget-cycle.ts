@@ -1,13 +1,12 @@
 import type { BudgetFrequency } from "@fin/schemas";
 
 /**
- * Budget cycle helpers. Each budget has a frequency (weekly,
- * monthly, quarterly, yearly) and a cycle window is the calendar
- * range over which spending is compared to the budget amount.
+ * Budget cycle helpers. Each budget has a frequency (daily, weekly,
+ * monthly, yearly) and a cycle window is the calendar range over
+ * which spending is compared to the budget amount.
  *
- * Anchoring is purely calendar-based: weekly = Sun-Sat, monthly =
- * 1st through last day, quarterly = Jan-Mar / Apr-Jun / Jul-Sep /
- * Oct-Dec, yearly = Jan 1 - Dec 31.
+ * Anchoring is purely calendar-based: daily = today, weekly = Sun-Sat,
+ * monthly = 1st through last day, yearly = Jan 1 - Dec 31.
  *
  * All dates here are "YYYY-MM-DD" strings (matching transactions.date,
  * which is a Postgres `DATE` with no timezone). Computations go
@@ -47,6 +46,8 @@ export function currentCycle(
 ): CycleWindow {
   const t = parseYmd(today);
   switch (frequency) {
+    case "daily":
+      return { start: today, end: today };
     case "weekly": {
       // Sunday-start week containing `today`.
       const dow = t.getUTCDay(); // 0 = Sun
@@ -60,13 +61,6 @@ export function currentCycle(
       const start = new Date(Date.UTC(y, m, 1));
       // Day 0 of next month = last day of this month.
       const end = new Date(Date.UTC(y, m + 1, 0));
-      return { start: formatYmd(start), end: formatYmd(end) };
-    }
-    case "quarterly": {
-      const y = t.getUTCFullYear();
-      const qStartMonth = Math.floor(t.getUTCMonth() / 3) * 3;
-      const start = new Date(Date.UTC(y, qStartMonth, 1));
-      const end = new Date(Date.UTC(y, qStartMonth + 3, 0));
       return { start: formatYmd(start), end: formatYmd(end) };
     }
     case "yearly": {

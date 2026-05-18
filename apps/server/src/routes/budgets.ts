@@ -1,13 +1,11 @@
 import {
   type Budget,
-  type BudgetFrequency,
   type BudgetHistoryPoint,
   type BudgetHistoryResponse,
   type BudgetSnapshot,
   createBudgetBody,
   dateString,
   idParam,
-  type RecurringFrequency,
   updateBudgetBody,
 } from "@fin/schemas";
 import { and, between, eq, isNull, sql } from "drizzle-orm";
@@ -34,22 +32,6 @@ const historyQuery = z
   })
   .strict();
 
-/**
- * Budget rows store frequency in the shared `recurring_frequency`
- * enum (bills/loans need biweekly), but the create endpoint Zod-gates
- * the value to the narrower `BudgetFrequency`. This narrows the DB
- * read type and throws if a biweekly row ever surfaces — that would
- * mean a SQL-bypass insert and is worth surfacing loudly.
- */
-function asBudgetFrequency(f: RecurringFrequency): BudgetFrequency {
-  if (f === "biweekly") {
-    throw new Error(
-      "Invariant: budgets do not support biweekly frequency (got 'biweekly' from DB)",
-    );
-  }
-  return f;
-}
-
 export const budgetRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
 
@@ -71,7 +53,7 @@ export const budgetRoutes: FastifyPluginAsync = async (app) => {
     return rows.map((r) => ({
       ...r,
       amount: r.amount.toString(),
-      frequency: asBudgetFrequency(r.frequency),
+      frequency: r.frequency,
     }));
   });
 
@@ -181,7 +163,7 @@ export const budgetRoutes: FastifyPluginAsync = async (app) => {
     // 2. Compute actuals + cycle windows per budget.
     const snapshots: BudgetSnapshot[] = [];
     for (const r of rows) {
-      const frequency = asBudgetFrequency(r.frequency);
+      const frequency = r.frequency;
       const cycle = currentCycle(frequency, today);
       const actual = await sumLineAmounts(workspaceId, {
         cycle,
@@ -280,7 +262,7 @@ export const budgetRoutes: FastifyPluginAsync = async (app) => {
       const { today, cycles } = historyQuery.parse(req.query);
       const owned = await findOwned(schema.budgets, id, req.auth.workspaceId);
       if (!owned) return reply.code(404).send({ error: "Not found" });
-      const frequency = asBudgetFrequency(owned.frequency);
+      const frequency = owned.frequency;
 
       const windows = pastCycles(frequency, today, cycles);
       const points: BudgetHistoryPoint[] = [];

@@ -1,0 +1,2 @@
+CREATE TYPE "public"."budget_frequency" AS ENUM('daily', 'weekly', 'monthly', 'yearly');--> statement-breakpoint
+ALTER TABLE "budgets" ALTER COLUMN "frequency" SET DATA TYPE "public"."budget_frequency" USING "frequency"::text::"public"."budget_frequency";

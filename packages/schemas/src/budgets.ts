@@ -3,18 +3,14 @@ import { z } from "zod";
 import { currencyField, moneyString, optionalUuid } from "./common.js";
 
 /**
- * Budgets reuse most of the global recurring frequencies, but skip
- * biweekly — it has no natural calendar anchor and the spec doesn't
- * call for one. The DB column reuses the shared `recurring_frequency`
- * enum (bills + loans need biweekly); this narrower enum just clamps
- * what the budgets endpoint accepts on the wire.
+ * Budget frequencies mirror the chart-page granularity toggle 1:1
+ * (daily / weekly / monthly / yearly), so the same period sub-divides
+ * the analytics view and the budget set you're inspecting against
+ * that view. Bills and loans use a separate, broader
+ * `recurring_frequency` enum that includes biweekly + quarterly —
+ * budgets don't need either.
  */
-export const budgetFrequency = z.enum([
-  "weekly",
-  "monthly",
-  "quarterly",
-  "yearly",
-]);
+export const budgetFrequency = z.enum(["daily", "weekly", "monthly", "yearly"]);
 export type BudgetFrequency = z.infer<typeof budgetFrequency>;
 
 /**

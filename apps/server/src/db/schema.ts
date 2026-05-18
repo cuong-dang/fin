@@ -36,6 +36,15 @@ export const recurringFrequencyEnum = pgEnum("recurring_frequency", [
   "yearly",
 ]);
 
+// Budgets use a narrower (and different) set than bills/loans — the
+// four values match the analytics chart granularity 1:1.
+export const budgetFrequencyEnum = pgEnum("budget_frequency", [
+  "daily",
+  "weekly",
+  "monthly",
+  "yearly",
+]);
+
 export const categoryKindEnum = pgEnum("category_kind", ["income", "expense"]);
 
 // Three flavors of recurring bill, distinguished mostly by UX hints (the
@@ -494,9 +503,10 @@ export const loanDefaultLineTags = pgTable(
 //
 // Currency is per-budget: the same category can have separate budgets
 // in different currencies (matching the workspace's multi-currency
-// support on accounts). Frequency reuses the global enum; cycle
-// windows are computed from the calendar (1st of month, Sunday-start
-// week, etc.) with a fixed epoch for biweekly (Sun 1970-01-04).
+// support on accounts). Frequency uses the `budget_frequency` enum
+// (daily/weekly/monthly/yearly) so the set matches the analytics chart
+// granularity toggle 1:1; cycle windows are computed from the calendar
+// (1st of month, Sunday-start week, etc.).
 export const budgets = pgTable(
   "budgets",
   {
@@ -513,7 +523,7 @@ export const budgets = pgTable(
     }),
     amount: bigint("amount", { mode: "bigint" }).notNull(),
     currency: char("currency", { length: 3 }).notNull(),
-    frequency: recurringFrequencyEnum("frequency").notNull(),
+    frequency: budgetFrequencyEnum("frequency").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

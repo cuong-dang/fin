@@ -1,105 +1,226 @@
+import { ChartTitle } from "@/features/analytics/chart-title";
+import { localDateKey } from "@/lib/dates";
+import { getBudgetHistory, getBudgetSnapshot } from "@/lib/endpoints";
 import { formatMoney } from "@/lib/money";
 
-import type { BudgetSnapshot } from "@fin/schemas";
+import type { BudgetSnapshot, Granularity } from "@fin/schemas";
 import {
   Box,
   Card,
   Group,
   Progress,
+  Select,
   Stack,
   Text,
-  Title,
   Tooltip,
 } from "@mantine/core";
+import { useQuery } from "@tanstack/react-query";
 import { Sigma } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
+import { BudgetHistoryChart } from "./budget-history-chart";
 import { BUDGET_FREQUENCY_SHORT } from "./frequency-label";
 
 /**
- * Budget chart — one progress-bar row per budget. Grouped by currency since
- * budgets aren't FX-converted in v1. Income vs expense are also separated
- * within each currency because "100%" means opposite things for the two kinds:
- * for expense it's a danger threshold (red), for income it's the target
- * (green).
+ * Budgets chart-card for the /charts page. Reuses the page's
+ * granularity + currency filters and the point-labels toggle.
+ *
+ * Granularity maps 1:1 to budget frequency (same enum: daily / weekly
+ * / monthly / yearly), so flipping the page's toggle scopes both the
+ * analytics charts and this budget set to the same period.
+ *
+ * Picking a budget on the right toggles a single-budget history view
+ * (last 12 cycles vs the current cap).
  */
 export function BudgetsChart({
+  granularity,
+  currency,
+  withPointLabels,
+}: {
+  granularity: Granularity;
+  currency: string;
+  withPointLabels: boolean;
+}) {
+  const today = useMemo(() => localDateKey(new Date()), []);
+  const [pickedId, setPickedId] = useState<string | null>(null);
+
+  const snapshotQ = useQuery({
+    queryKey: ["budget-snapshot", today],
+    queryFn: () => getBudgetSnapshot(today),
+  });
+
+  const snapshots = useFilteredSortedSnapshots(
+    snapshotQ.data,
+    currency,
+    granularity,
+  );
+
+  // Derive the effective drilled budget from the raw pick + the
+  // filtered set: if the picked budget isn't in the current filter
+  // (user switched currency/granularity), fall back to the snapshot
+  // view automatically. Keeps the raw pick so navigating back to a
+  // matching filter restores the drill. Avoids the setState-in-effect
+  // anti-pattern.
+  const budgetId =
+    pickedId && snapshots.some((s) => s.id === pickedId) ? pickedId : null;
+
+  const selectOptions = snapshots
+    .filter((s): s is BudgetSnapshot & { id: string } => s.id !== null)
+    .map((s) => ({ value: s.id, label: budgetLabel(s) }));
+
+  return (
+    <Card>
+      <Stack>
+        <Group justify="space-between">
+          <ChartTitle
+            info="A snapshot of every active budget against this cycle's spend.
+            Filtered by the page's granularity (e.g., monthly granularity → monthly
+            budgets only) and currency. Pick a budget on the right to see its last
+            12 cycles."
+            title="Budgets"
+          />
+          {selectOptions.length > 0 && (
+            <Select
+              aria-label="Budget history"
+              clearable
+              data={selectOptions}
+              placeholder="View history of…"
+              searchable
+              value={budgetId}
+              onChange={setPickedId}
+            />
+          )}
+        </Group>
+        {budgetId ? (
+          <DrillView
+            budgetId={budgetId}
+            label={
+              snapshots.filter((s) => s.id === budgetId).map(budgetLabel)[0] ??
+              "Budget history"
+            }
+            today={today}
+            withPointLabels={withPointLabels}
+          />
+        ) : (
+          <SnapshotView
+            error={snapshotQ.error}
+            granularity={granularity}
+            isLoading={snapshotQ.isLoading}
+            snapshots={snapshots}
+            today={today}
+          />
+        )}
+      </Stack>
+    </Card>
+  );
+}
+
+function DrillView({
+  budgetId,
+  today,
+  label,
+  withPointLabels,
+}: {
+  budgetId: string;
+  today: string;
+  label: string;
+  withPointLabels: boolean;
+}) {
+  const q = useQuery({
+    queryKey: ["budget-history", budgetId, today],
+    queryFn: () => getBudgetHistory(budgetId, today),
+  });
+  if (q.isLoading) return <Text c="dimmed">Loading…</Text>;
+  if (q.error)
+    return <Text c="red">Failed to load: {(q.error as Error).message}</Text>;
+  if (!q.data) return null;
+  return (
+    <BudgetHistoryChart
+      history={q.data}
+      label={label}
+      withPointLabels={withPointLabels}
+    />
+  );
+}
+
+function SnapshotView({
   snapshots,
   today,
+  isLoading,
+  error,
+  granularity,
 }: {
   snapshots: BudgetSnapshot[];
   today: string;
+  isLoading: boolean;
+  error: unknown;
+  granularity: Granularity;
 }) {
-  // Group by (currency, kind) where kind is inferred from amount sign
-  // intent — there's no `kind` on the snapshot, so we'll just group
-  // by currency for now and color all bars on the expense scale.
-  // Income coloring is a small follow-up; meanwhile income budgets
-  // still render usefully against teal/yellow/red.
-  const byCurrency = useMemo(() => {
-    // Suppress synthetic parent rollups that aren't telling the user
-    // anything new — a "Food rollup" above a lone "Food › Restaurants"
-    // row would just duplicate the same numbers. Count sibling
-    // subcategory budgets per (categoryName, currency, frequency); if
-    // there's only one, drop the rollup.
-    //
-    // Keying on `categoryName` rather than `categoryId` is deliberate:
-    // subcategory snapshots come in with `categoryId: null` (the
-    // budgets table only stores one of categoryId / subcategoryId per
-    // row), but `categoryName` is COALESCE'd to the parent category
-    // on the server, and category names are unique per workspace.
-    const subCount = new Map<string, number>();
-    for (const s of snapshots) {
-      if (s.subcategoryId === null) continue;
-      const key = `${s.categoryName}|${s.currency}|${s.frequency}`;
-      subCount.set(key, (subCount.get(key) ?? 0) + 1);
-    }
-    const visible = snapshots.filter((s) => {
-      if (!s.parentRollup) return true;
-      const key = `${s.categoryName}|${s.currency}|${s.frequency}`;
-      return (subCount.get(key) ?? 0) > 1;
-    });
-
-    const map = new Map<string, BudgetSnapshot[]>();
-    for (const s of visible) {
-      const arr = map.get(s.currency) ?? [];
-      arr.push(s);
-      map.set(s.currency, arr);
-    }
-    // Group hierarchically: per parent category (alpha), the parent
-    // row(s) first, then its subcategory rows (alpha by sub name).
-    // Within "parents," real budgets sort before synthetic rollups
-    // and ties break on frequency.
-    for (const arr of map.values()) {
-      arr.sort((a, b) => {
-        const catCmp = a.categoryName.localeCompare(b.categoryName);
-        if (catCmp !== 0) return catCmp;
-        const aParent = a.subcategoryId === null;
-        const bParent = b.subcategoryId === null;
-        if (aParent !== bParent) return aParent ? -1 : 1;
-        if (aParent && bParent) {
-          if (a.parentRollup !== b.parentRollup) return a.parentRollup ? 1 : -1;
-          return a.frequency.localeCompare(b.frequency);
-        }
-        return a.subcategoryName!.localeCompare(b.subcategoryName!);
-      });
-    }
-    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
-  }, [snapshots]);
-
+  if (isLoading) return <Text c="dimmed">Loading…</Text>;
+  if (error)
+    return <Text c="red">Failed to load: {(error as Error).message}</Text>;
+  if (snapshots.length === 0) {
+    return (
+      <Text c="dimmed" ta="center">
+        No {granularity} budgets set.
+      </Text>
+    );
+  }
   return (
     <Stack>
-      {byCurrency.map(([currency, rows]) => (
-        <Card key={currency}>
-          <Stack>
-            <Title order={5}>{currency}</Title>
-            {rows.map((s) => (
-              <BudgetRow key={rowKey(s)} snapshot={s} today={today} />
-            ))}
-          </Stack>
-        </Card>
+      {snapshots.map((s) => (
+        <BudgetRow key={rowKey(s)} snapshot={s} today={today} />
       ))}
     </Stack>
   );
+}
+
+/**
+ * Filter to (currency, frequency), then suppress lone parent rollups
+ * and sort hierarchically (parent first, subs alpha by name).
+ *
+ * Lone-rollup suppression: a "Food rollup" above a single
+ * "Food › Restaurants" row would just duplicate the same numbers.
+ * Count sibling subcategory budgets per `categoryName`; if there's
+ * only one, drop the synthetic rollup. (Keying on `categoryName`
+ * because subcategory snapshots have `categoryId: null` — the
+ * snapshot view COALESCEs the parent name onto each row.)
+ */
+function useFilteredSortedSnapshots(
+  raw: BudgetSnapshot[] | undefined,
+  currency: string,
+  frequency: Granularity,
+): BudgetSnapshot[] {
+  return useMemo(() => {
+    if (!raw) return [];
+    const filtered = raw.filter(
+      (s) => s.currency === currency && s.frequency === frequency,
+    );
+
+    const subCount = new Map<string, number>();
+    for (const s of filtered) {
+      if (s.subcategoryId === null) continue;
+      subCount.set(s.categoryName, (subCount.get(s.categoryName) ?? 0) + 1);
+    }
+    const visible = filtered.filter((s) => {
+      if (!s.parentRollup) return true;
+      return (subCount.get(s.categoryName) ?? 0) > 1;
+    });
+
+    visible.sort((a, b) => {
+      const catCmp = a.categoryName.localeCompare(b.categoryName);
+      if (catCmp !== 0) return catCmp;
+      const aParent = a.subcategoryId === null;
+      const bParent = b.subcategoryId === null;
+      if (aParent !== bParent) return aParent ? -1 : 1;
+      if (aParent && bParent) {
+        if (a.parentRollup !== b.parentRollup) return a.parentRollup ? 1 : -1;
+        return 0;
+      }
+      return a.subcategoryName!.localeCompare(b.subcategoryName!);
+    });
+    return visible;
+  }, [raw, currency, frequency]);
 }
 
 function BudgetRow({
@@ -192,6 +313,13 @@ function BudgetRow({
       </Group>
     </Stack>
   );
+}
+
+function budgetLabel(s: BudgetSnapshot): string {
+  const base = s.subcategoryName
+    ? `${s.categoryName} › ${s.subcategoryName}`
+    : s.categoryName;
+  return s.parentRollup ? `${base} (rollup)` : base;
 }
 
 /**

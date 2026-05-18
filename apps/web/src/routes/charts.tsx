@@ -5,6 +5,7 @@ import {
 import { CashFlowChart } from "@/features/analytics/cash-flow-chart";
 import { CategoryTagChart } from "@/features/analytics/category-tag-chart";
 import { NetWorthChart } from "@/features/analytics/net-worth-chart";
+import { BudgetsChart } from "@/features/budgets/budgets-chart";
 import { listAccounts } from "@/lib/endpoints";
 
 import type { Granularity } from "@fin/schemas";
@@ -56,16 +57,17 @@ export function ChartsRoute() {
 
   return (
     <Stack p="xs">
-      <Group>
-        <GranularityToggle value={granularity} onChange={setGranularity} />
-        <Switch
-          checked={withPointLabels}
-          label="Point labels"
-          onChange={(e) => setWithPointLabels(e.currentTarget.checked)}
-        />
-        {currencies.length > 1 && (
+      <Group justify="space-between">
+        <Group>
+          <GranularityToggle value={granularity} onChange={setGranularity} />
+          <Switch
+            checked={withPointLabels}
+            label="Point labels"
+            onChange={(e) => setWithPointLabels(e.currentTarget.checked)}
+          />
+        </Group>
+        {currencies.length > 0 && (
           <Select
-            allowDeselect={false}
             aria-label="Currency"
             data={currencies}
             value={activeCurrency}
@@ -73,6 +75,11 @@ export function ChartsRoute() {
           />
         )}
       </Group>
+      <BudgetsChart
+        currency={activeCurrency}
+        granularity={granularity}
+        withPointLabels={withPointLabels}
+      />
       <CashFlowChart
         currency={activeCurrency}
         end={end}

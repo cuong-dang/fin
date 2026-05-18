@@ -19,9 +19,11 @@ import { BUDGET_FREQUENCY_SHORT } from "./frequency-label";
 export function BudgetHistoryChart({
   history,
   label,
+  withPointLabels,
 }: {
   history: BudgetHistoryResponse;
   label: string;
+  withPointLabels: boolean;
 }) {
   const { budget, points } = history;
   const fmt = useCurrencyFormatters(budget.currency);
@@ -83,8 +85,8 @@ export function BudgetHistoryChart({
           },
         ]}
         series={[{ name: "actual", label: "Spent", color: "teal" }]}
-        withBarValueLabel
         withTooltip
+        {...(withPointLabels && { withBarValueLabel: true })}
         yAxisProps={yAxisProps}
         {...(fmt && { valueFormatter: fmt.tooltipFormatter })}
       />
