@@ -40,6 +40,14 @@ Friction points other personal-finance apps make you live with —
 
   <img alt="Loan account with amortization template + payment form" src="docs/screenshots/loans.png" width="300">
 
+- **First-class refunds.** Refunds are their own transaction type linked
+  back to the original. One click from any expense, per-line refund amounts.
+  Analytics net the refund against the original tx's date. Net worth doesn't
+  show a dip-and-rebound. The list row reads `↶ Refund of Whole Foods` and
+  links back to the original.
+
+  <img alt="Refund flow" src="docs/screenshots/refunds.png" width="300">
+
 - **Budgets with pace-aware progress bars.** Per-category or
   per-subcategory caps on weekly/monthly/yearly cycles, each rendered
   as a progress bar with a "where you should be" tick and over/under

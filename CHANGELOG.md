@@ -4,6 +4,72 @@ All notable changes to this project will be documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] — 2026-05-18
+
+### Refunds
+
+- **New transaction type `refund`** with a `refunded_transaction_id`
+  FK linking back to the original expense (RESTRICT — the original
+  can't be deleted while refunds reference it; the central error
+  handler turns the FK violation into a friendly 409). Refund txs
+  carry a positive leg on the receiving account and positive lines
+  mirroring the original's categories.
+- **One-click create from any completed expense.** "Refund" button on
+  the edit screen → `/transactions/:id/refund`, a focused form that
+  shows each original line's amount disabled alongside an editable
+  refund-amount input. An X next to each line zeroes that line out;
+  the submit logic drops zero / empty lines.
+- **Effective-date analytics.** Refunds attribute their contribution
+  to the **original tx's date**, not the refund's posting date. A
+  March $30 grocery refunded in May makes March's grocery line net
+  to $0; May shows nothing. Same retroactive dating for net worth —
+  the chart never dips-and-rebounds for what was ultimately a wash.
+  Implementation: `effectiveDateExpr = COALESCE(original.date,
+tx.date)` + a self-join on `transactions.refunded_transaction_id`
+  across every cash-flow / category-tag / budget / net-worth handler.
+- **Signed-negative line sums.** Refund lines negate via
+  `CASE WHEN tx.type='refund' THEN -line.amount ELSE line.amount`
+  inside the line-aggregation expressions. Cash-flow's `Net` direction
+  routes refund legs into the `cashOut` bucket (positive leg → adds
+  to a negative sum → partially cancels the original outflow), and
+  excludes them from `cashIn` so refunds never look like income.
+- **List indicator.** Refund txs render `↶ Refund of <description>`
+  in their meta row, mirroring the `↻` bill indicator.
+- **Read-only post-create in v1.** UX simplification — editing would
+  need `TransactionForm` to learn `type: 'refund'` and surface the
+  immutable `refundedTransactionId`. Delete-and-recreate is the
+  workflow for now.
+
+### Server
+
+- New FK-violation (SQLSTATE 23503) branch in the centralized error
+  handler — surfaces friendly 409s for known constraints. First
+  consumer: the refund → original FK ("This transaction has refunds
+  linked to it. Delete the refunds first.").
+- Refund route guards on POST + PATCH: the target tx must exist in
+  the same workspace AND be `type = 'expense'`. PATCH also blocks
+  type changes from / to `refund` and re-asserts
+  `refundedTransactionId` immutability.
+
+### Data model
+
+- New `transaction_type` enum value: `refund`.
+- New `transactions.refunded_transaction_id` self-FK + index. See
+  migration `0003_public_echo.sql`.
+
+### UI / tooling
+
+- `primaryLabel` + `categoryLabel` + `isDebtPayment` extracted from
+  `transactions-list.tsx` into `features/transactions/tx-display.ts`
+  so the refund form's "Refunding X" header can reuse the same
+  resolution rules.
+- `TransactionForm` accepts an `extraActions?: ReactNode` prop so the
+  parent edit screen can inject the "Refund" button into the form's
+  action row (alongside Save / Cancel).
+- Two `FormEvent` usages replaced with the codebase's existing
+  `ComponentProps<"form">["onSubmit"]` pattern — `@types/react@19`
+  flagged the type as `@deprecated FormEvent doesn't actually exist`.
+
 ## [0.2.0] — 2026-05-16
 
 ### Budgets
