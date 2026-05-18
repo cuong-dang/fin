@@ -17,9 +17,18 @@ const UNIQUE_VIOLATION_MESSAGES: Record<string, string> = {
   tags_workspace_name_unique: "A tag with this name already exists.",
 };
 
+// Friendly messages for known FK-violation constraint names. RESTRICT
+// FKs surface 23503 when the parent is deleted while children still
+// reference it.
+const FK_VIOLATION_MESSAGES: Record<string, string> = {
+  transactions_refunded_transaction_id_transactions_id_fk:
+    "This transaction has refunds linked to it. Delete the refunds first.",
+};
+
 /**
  * Centralized Fastify error handler. Zod → 400, PG unique violations
- * (SQLSTATE 23505) → 409 with friendly messages, everything else → a
+ * (SQLSTATE 23505) → 409 with friendly messages, FK violations
+ * (SQLSTATE 23503) → 409 with friendly messages, everything else → a
  * generic 500. The raw error is logged server-side; the response body
  * deliberately omits it so DrizzleQueryError messages (which include
  * the failing SQL and bound params) never leak to clients.
@@ -43,6 +52,13 @@ export function installErrorHandler(app: FastifyInstance) {
         (cause.constraint_name &&
           UNIQUE_VIOLATION_MESSAGES[cause.constraint_name]) ??
         "This value already exists.";
+      return reply.code(409).send({ error: message });
+    }
+    if (cause?.code === "23503") {
+      const message =
+        (cause.constraint_name &&
+          FK_VIOLATION_MESSAGES[cause.constraint_name]) ??
+        "This row is referenced by other records.";
       return reply.code(409).send({ error: message });
     }
     app.log.error(err);

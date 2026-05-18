@@ -1,5 +1,6 @@
 import type { EnrichedTransaction } from "@fin/schemas";
 import { eq, inArray } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 import { db, schema } from "../db/index.js";
 import { groupBy } from "./collections.js";
@@ -83,16 +84,39 @@ async function fetchBillsForTxs(txIds: string[]) {
     .where(inArray(schema.transactions.id, txIds));
 }
 
+/**
+ * Original-tx descriptions keyed by refund-tx id, used to render
+ * "↶ Refund of <description>" without a second client fetch.
+ */
+async function fetchRefundedTxsForTxs(txIds: string[]) {
+  if (txIds.length === 0) return [];
+  const original = alias(schema.transactions, "original");
+  return db
+    .select({
+      txId: schema.transactions.id,
+      originalId: original.id,
+      originalDescription: original.description,
+    })
+    .from(schema.transactions)
+    .innerJoin(
+      original,
+      eq(original.id, schema.transactions.refundedTransactionId),
+    )
+    .where(inArray(schema.transactions.id, txIds));
+}
+
 type LegRow = Awaited<ReturnType<typeof fetchLegs>>[number];
 type LineRow = Awaited<ReturnType<typeof fetchLines>>[number];
 type LineTagRow = Awaited<ReturnType<typeof fetchLineTags>>[number];
 type BillRow = Awaited<ReturnType<typeof fetchBillsForTxs>>[number];
+type RefundedRow = Awaited<ReturnType<typeof fetchRefundedTxsForTxs>>[number];
 
 export async function fetchLegsAndLines(txIds: string[]) {
-  const [legRows, lineRows, billRows] = await Promise.all([
+  const [legRows, lineRows, billRows, refundedRows] = await Promise.all([
     fetchLegs(txIds),
     fetchLines(txIds),
     fetchBillsForTxs(txIds),
+    fetchRefundedTxsForTxs(txIds),
   ]);
   const tagRows = await fetchLineTags(lineRows.map((l) => l.id));
   return {
@@ -100,6 +124,7 @@ export async function fetchLegsAndLines(txIds: string[]) {
     linesByTx: groupBy(lineRows, (l) => l.transactionId),
     tagsByLine: groupBy(tagRows, (t) => t.lineId),
     billByTx: new Map(billRows.map((b) => [b.txId, b])),
+    refundedByTx: new Map(refundedRows.map((r) => [r.txId, r])),
   };
 }
 
@@ -108,14 +133,16 @@ export function enrichTx(
     id: string;
     date: string | null;
     createdAt: Date;
-    type: "income" | "expense" | "transfer" | "adjustment";
+    type: "income" | "expense" | "transfer" | "adjustment" | "refund";
     description: string | null;
     billId: string | null;
+    refundedTransactionId: string | null;
   },
   legs: LegRow[] | undefined,
   lines: LineRow[] | undefined,
   tagsByLine: Map<string, LineTagRow[]>,
   bill: BillRow | undefined,
+  refunded: RefundedRow | undefined,
   balanceAfter?: bigint,
 ): EnrichedTransaction {
   if (!legs) {
@@ -129,6 +156,8 @@ export function enrichTx(
     description: tx.description,
     billId: tx.billId,
     billName: bill?.billName ?? null,
+    refundedTransactionId: tx.refundedTransactionId,
+    refundedTransactionDescription: refunded?.originalDescription ?? null,
     legs: legs.map((l) => ({
       accountId: l.accountId,
       accountName: l.accountName,

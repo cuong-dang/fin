@@ -24,6 +24,10 @@ export const transactionTypeEnum = pgEnum("transaction_type", [
   "expense",
   "transfer",
   "adjustment",
+  // A refund reverses a prior expense — positive leg on the receiving
+  // account + positive lines mirroring the original's categories.
+  // Linked back to the original via `transactions.refundedTransactionId`.
+  "refund",
 ]);
 
 export const memberRoleEnum = pgEnum("member_role", ["owner", "member"]);
@@ -279,6 +283,14 @@ export const transactions = pgTable(
     billId: uuid("bill_id").references(() => bills.id, {
       onDelete: "restrict",
     }),
+    // Set iff `type='refund'`. Points back to the expense tx being
+    // reversed. RESTRICT: the original can't be deleted while any
+    // refund still references it — surface that to the user via a
+    // 409 rather than letting cascades silently drop the refund.
+    refundedTransactionId: uuid("refunded_transaction_id").references(
+      (): AnyPgColumn => transactions.id,
+      { onDelete: "restrict" },
+    ),
     // Same-day ordering, user-controlled via drag-and-drop. For processed
     // transactions, values are {1..N} per (workspace_id, date). NULL when
     // pending (date IS NULL). Largest key = newest within the day.
@@ -301,6 +313,10 @@ export const transactions = pgTable(
       "transactions_sort_key_matches_date",
       sql`(${t.date} IS NULL) = (${t.sortKey} IS NULL)`,
     ),
+    // Analytics self-joins on this to read the original tx's date for
+    // refund rows; without an index every cash-flow / category /
+    // budget query does a seq scan over transactions.
+    index("transactions_refunded_transaction_idx").on(t.refundedTransactionId),
   ],
 );
 

@@ -80,7 +80,7 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
     const txIds = [...pendingRows, ...completedRows].map((t) => t.id);
     if (txIds.length === 0) return { pending: [], completed: [] };
 
-    const { legsByTx, linesByTx, tagsByLine, billByTx } =
+    const { legsByTx, linesByTx, tagsByLine, billByTx, refundedByTx } =
       await fetchLegsAndLines(txIds);
 
     // Running balance: only when filtered to a single account, and only on
@@ -127,6 +127,7 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
         linesByTx.get(t.id),
         tagsByLine,
         billByTx.get(t.id),
+        refundedByTx.get(t.id),
         balanceAfterByTx.get(t.id),
       );
 
@@ -147,7 +148,7 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
         reply.code(404).send({ error: "Not found" });
         return;
       }
-      const { legsByTx, linesByTx, tagsByLine, billByTx } =
+      const { legsByTx, linesByTx, tagsByLine, billByTx, refundedByTx } =
         await fetchLegsAndLines([id]);
       return enrichTx(
         tx,
@@ -155,6 +156,7 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
         linesByTx.get(id),
         tagsByLine,
         billByTx.get(id),
+        refundedByTx.get(id),
       );
     },
   );
@@ -186,8 +188,30 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
       if (!bill) return reply.code(404).send({ error: "Bill not found" });
     }
 
+    // A refund must point at an existing expense in the same workspace.
+    // Refunds of refunds, transfers, etc. don't make sense — surface 422.
+    if (body.type === "refund") {
+      const original = await findOwned(
+        schema.transactions,
+        body.refundedTransactionId,
+        req.auth.workspaceId,
+      );
+      if (!original) {
+        return reply
+          .code(404)
+          .send({ error: "Original transaction not found" });
+      }
+      if (original.type !== "expense") {
+        return reply
+          .code(422)
+          .send({ error: "Refunds can only target expense transactions" });
+      }
+    }
+
     const newDate = body.pending ? null : (body.date ?? null);
     const billId = body.type === "expense" ? (body.billId ?? null) : null;
+    const refundedTransactionId =
+      body.type === "refund" ? body.refundedTransactionId : null;
 
     const result = await db.transaction(async (tx) => {
       const sortKey = newDate
@@ -204,6 +228,7 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
           sortKey,
           description: body.description ?? null,
           billId,
+          refundedTransactionId,
         })
         .returning({ id: schema.transactions.id });
 
@@ -237,6 +262,40 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
         .code(400)
         .send({ error: "Use /adjustment for adjustment transactions" });
     }
+    // Refunds are bound to their original tx; flipping type would
+    // orphan the FK and corrupt analytics. Require delete + recreate
+    // if the user really wants to change type.
+    if (existing.type === "refund" && body.type !== "refund") {
+      return reply.code(422).send({
+        error:
+          "Refund transactions can't change type. Delete and create a new one.",
+      });
+    }
+    if (existing.type !== "refund" && body.type === "refund") {
+      return reply.code(422).send({
+        error: "Only newly created transactions can be refunds.",
+      });
+    }
+    // An expense with refunds attached can't change type — flipping
+    // it to income/transfer would leave dangling refunds pointing at
+    // a non-expense parent and silently corrupt analytics. We let the
+    // user edit description/date/lines freely (the math may go weird
+    // if they reduce lines below refund totals, but that's their
+    // data choice); type changes are the hard line.
+    if (existing.type === "expense" && body.type !== "expense") {
+      const [{ refundCount }] = await db
+        .select({
+          refundCount: sql<number>`COUNT(*)::int`,
+        })
+        .from(schema.transactions)
+        .where(eq(schema.transactions.refundedTransactionId, id));
+      if (refundCount > 0) {
+        return reply.code(422).send({
+          error:
+            "This expense has refunds linked to it. Delete the refunds before changing its type.",
+        });
+      }
+    }
 
     const sourceAccount = await findOwnedParent(
       schema.accounts,
@@ -256,6 +315,16 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
         req.auth.workspaceId,
       );
       if (!bill) return reply.code(404).send({ error: "Bill not found" });
+    }
+
+    // Refund-target is immutable on PATCH; we still validate that the
+    // existing link is intact (cheap, catches DB drift).
+    if (body.type === "refund") {
+      if (body.refundedTransactionId !== existing.refundedTransactionId) {
+        return reply
+          .code(422)
+          .send({ error: "refundedTransactionId is immutable" });
+      }
     }
 
     const oldDate = existing.date;

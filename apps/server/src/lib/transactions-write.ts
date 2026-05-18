@@ -31,7 +31,11 @@ export async function insertLegsAndLines(
   sourceAccount: SourceAccount,
   workspaceId: string,
 ): Promise<void> {
-  if (parsed.type === "income" || parsed.type === "expense") {
+  if (
+    parsed.type === "income" ||
+    parsed.type === "expense" ||
+    parsed.type === "refund"
+  ) {
     if (parsed.lines.length === 0) {
       throw new Error("At least one line is required");
     }
@@ -46,7 +50,14 @@ export async function insertLegsAndLines(
     }
     const totalMinor = lineMinors.reduce((s, m) => s + m, 0n);
 
-    const sign = parsed.type === "income" ? 1n : -1n;
+    // Refund shape mirrors income: positive leg (money inbound to the
+    // receiving account), positive lines. Analytics handle the sign
+    // semantics via CASE on `tx.type` rather than storing negatives.
+    const sign = parsed.type === "expense" ? -1n : 1n;
+    // For refund + expense, lines reference EXPENSE-kind categories
+    // (refunds reverse expenses, so they hit the same buckets).
+    const categoryKind = parsed.type === "income" ? "income" : "expense";
+
     await tx.insert(schema.transactionLegs).values({
       transactionId,
       accountId: parsed.accountId,
@@ -58,7 +69,7 @@ export async function insertLegsAndLines(
       const { categoryId, subcategoryId } = await resolveCategory(
         tx,
         line,
-        parsed.type,
+        categoryKind,
         workspaceId,
       );
       const [lineRow] = await tx

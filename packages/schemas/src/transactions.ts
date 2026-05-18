@@ -30,6 +30,7 @@ export const transactionLineBody = lineBaseBody
 export type TransactionLineBody = z.infer<typeof transactionLineBody>;
 
 const commonFields = z.object({
+  accountId: z.uuid(),
   date: dateString.optional(), // absent when pending
   pending: z.boolean().default(false),
   description: optionalTrimmedString(1, 500),
@@ -38,7 +39,6 @@ const commonFields = z.object({
 const incomeFields = commonFields
   .extend({
     type: z.literal("income"),
-    accountId: z.uuid(),
     lines: z.array(transactionLineBody).min(1),
   })
   .strict();
@@ -50,7 +50,6 @@ const incomeFields = commonFields
 const expenseFields = commonFields
   .extend({
     type: z.literal("expense"),
-    accountId: z.uuid(),
     billId: optionalUuid,
     lines: z.array(transactionLineBody).min(1),
   })
@@ -66,9 +65,20 @@ const transferFields = commonFields
   .extend({
     type: z.literal("transfer"),
     amount: moneyString,
-    accountId: z.uuid(),
     destinationAccountId: z.uuid(),
     lines: z.array(transactionLineBody).optional(),
+  })
+  .strict();
+
+// Refund reverses an expense. Shape mirrors income (positive leg on the
+// receiving account, positive lines), with the original tx's id linked
+// via `refundedTransactionId`. Analytics treat refund line/leg amounts
+// as signed-negative AND attribute them to the original tx's date.
+const refundFields = commonFields
+  .extend({
+    type: z.literal("refund"),
+    lines: z.array(transactionLineBody).min(1),
+    refundedTransactionId: z.uuid(),
   })
   .strict();
 
@@ -76,6 +86,7 @@ export const transactionBody = z.discriminatedUnion("type", [
   incomeFields,
   expenseFields,
   transferFields,
+  refundFields,
 ]);
 export type TransactionBody = z.infer<typeof transactionBody>;
 
@@ -143,12 +154,17 @@ export type EnrichedTransaction = {
   id: string;
   date: string | null; // null = pending
   createdAt: string;
-  type: "income" | "expense" | "transfer" | "adjustment";
+  type: "income" | "expense" | "transfer" | "adjustment" | "refund";
   description: string | null;
   billId: string | null;
   // Joined from `bills` so the row can render "↻ Netflix" without a
   // second client fetch.
   billName: string | null;
+  // Set iff type='refund'. Linked to the original expense row.
+  refundedTransactionId: string | null;
+  // Joined from the original tx so the row can render
+  // "↶ Refund of <description>" without a second client fetch.
+  refundedTransactionDescription: string | null;
   legs: TxLeg[];
   lines: TxLine[];
   // Present only when the list is filtered by accountId and this is a

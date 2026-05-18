@@ -33,7 +33,17 @@ import {
   type ChartItem,
   type Granularity,
 } from "@fin/schemas";
-import { aliasedTable, and, between, eq, ne, type SQL, sql } from "drizzle-orm";
+import {
+  aliasedTable,
+  and,
+  between,
+  eq,
+  inArray,
+  ne,
+  type SQL,
+  sql,
+  type SQLWrapper,
+} from "drizzle-orm";
 
 import { db, schema } from "../db/index.js";
 
@@ -103,11 +113,41 @@ type Row = {
   amountMinor: string;
 };
 
-// Inclusive date-range filter on `transactions.date`. Every chart
-// query is date-bounded; this expresses the bound in one place.
-function inDateRange(start: string, end: string) {
-  return between(schema.transactions.date, start, end);
+// Inclusive date-range filter. Pass `effectiveDateExpr` when the
+// handler needs refund-aware bucketing (refunds attribute to their
+// original tx's date); pass `schema.transactions.date` for the raw
+// posting date. `between` is column-generic at the type level but
+// only cares about SQL shape at runtime — SQLWrapper covers both
+// `PgColumn` and `SQL<…>` instances.
+function inDateRange(start: string, end: string, col: SQLWrapper): SQL {
+  return between(col as SQL<string>, start, end);
 }
+
+// ─── Refund-aware helpers ─────────────────────────────────────────────────
+
+// Aliased `transactions` self-join target. A handler that needs the
+// original-tx date does:
+//   .leftJoin(originalTx, eq(originalTx.id, schema.transactions.refundedTransactionId))
+// then reads `effectiveDateExpr` for grouping / filtering.
+const originalTx = aliasedTable(schema.transactions, "original_tx");
+
+// Refund txs attribute their period to the ORIGINAL tx's date, not
+// their own posting date. For non-refund rows the FK is NULL and the
+// COALESCE picks the row's own `date`. This is the single expression
+// every refund-aware chart uses for date truncation and the
+// inDateRange filter.
+const effectiveDateExpr = sql<string>`COALESCE(${originalTx.date}, ${schema.transactions.date})`;
+
+// Line-sum that treats refund lines as signed-negative, so a $30
+// refund line under "Groceries" cancels a $30 expense line under
+// "Groceries" in the same chart bucket. Requires the query to JOIN
+// `transactions` (already true for every line-based handler).
+const refundAwareLineSum = sql<string>`SUM(
+  CASE WHEN ${schema.transactions.type} = 'refund'
+    THEN -${schema.transactionLines.amount}
+    ELSE ${schema.transactionLines.amount}
+  END
+)::text`;
 
 // ─── Cash flow ─────────────────────────────────────────────────────────────
 
@@ -151,7 +191,10 @@ function buildCashFlowCtx(
   const { granularity } = params;
 
   const fmtLit = sql.raw(`'${PERIOD_FORMAT[granularity]}'`);
-  const truncExpr = truncExprFor(granularity, sql`${schema.transactions.date}`);
+  // All cash-flow buckets use the effective date (original tx's date
+  // for refunds, posting date otherwise). Handlers must JOIN
+  // `originalTx` once for this expression to resolve.
+  const truncExpr = truncExprFor(granularity, effectiveDateExpr);
 
   return {
     workspaceId,
@@ -159,7 +202,7 @@ function buildCashFlowCtx(
     periodExpr: sql<string>`to_char(${truncExpr}, ${fmtLit})`,
     truncExpr,
     legAmountExpr: sql<string>`SUM(-${schema.transactionLegs.amount})::text`,
-    lineAmountExpr: sql<string>`SUM(${schema.transactionLines.amount})::text`,
+    lineAmountExpr: refundAwareLineSum,
     signedLegAmountExpr: sql<string>`SUM(${schema.transactionLegs.amount})::text`,
   };
 }
@@ -239,11 +282,22 @@ async function handleOutTop(ctx: CashFlowCtx): Promise<Row[]> {
     LIMIT 1
   )`;
 
+  // Refunds carry a positive leg (money inbound) and `type='refund'`.
+  // We want them to land in the 'expense' bucket as a negative offset
+  // — `SUM(-leg.amount)` already inverts the +leg to a negative
+  // contribution, partially canceling the original outflow in the
+  // same effective-date bucket.
   const bucket = sql<string>`CASE
     WHEN ${schema.transactions.billId} IS NOT NULL THEN 'bill'
     WHEN ${schema.transactions.type} = 'transfer' AND ${destType} = 'loan' THEN 'loan'
     WHEN ${schema.transactions.type} = 'expense' THEN 'expense'
+    WHEN ${schema.transactions.type} = 'refund' THEN 'expense'
   END`;
+
+  // The default `outflowLegFilter` requires `leg.amount < 0`. Refund
+  // legs are positive, so we widen the filter to also admit refund-
+  // typed rows.
+  const outflowOrRefundLeg = sql`(${schema.transactionLegs.amount} < 0 OR ${schema.transactions.type} = 'refund')`;
 
   return db
     .select({
@@ -257,6 +311,10 @@ async function handleOutTop(ctx: CashFlowCtx): Promise<Row[]> {
       schema.transactions,
       eq(schema.transactions.id, schema.transactionLegs.transactionId),
     )
+    .leftJoin(
+      originalTx,
+      eq(originalTx.id, schema.transactions.refundedTransactionId),
+    )
     .innerJoin(
       schema.accounts,
       eq(schema.accounts.id, schema.transactionLegs.accountId),
@@ -266,9 +324,9 @@ async function handleOutTop(ctx: CashFlowCtx): Promise<Row[]> {
         eq(schema.transactions.workspaceId, workspaceId),
         eq(schema.accounts.currency, currency),
         excludeAdjustments,
-        outflowLegFilter,
+        outflowOrRefundLeg,
         everydayAccountFilter,
-        inDateRange(start, end),
+        inDateRange(start, end, effectiveDateExpr),
         accountGroupFilter(accountGroupId),
       ),
     )
@@ -320,6 +378,10 @@ async function handleCategory(
       schema.transactions,
       eq(schema.transactions.id, schema.transactionLines.transactionId),
     )
+    .leftJoin(
+      originalTx,
+      eq(originalTx.id, schema.transactions.refundedTransactionId),
+    )
     .innerJoin(
       schema.transactionLegs,
       eq(
@@ -332,13 +394,23 @@ async function handleCategory(
       eq(schema.accounts.id, schema.transactionLegs.accountId),
     );
 
+  // Income direction: only `type='income'` rows. Refunds are NOT
+  // income and are excluded automatically by this filter.
+  // Expense direction: include both expense and refund rows. Refund
+  // line amounts come through the CASE-signed `lineAmountExpr` as
+  // negatives, so they net against the original spend in the same
+  // effective-date bucket.
+  const typeFilter = isIncome
+    ? eq(schema.transactions.type, "income")
+    : inArray(schema.transactions.type, ["expense", "refund"]);
+
   const where = and(
     eq(schema.transactions.workspaceId, workspaceId),
     eq(schema.transactionLines.currency, currency),
-    eq(schema.transactions.type, isIncome ? "income" : "expense"),
+    typeFilter,
     !isIncome ? sql`${schema.transactions.billId} IS NULL` : undefined,
     !isIncome ? everydayAccountFilter : undefined,
-    inDateRange(start, end),
+    inDateRange(start, end, effectiveDateExpr),
     accountGroupFilter(accountGroupId),
   );
 
@@ -400,46 +472,56 @@ async function handleOutLoans(ctx: CashFlowCtx): Promise<Row[]> {
   // series — same shape, just one item.
   const destLeg = aliasedTable(schema.transactionLegs, "dest_leg");
   const destAcc = aliasedTable(schema.accounts, "dest_acc");
-  return db
-    .select({
-      period: periodExpr,
-      itemId: destAcc.id,
-      itemName: destAcc.name,
-      amountMinor: legAmountExpr,
-    })
-    .from(schema.transactionLegs)
-    .innerJoin(
-      schema.transactions,
-      eq(schema.transactions.id, schema.transactionLegs.transactionId),
-    )
-    .innerJoin(
-      schema.accounts,
-      eq(schema.accounts.id, schema.transactionLegs.accountId),
-    )
-    .innerJoin(
-      destLeg,
-      and(
-        eq(destLeg.transactionId, schema.transactions.id),
-        ne(destLeg.accountId, schema.transactionLegs.accountId),
-      ),
-    )
-    .innerJoin(
-      destAcc,
-      and(eq(destAcc.id, destLeg.accountId), eq(destAcc.type, "loan")),
-    )
-    .where(
-      and(
-        eq(schema.transactions.workspaceId, workspaceId),
-        eq(schema.accounts.currency, currency),
-        outflowLegFilter,
-        everydayAccountFilter,
-        inDateRange(start, end),
-        accountGroupFilter(accountGroupId),
-        loanId ? eq(destAcc.id, loanId) : undefined,
-      ),
-    )
-    .groupBy(truncExpr, destAcc.id, destAcc.name)
-    .orderBy(truncExpr);
+  return (
+    db
+      .select({
+        period: periodExpr,
+        itemId: destAcc.id,
+        itemName: destAcc.name,
+        amountMinor: legAmountExpr,
+      })
+      .from(schema.transactionLegs)
+      .innerJoin(
+        schema.transactions,
+        eq(schema.transactions.id, schema.transactionLegs.transactionId),
+      )
+      // Loan payments are transfers — refunds never reach this handler.
+      // The leftJoin is only here so `truncExpr` (which references
+      // `originalTx`) is valid SQL. Non-refund rows leave the alias
+      // NULL, so `effectiveDateExpr` collapses to `tx.date`.
+      .leftJoin(
+        originalTx,
+        eq(originalTx.id, schema.transactions.refundedTransactionId),
+      )
+      .innerJoin(
+        schema.accounts,
+        eq(schema.accounts.id, schema.transactionLegs.accountId),
+      )
+      .innerJoin(
+        destLeg,
+        and(
+          eq(destLeg.transactionId, schema.transactions.id),
+          ne(destLeg.accountId, schema.transactionLegs.accountId),
+        ),
+      )
+      .innerJoin(
+        destAcc,
+        and(eq(destAcc.id, destLeg.accountId), eq(destAcc.type, "loan")),
+      )
+      .where(
+        and(
+          eq(schema.transactions.workspaceId, workspaceId),
+          eq(schema.accounts.currency, currency),
+          outflowLegFilter,
+          everydayAccountFilter,
+          inDateRange(start, end, effectiveDateExpr),
+          accountGroupFilter(accountGroupId),
+          loanId ? eq(destAcc.id, loanId) : undefined,
+        ),
+      )
+      .groupBy(truncExpr, destAcc.id, destAcc.name)
+      .orderBy(truncExpr)
+  );
 }
 
 async function handleOutBills(ctx: CashFlowCtx): Promise<Row[]> {
@@ -458,35 +540,43 @@ async function handleOutBills(ctx: CashFlowCtx): Promise<Row[]> {
   // string itself doubles as both id and name for the wire — the
   // client renders a friendly label from the enum.
   const typeExpr = sql<string>`${schema.bills.type}`;
-  return db
-    .select({
-      period: periodExpr,
-      itemId: typeExpr,
-      itemName: typeExpr,
-      amountMinor: legAmountExpr,
-    })
-    .from(schema.transactionLegs)
-    .innerJoin(
-      schema.transactions,
-      eq(schema.transactions.id, schema.transactionLegs.transactionId),
-    )
-    .innerJoin(
-      schema.accounts,
-      eq(schema.accounts.id, schema.transactionLegs.accountId),
-    )
-    .innerJoin(schema.bills, eq(schema.bills.id, schema.transactions.billId))
-    .where(
-      and(
-        eq(schema.transactions.workspaceId, workspaceId),
-        eq(schema.accounts.currency, currency),
-        outflowLegFilter,
-        everydayAccountFilter,
-        inDateRange(start, end),
-        accountGroupFilter(accountGroupId),
-      ),
-    )
-    .groupBy(truncExpr, schema.bills.type)
-    .orderBy(truncExpr);
+  return (
+    db
+      .select({
+        period: periodExpr,
+        itemId: typeExpr,
+        itemName: typeExpr,
+        amountMinor: legAmountExpr,
+      })
+      .from(schema.transactionLegs)
+      .innerJoin(
+        schema.transactions,
+        eq(schema.transactions.id, schema.transactionLegs.transactionId),
+      )
+      // Bills never have refunds attached (refunds target raw expenses,
+      // not bill charges). LeftJoin so `truncExpr` is valid SQL.
+      .leftJoin(
+        originalTx,
+        eq(originalTx.id, schema.transactions.refundedTransactionId),
+      )
+      .innerJoin(
+        schema.accounts,
+        eq(schema.accounts.id, schema.transactionLegs.accountId),
+      )
+      .innerJoin(schema.bills, eq(schema.bills.id, schema.transactions.billId))
+      .where(
+        and(
+          eq(schema.transactions.workspaceId, workspaceId),
+          eq(schema.accounts.currency, currency),
+          outflowLegFilter,
+          everydayAccountFilter,
+          inDateRange(start, end, effectiveDateExpr),
+          accountGroupFilter(accountGroupId),
+        ),
+      )
+      .groupBy(truncExpr, schema.bills.type)
+      .orderBy(truncExpr)
+  );
 }
 
 async function handleOutBillsByType(ctx: CashFlowCtx): Promise<Row[]> {
@@ -518,6 +608,10 @@ async function handleOutBillsByType(ctx: CashFlowCtx): Promise<Row[]> {
       schema.transactions,
       eq(schema.transactions.id, schema.transactionLegs.transactionId),
     )
+    .leftJoin(
+      originalTx,
+      eq(originalTx.id, schema.transactions.refundedTransactionId),
+    )
     .innerJoin(
       schema.accounts,
       eq(schema.accounts.id, schema.transactionLegs.accountId),
@@ -529,7 +623,7 @@ async function handleOutBillsByType(ctx: CashFlowCtx): Promise<Row[]> {
         eq(schema.accounts.currency, currency),
         outflowLegFilter,
         everydayAccountFilter,
-        inDateRange(start, end),
+        inDateRange(start, end, effectiveDateExpr),
         accountGroupFilter(accountGroupId),
         billTypeFilter ? eq(schema.bills.type, billTypeFilter) : undefined,
         billId ? eq(schema.bills.id, billId) : undefined,
@@ -559,21 +653,67 @@ async function handleNet(ctx: CashFlowCtx): Promise<Row[]> {
   // top of this section). Internal transfers (CASA↔CASA, CC payments)
   // are filtered out too — they'd inflate both bars equally without
   // changing net. A transfer with at least one leg on a loan account
-  // IS real cash flow (the CASA leg surfaces as outflow), so it's
-  // kept by the `NOT (internalTransfer)` clause.
-  const internalTransfer = sql`
-    ${schema.transactions.type} = 'transfer'
-    AND NOT EXISTS (
-      SELECT 1 FROM transaction_legs tl
-      INNER JOIN accounts a ON a.id = tl.account_id
-      WHERE tl.transaction_id = ${schema.transactions.id}
-        AND a.type = 'loan'
-    )
-  `;
-  const cashInExpr = sql<string>`SUM(CASE WHEN ${schema.transactionLegs.amount} > 0 THEN ${schema.transactionLegs.amount} ELSE 0 END)::text`;
-  const cashOutExpr = sql<string>`SUM(CASE WHEN ${schema.transactionLegs.amount} < 0 THEN ${schema.transactionLegs.amount} ELSE 0 END)::text`;
+  // IS real cash flow (the CASA leg surfaces as outflow), so the
+  // filter keeps those by EXISTS-checking for a loan leg.
+  //
+  // Inlined as a single `sql<boolean>` to avoid an extra `sql\`NOT
+  // (${frag})\`` wrap, which broke chain-type inference (downstream
+  // `rows` collapsed to `never[]`).
+  const excludeInternalTransfers: SQL = sql`NOT (${schema.transactions.type} = 'transfer' AND NOT EXISTS (
+    SELECT 1 FROM transaction_legs tl
+    INNER JOIN accounts a ON a.id = tl.account_id
+    WHERE tl.transaction_id = ${schema.transactions.id}
+      AND a.type = 'loan'
+  ))`;
+  // cashIn  = income / transfer-in legs (positive).
+  // cashOut = expense / transfer-out legs (negative) PLUS refund legs
+  //           (positive amount, added so they partially offset the
+  //           original outflow in the same effective-date period).
+  // Refund legs are explicitly handled first so they never appear in
+  // cashIn — refunds aren't income.
+  // TODO: revisit when we model personal loans / cash advances. The
+  // `amount > 0` branch below currently catches non-income,
+  // non-refund positive CASA/CC legs — in practice, a transfer FROM
+  // a loan account INTO a CASA/CC (e.g., a loan disbursement landing
+  // in checking). We count it as cash-in today because the money
+  // really did land — but it's debt, not income, and users may
+  // prefer it excluded once that flow actually exists. No data
+  // drives this yet, so the current behavior stands.
+  const cashInExpr = sql<string>`SUM(CASE
+    WHEN ${schema.transactions.type} = 'refund' THEN 0
+    WHEN ${schema.transactions.type} = 'income' THEN ${schema.transactionLegs.amount}
+    WHEN ${schema.transactionLegs.amount} > 0 THEN ${schema.transactionLegs.amount}
+    ELSE 0
+  END)::text`;
+  const cashOutExpr = sql<string>`SUM(CASE
+    WHEN ${schema.transactions.type} = 'refund' THEN ${schema.transactionLegs.amount}
+    WHEN ${schema.transactions.type} = 'income' THEN 0
+    WHEN ${schema.transactionLegs.amount} < 0 THEN ${schema.transactionLegs.amount}
+    ELSE 0
+  END)::text`;
 
-  const rows = await db
+  // Bind the where clause to a local first. Computing this `and(...)`
+  // inline — combined with `excludeInternalTransfers` AND the
+  // `originalTx` leftJoin — tips TS over the instantiation-depth
+  // limit, and the chain's awaited row type collapses to `never`.
+  // Hoisting it keeps the chain's inference shallow.
+  const whereExpr = and(
+    eq(schema.transactions.workspaceId, workspaceId),
+    eq(schema.accounts.currency, currency),
+    everydayAccountFilter,
+    excludeAdjustments,
+    excludeInternalTransfers,
+    inDateRange(start, end, effectiveDateExpr),
+    accountGroupFilter(accountGroupId),
+  );
+
+  // Cast the awaited chain — the combination of an aliased self-join
+  // (`originalTx`), the `excludeInternalTransfers` NOT-EXISTS, and
+  // three SQL<string> select fields tips TS past its instantiation
+  // depth and collapses the inferred row type to `never`. The SQL is
+  // sound; we name the runtime shape explicitly.
+  type CashRow = { period: string; cashIn: string; cashOut: string };
+  const rows = (await db
     .select({
       period: periodExpr,
       cashIn: cashInExpr,
@@ -588,19 +728,13 @@ async function handleNet(ctx: CashFlowCtx): Promise<Row[]> {
       schema.accounts,
       eq(schema.accounts.id, schema.transactionLegs.accountId),
     )
-    .where(
-      and(
-        eq(schema.transactions.workspaceId, workspaceId),
-        eq(schema.accounts.currency, currency),
-        everydayAccountFilter,
-        excludeAdjustments,
-        sql`NOT (${internalTransfer})`,
-        inDateRange(start, end),
-        accountGroupFilter(accountGroupId),
-      ),
+    .leftJoin(
+      originalTx,
+      eq(originalTx.id, schema.transactions.refundedTransactionId),
     )
+    .where(whereExpr)
     .groupBy(truncExpr)
-    .orderBy(truncExpr);
+    .orderBy(truncExpr)) as CashRow[];
 
   return rows.flatMap((r) => {
     const cashIn = BigInt(r.cashIn);
@@ -731,12 +865,16 @@ async function handleCategoryTag(ctx: CategoryTagCtx): Promise<Row[]> {
     .innerJoin(
       schema.transactions,
       eq(schema.transactions.id, schema.transactionLines.transactionId),
+    )
+    .leftJoin(
+      originalTx,
+      eq(originalTx.id, schema.transactions.refundedTransactionId),
     );
 
   const where = and(
     eq(schema.transactions.workspaceId, workspaceId),
     eq(schema.transactionLines.currency, currency),
-    inDateRange(start, end),
+    inDateRange(start, end, effectiveDateExpr),
     tagFilter,
   );
 
@@ -861,9 +999,15 @@ async function fetchNetWorthRows(ctx: NetWorthCtx): Promise<NetWorthRow[]> {
           ELSE 'liabilities'
         END AS bucket,
         legs.amount,
-        t.date
+        -- Refunds attribute their cash movement to the ORIGINAL tx's
+        -- date, not their own posting date. This keeps net-worth from
+        -- dipping and rebounding for what was ultimately a wash. The
+        -- LEFT JOIN leaves \`orig.date\` NULL for non-refund rows, so
+        -- the COALESCE collapses to \`t.date\` (the row's own date).
+        COALESCE(orig.date, t.date) AS date
       FROM ${schema.transactionLegs} legs
       JOIN ${schema.transactions} t ON t.id = legs.transaction_id
+      LEFT JOIN ${schema.transactions} orig ON orig.id = t.refunded_transaction_id
       JOIN ${schema.accounts} a ON a.id = legs.account_id
       JOIN ${schema.accountGroups} ag ON ag.id = a.account_group_id
       WHERE ag.workspace_id = ${workspaceId}
@@ -871,7 +1015,7 @@ async function fetchNetWorthRows(ctx: NetWorthCtx): Promise<NetWorthRow[]> {
         AND a.deleted_at IS NULL
         AND a.exclude_from_net_worth = false
         AND a.currency = ${currency}
-        AND t.date IS NOT NULL
+        AND COALESCE(orig.date, t.date) IS NOT NULL
     ),
     first_leg AS (
       SELECT MIN(date) AS d FROM bucket_legs

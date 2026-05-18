@@ -8,7 +8,7 @@ import {
   idParam,
   updateBudgetBody,
 } from "@fin/schemas";
-import { and, between, eq, isNull, sql } from "drizzle-orm";
+import { aliasedTable, and, between, eq, isNull, sql } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 
@@ -344,22 +344,44 @@ async function sumLineAmounts(
     ? eq(schema.transactionLines.subcategoryId, args.subcategoryId)
     : eq(schema.transactionLines.categoryId, args.categoryId!);
 
-  const [row] = await db
-    .select({
-      total: sql<string>`COALESCE(SUM(${schema.transactionLines.amount}), 0)`,
-    })
+  // Refund-aware sum: refund lines negate via CASE, and they
+  // attribute to the ORIGINAL tx's date (so a March expense refunded
+  // in May subtracts from March's budget cycle, not May's). The self-
+  // join + COALESCE is the same pattern used by the analytics
+  // handlers.
+  const originalTx = aliasedTable(schema.transactions, "original_tx");
+  const effectiveDate = sql<string>`COALESCE(${originalTx.date}, ${schema.transactions.date})`;
+  const signedAmount = sql<string>`COALESCE(SUM(
+    CASE WHEN ${schema.transactions.type} = 'refund'
+      THEN -${schema.transactionLines.amount}
+      ELSE ${schema.transactionLines.amount}
+    END
+  ), 0)`;
+
+  // Same TS-instantiation-depth quirk as `handleNet` in analytics.ts:
+  // the aliased self-join (`originalTx`) plus the CASE-signed sum
+  // and the multi-condition WHERE collapses the awaited row type to
+  // `never`. Cast the chain's result so the runtime shape is
+  // explicit.
+  type SumRow = { total: string };
+  const rows = (await db
+    .select({ total: signedAmount })
     .from(schema.transactionLines)
     .innerJoin(
       schema.transactions,
       eq(schema.transactions.id, schema.transactionLines.transactionId),
     )
+    .leftJoin(
+      originalTx,
+      eq(originalTx.id, schema.transactions.refundedTransactionId),
+    )
     .where(
       and(
         eq(schema.transactions.workspaceId, workspaceId),
-        between(schema.transactions.date, args.cycle.start, args.cycle.end),
+        between(effectiveDate, args.cycle.start, args.cycle.end),
         eq(schema.transactionLines.currency, args.currency),
         targetFilter,
       ),
-    );
-  return BigInt(row?.total ?? 0);
+    )) as SumRow[];
+  return BigInt(rows[0]?.total ?? 0);
 }
