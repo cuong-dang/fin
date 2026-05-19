@@ -41,7 +41,7 @@ export function formatMoneyPlain(amount: bigint, currency: string): string {
  * Number of minor-unit decimal places for the given ISO 4217 code, as
  * reported by `Intl.NumberFormat`. USD → 2, JPY → 0, BHD → 3.
  */
-function currencyDecimals(currency: string): number {
+export function currencyDecimals(currency: string): number {
   const decimals = new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,

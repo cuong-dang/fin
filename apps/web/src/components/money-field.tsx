@@ -3,6 +3,7 @@ import { useDisclosure } from "@mantine/hooks";
 import { Calculator } from "lucide-react";
 import { type KeyboardEvent, useEffect, useReducer, useRef } from "react";
 
+import { currencyDecimals } from "../lib/money";
 import { MoneyCalculator } from "./money-calculator/calculator";
 import {
   type CalcAction,
@@ -62,11 +63,8 @@ export function MoneyField({
   currency?: string;
 }) {
   const [opened, { toggle, close }] = useDisclosure(false);
-  const decimals = decimalsFor(currency);
+  const decimals = currency ? currencyDecimals(currency) : 2;
 
-  // The engine is always live. Seed it with the parent's current
-  // value, treating that value as a finalized result (so the next
-  // digit replaces, not appends).
   const [state, dispatch] = useReducer(
     (s: CalcState, a: CalcAction) => reduce(s, a, decimals),
     value,
@@ -74,8 +72,7 @@ export function MoneyField({
   );
 
   // Tracks the last value we either committed to the parent or saw
-  // arrive from the parent. Used to break the engine ⇄ parent feedback
-  // loop in both useEffects below.
+  // arrive from the parent.
   const lastSyncedRef = useRef(value);
 
   // External value change → re-seed engine. Skipped when the change
@@ -157,7 +154,7 @@ export function MoneyField({
   return (
     <Popover
       opened={opened}
-      position="bottom-end"
+      position="bottom"
       shadow="md"
       withArrow
       onChange={(v) => !v && close()}
@@ -179,14 +176,8 @@ export function MoneyField({
             <ActionIcon
               aria-label="Open calculator"
               size="sm"
-              tabIndex={-1}
               variant="subtle"
-              onClick={() => {
-                // Fold any pending expression before opening so the
-                // popover seeds with the latest result.
-                if (state.pendingOp !== null) dispatch({ kind: "equals" });
-                toggle();
-              }}
+              onClick={toggle}
             >
               <Calculator size={16} />
             </ActionIcon>
@@ -218,23 +209,4 @@ export function MoneyField({
       </Popover.Dropdown>
     </Popover>
   );
-}
-
-/**
- * Decimal count for an ISO 4217 currency. Uses `Intl.NumberFormat`'s
- * resolved options — authoritative per the spec and stays current
- * without a hand-maintained table.
- */
-function decimalsFor(currency: string | undefined): number {
-  if (!currency) return 2;
-  try {
-    return (
-      new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency,
-      }).resolvedOptions().maximumFractionDigits ?? 2
-    );
-  } catch {
-    return 2;
-  }
 }

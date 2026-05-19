@@ -183,7 +183,7 @@ function AccountItem({
           <CircleOff
             aria-label="Excluded from net worth"
             color="var(--mantine-color-dimmed)"
-            size={12}
+            size={14}
           />
         </Tooltip>
       )}
@@ -347,7 +347,7 @@ function ArchiveLoanButton({
           }
         }}
       >
-        <Archive size={12} />
+        <Archive size={14} />
       </ActionIcon>
     </Tooltip>
   );
