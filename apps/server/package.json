@@ -8,7 +8,7 @@
     "dev": "tsx watch --env-file=../../.env.local src/index.ts",
     "seed": "tsx --env-file=../../.env.local scripts/seed.ts",
     "start": "tsx src/index.ts",
-    "test": "tsx --test --env-file=../../.env.local 'src/**/*.test.ts'",
+    "test": "tsx --test --import ./src/test/setup.ts 'src/**/*.test.ts'",
     "typecheck": "tsc"
   },
   "dependencies": {
@@ -24,6 +24,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@testcontainers/postgresql": "^10.16.0",
     "@types/node": "^24.12.2",
     "typescript": "^6.0.3"
   }
