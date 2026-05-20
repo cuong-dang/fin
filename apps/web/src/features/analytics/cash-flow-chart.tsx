@@ -30,7 +30,7 @@ import { ChartTitle } from "./chart-title";
 import { DivergingNetChart } from "./diverging-net-chart";
 import { DrillBreadcrumb } from "./drill-breadcrumb";
 import { DrillPicker } from "./drill-picker";
-import { SortedAreaChart } from "./sorted-area-chart";
+import { SortedBarChart } from "./sorted-bar-chart";
 import { useCurrencyFormatters } from "./use-currency-formatters";
 
 const DIRECTION_OPTIONS: { value: Direction; label: string }[] = [
@@ -92,7 +92,7 @@ export function CashFlowChart({
   // Bucket ids on the wire are either UUIDs or short enum strings —
   // either way, suitable as a data-row key. Null ids ("Other"
   // synthetic bucket) get a sentinel so the row stays addressable.
-  // SortedAreaChart re-orders the series for stacking and assigns
+  // SortedBarChart re-orders the series for stacking and assigns
   // palette colors by rank; we just need each entry to have a stable
   // name/label.
   const series = items.map((item) => ({
@@ -189,15 +189,13 @@ export function CashFlowChart({
             yAxisProps={fmt ? { tickFormatter: fmt.axisFormatter } : undefined}
           />
         ) : (
-          <SortedAreaChart
-            curveType="monotone"
+          <SortedBarChart
             data={buckets}
             dataKey="period"
             h={300}
             series={series}
             type="stacked"
             withLegend
-            withPointLabels={withPointLabels}
             {...(fmt && {
               valueFormatter: fmt.tooltipFormatter,
               yAxisProps: { tickFormatter: fmt.axisFormatter },

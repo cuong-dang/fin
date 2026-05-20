@@ -1,5 +1,5 @@
 /**
- * Qualitative palette for stacked-chart series. SortedAreaChart
+ * Qualitative palette for stacked-chart series. SortedBarChart
  * assigns these by rank — biggest stack gets `PALETTE[0]`, next gets
  * `PALETTE[1]`, etc. — so the order doubles as a priority order:
  * earlier entries are seen more often.

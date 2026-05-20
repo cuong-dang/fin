@@ -1,33 +1,32 @@
-import { AreaChart, ChartTooltip } from "@mantine/charts";
+import { BarChart, ChartTooltip } from "@mantine/charts";
 import type { ComponentProps } from "react";
 import { useMemo } from "react";
 import type { TooltipContentProps } from "recharts";
 
-import { POINT_LABEL_MARGIN_RIGHT } from "./chart-config";
 import { PALETTE } from "./palette";
 
-type AreaChartProps = ComponentProps<typeof AreaChart>;
-type AreaChartSeries = AreaChartProps["series"][number];
+type BarChartProps = ComponentProps<typeof BarChart>;
+type BarChartSeries = BarChartProps["series"][number];
 
-// Caller passes series without a color — SortedAreaChart assigns
+// Caller passes series without a color — SortedBarChart assigns
 // palette colors itself based on sort rank. Anything else
 // (`name`, `label`) passes through.
-type SortedAreaSeries = Omit<AreaChartSeries, "color">;
+type SortedBarSeries = Omit<BarChartSeries, "color">;
 
-type SortedAreaChartProps = Omit<AreaChartProps, "series"> & {
-  series: SortedAreaSeries[];
+type SortedBarChartProps = Omit<BarChartProps, "series"> & {
+  series: SortedBarSeries[];
 };
 
 /**
- * Drop-in replacement for `<AreaChart>` with three opinionated
- * defaults for stacked / split area charts:
+ * Drop-in replacement for `<BarChart>` with three opinionated
+ * defaults for stacked bar charts:
  *
  *   1. `series` is sorted ascending by absolute total across `data`
  *      so the largest contributor sits at the *top* of the stack
  *      (Recharts paints `series[0]` at the bottom, last on top).
  *
  *   2. Colors are reassigned *after* the sort: the largest stack
- *      (top of the chart, left of the legend, top of the tooltip)
+ *      (top of the bar, left of the legend, top of the tooltip)
  *      gets `PALETTE[0]`, the next-largest `PALETTE[1]`, and so on.
  *      Any caller-supplied `color` on a series entry is overridden —
  *      consistent color ordering across the three views is the point.
@@ -37,24 +36,20 @@ type SortedAreaChartProps = Omit<AreaChartProps, "series"> & {
  *      built by Recharts from chart context (the `payload` prop on
  *      `<Legend>` is ignored), so we steer it via `itemSorter`
  *      (Recharts feeds that to `sortBy`, ascending). For the
- *      tooltip, Mantine's `<AreaChart>` installs its own `content`
+ *      tooltip, Mantine's `<BarChart>` installs its own `content`
  *      that bypasses Recharts' tooltip itemSorter, so we override
  *      the tooltip content here too.
  *
  * Net: stack (top-down), legend (left-to-right), and tooltip
  * (top-down) all read biggest-first *and* in the same color order.
+ *
+ * Point-label / bar-value labels are intentionally *not* exposed —
+ * `withBarValueLabel` is incompatible with `type="stacked"`, which is
+ * what every consumer here uses.
  */
-export function SortedAreaChart(props: SortedAreaChartProps) {
-  const {
-    data,
-    series,
-    legendProps,
-    tooltipProps,
-    valueFormatter,
-    areaChartProps,
-    withPointLabels,
-    ...rest
-  } = props;
+export function SortedBarChart(props: SortedBarChartProps) {
+  const { data, series, legendProps, tooltipProps, valueFormatter, ...rest } =
+    props;
 
   const sortedSeries = useMemo(() => {
     const totals = new Map<string, number>();
@@ -126,25 +121,13 @@ export function SortedAreaChart(props: SortedAreaChartProps) {
     />
   );
 
-  // When point labels are on, reserve a chunk of right-side margin so
-  // the last period's label doesn't clip against the SVG edge. The
-  // merge preserves any caller-supplied margin values on other sides.
-  const mergedAreaChartProps = withPointLabels
-    ? {
-        ...areaChartProps,
-        margin: { right: POINT_LABEL_MARGIN_RIGHT, ...areaChartProps?.margin },
-      }
-    : areaChartProps;
-
   return (
-    <AreaChart
+    <BarChart
       data={data}
       legendProps={{ itemSorter: legendItemSorter, ...legendProps }}
       series={sortedSeries}
       tooltipProps={{ content: renderTooltip, ...tooltipProps }}
-      {...(withPointLabels !== undefined && { withPointLabels })}
       {...(valueFormatter && { valueFormatter })}
-      {...(mergedAreaChartProps && { areaChartProps: mergedAreaChartProps })}
       {...rest}
     />
   );

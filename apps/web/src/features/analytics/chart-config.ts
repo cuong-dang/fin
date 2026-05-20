@@ -1,7 +1,7 @@
 /**
  * Cross-chart layout constants. Anything that needs to stay in sync
- * across the chart wrappers (SortedAreaChart, DivergingNetChart) lives
- * here so visuals can't drift between them.
+ * across the chart wrappers (DivergingNetChart, etc.) lives here so
+ * visuals can't drift between them.
  */
 
 /**

@@ -15,7 +15,7 @@ import { useState } from "react";
 import { ChartTitle } from "./chart-title";
 import { DrillBreadcrumb } from "./drill-breadcrumb";
 import { DrillPicker } from "./drill-picker";
-import { SortedAreaChart } from "./sorted-area-chart";
+import { SortedBarChart } from "./sorted-bar-chart";
 import { useCurrencyFormatters } from "./use-currency-formatters";
 
 const DIRECTION_OPTIONS: { value: CategoryChartDirection; label: string }[] = [
@@ -37,7 +37,7 @@ type DrillSeg =
 
 /**
  * "By category & tag" chart. Mirrors the cash-flow chart's shape
- * (toolbar + breadcrumb + picker over a SortedAreaChart), with two
+ * (toolbar + breadcrumb + picker over a SortedBarChart), with two
  * top-level filters — direction (expense/income) and tag — plus a
  * two-level drill (category → subcategory) matching cash-flow's
  * category branch.
@@ -53,13 +53,11 @@ export function CategoryTagChart({
   start,
   end,
   currency,
-  withPointLabels,
 }: {
   granularity: Granularity;
   start: string;
   end: string;
   currency: string;
-  withPointLabels: boolean;
 }) {
   const [direction, setDirection] = useState<CategoryChartDirection>("expense");
   // ALL_TAGS / UNTAGGED / tag UUID. Translated to the wire format when
@@ -113,7 +111,7 @@ export function CategoryTagChart({
 
   // Null ids ("Other" synthetic bucket — lines with no subcategory in
   // drill mode) get a sentinel so the row stays addressable.
-  // SortedAreaChart re-orders the series for stacking and assigns
+  // SortedBarChart re-orders the series for stacking and assigns
   // palette colors by rank; we just need each entry to have a stable
   // name/label.
   const series = items.map((item) => ({
@@ -203,15 +201,13 @@ export function CategoryTagChart({
         ) : buckets.length === 0 ? (
           <Text c="dimmed">No data for this view.</Text>
         ) : (
-          <SortedAreaChart
-            curveType="monotone"
+          <SortedBarChart
             data={buckets}
             dataKey="period"
             h={300}
             series={series}
             type="stacked"
             withLegend
-            withPointLabels={withPointLabels}
             {...(fmt && {
               valueFormatter: fmt.tooltipFormatter,
               yAxisProps: { tickFormatter: fmt.axisFormatter },
