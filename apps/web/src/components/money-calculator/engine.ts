@@ -138,6 +138,19 @@ function prettyOperand(s: string): string {
 }
 
 /**
+ * Pretty form of a typed operand rounded to the currency's precision.
+ * Used when stitching the operand into `displayExpr` so the chain
+ * shows the actual value being folded — typing `99.999 +` under USD
+ * shows `100 +`, not `99.999 +`. Uses `Number#toString()` (not
+ * `toFixed`) to avoid padding integers with trailing zeros.
+ */
+function roundedOperand(input: string, decimals: number): string {
+  const n = Number(input);
+  if (!Number.isFinite(n)) return prettyOperand(input);
+  return prettyOperand(roundTo(n, decimals).toString());
+}
+
+/**
  * The committed money string when the user hits = / Enter. This is
  * what gets written back to the parent input.
  */
@@ -191,7 +204,7 @@ function applyOperator(s: CalcState, op: Op, decimals: number): CalcState {
   // operator's symbol (e.g., "5 +") so the user sees what they pressed.
 
   // Case 1: user pressed an operator with no current input — replace
-  // the pending operator. Lets the user fix a typo ("2 + +" → "2 *").
+  // the pending operator. Lets the user fix a typo ("2 + *" → "2 *").
   // Strip the trailing op symbol from displayExpr and append the new
   // one so the correction is visible immediately.
   if (s.currentInput === "" && s.accumulator !== null) {
@@ -208,11 +221,12 @@ function applyOperator(s: CalcState, op: Op, decimals: number): CalcState {
   if (s.accumulator === null) {
     const n = Number(s.currentInput);
     if (!Number.isFinite(n)) return s;
+    const rounded = roundTo(n, decimals);
     return {
-      accumulator: roundTo(n, decimals),
+      accumulator: rounded,
       pendingOp: op,
       currentInput: "",
-      displayExpr: `${prettyOperand(s.currentInput)} ${symbolOf(op)}`,
+      displayExpr: `${prettyOperand(rounded.toString())} ${symbolOf(op)}`,
       justEvaluated: false,
     };
   }
@@ -220,12 +234,11 @@ function applyOperator(s: CalcState, op: Op, decimals: number): CalcState {
   // parens, start a new pending op. The prior displayExpr already
   // ends in its operator, so just append the right operand and the
   // new operator after closing the paren.
-  const next = fold(s, decimals);
   return {
-    accumulator: next,
+    accumulator: fold(s, decimals),
     pendingOp: op,
     currentInput: "",
-    displayExpr: `(${s.displayExpr} ${prettyOperand(s.currentInput)}) ${symbolOf(op)}`,
+    displayExpr: `(${s.displayExpr} ${roundedOperand(s.currentInput, decimals)}) ${symbolOf(op)}`,
     justEvaluated: false,
   };
 }
@@ -237,8 +250,7 @@ function applyEquals(s: CalcState, decimals: number): CalcState {
     return s;
   }
   // No right operand typed yet — drop the dangling operator and
-  // finalize the accumulator. So "1 − =" yields 1, not 1 − 1 = 0;
-  // and "1 / =" yields 1, not 1.
+  // finalize the accumulator. So "1 − =" yields 1, not 0.
   if (s.currentInput === "") {
     return {
       accumulator: null,
@@ -248,7 +260,6 @@ function applyEquals(s: CalcState, decimals: number): CalcState {
       justEvaluated: true,
     };
   }
-  const next = fold(s, decimals);
   // After fold, the result becomes the new operand-as-finalized. Clear
   // the accumulator so the next operator press goes through Case 2
   // (which uses currentInput as the new left operand). justEvaluated
@@ -256,7 +267,7 @@ function applyEquals(s: CalcState, decimals: number): CalcState {
   return {
     accumulator: null,
     pendingOp: null,
-    currentInput: formatDecimal(next, decimals),
+    currentInput: formatDecimal(fold(s, decimals), decimals),
     displayExpr: "",
     justEvaluated: true,
   };

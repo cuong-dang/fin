@@ -45,13 +45,6 @@ export function SingleLineEditor({
 }) {
   return (
     <Stack>
-      <MoneyField
-        label={amountOptional ? "Amount (optional)" : "Amount"}
-        min={0}
-        required={!amountOptional}
-        value={line.amount}
-        onChange={(v) => onUpdate({ amount: v })}
-      />
       <CategorySelector
         categories={categories}
         categoryId={line.categoryId!}
@@ -63,9 +56,16 @@ export function SingleLineEditor({
         setSubcategoryId={(v) => onUpdate({ subcategoryId: v })}
         subcategoryId={line.subcategoryId!}
       />
+      <MoneyField
+        label={amountOptional ? "Amount" : "Amount"}
+        min={0}
+        required={!amountOptional}
+        value={line.amount}
+        onChange={(v) => onUpdate({ amount: v })}
+      />
       <TagsField
         allTags={allTags}
-        label="Tags (optional)"
+        label="Tags"
         value={line.tagNames!}
         onChange={(v) => onUpdate({ tagNames: v })}
       />
@@ -160,7 +160,7 @@ export function MultiLineEditor({
             />
             <TagsField
               allTags={allTags}
-              label="Tags (optional)"
+              label="Tags"
               value={line.tagNames!}
               onChange={(v) => onUpdate(i, { tagNames: v })}
             />
@@ -282,7 +282,7 @@ function CategorySelector({
           data={
             creatingNewCategory ? [] : subcategoriesForPicker.map((s) => s.name)
           }
-          label="Subcategory (optional)"
+          label="Subcategory"
           placeholder="Select or type to create…"
           value={subcategoryText}
           onChange={handleSubcategoryText}

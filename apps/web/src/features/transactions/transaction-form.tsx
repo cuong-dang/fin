@@ -391,6 +391,34 @@ export function TransactionForm({
           </Stack>
         )}
 
+        {!paymentEntityMissing && (
+          <>
+            <AccountSelect
+              accounts={sourceAccounts}
+              label={
+                type === "transfer" ||
+                (type === "payment" &&
+                  (paymentKind === "creditCard" || paymentKind === "loan"))
+                  ? "From Account"
+                  : "Account"
+              }
+              required
+              value={accountId}
+              onChange={handleAccountChange}
+            />
+
+            {type === "transfer" && (
+              <AccountSelect
+                accounts={destinationAccounts}
+                label="To Account"
+                required
+                value={destinationAccountId}
+                onChange={handleDestinationChange}
+              />
+            )}
+          </>
+        )}
+
         {!paymentEntityMissing &&
           (type === "payment" && paymentKind === "loan" ? (
             <>
@@ -468,32 +496,8 @@ export function TransactionForm({
               />
             )}
 
-            <AccountSelect
-              accounts={sourceAccounts}
-              label={
-                type === "transfer" ||
-                (type === "payment" &&
-                  (paymentKind === "creditCard" || paymentKind === "loan"))
-                  ? "From account"
-                  : "Account"
-              }
-              required
-              value={accountId}
-              onChange={handleAccountChange}
-            />
-
-            {type === "transfer" && (
-              <AccountSelect
-                accounts={destinationAccounts}
-                label="To account"
-                required
-                value={destinationAccountId}
-                onChange={handleDestinationChange}
-              />
-            )}
-
             <TextInput
-              label="Description (optional)"
+              label="Description"
               maxLength={500}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
