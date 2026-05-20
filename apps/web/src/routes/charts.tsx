@@ -3,6 +3,7 @@ import {
   GranularityToggle,
 } from "@/components/granularity-toggle";
 import { CashFlowChart } from "@/features/analytics/cash-flow-chart";
+import { CashFlowComparisonChart } from "@/features/analytics/cash-flow-comparison-chart";
 import { CategoryTagChart } from "@/features/analytics/category-tag-chart";
 import { NetWorthChart } from "@/features/analytics/net-worth-chart";
 import { BudgetsChart } from "@/features/budgets/budgets-chart";
@@ -76,6 +77,11 @@ export function ChartsRoute() {
         )}
       </Group>
       <BudgetsChart
+        currency={activeCurrency}
+        granularity={granularity}
+        withPointLabels={withPointLabels}
+      />
+      <CashFlowComparisonChart
         currency={activeCurrency}
         granularity={granularity}
         withPointLabels={withPointLabels}

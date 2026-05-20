@@ -83,39 +83,6 @@ export const cashFlowQuery = baseChartQuery.extend({
 });
 export type CashFlowQuery = z.infer<typeof cashFlowQuery>;
 
-/**
- * One row of chart data — the value of every series at a single
- * period. Each `ChartItem.id` becomes a property on this object,
- * whose value is the series' sum for that period in major currency
- * units (the chart consumes plain numbers, not bigint strings).
- *
- * `period` is a granularity-shaped label produced by Postgres
- * `to_char`: "2026-04-28" daily, "Apr 26" weekly (Sun-starting),
- * "2026-04" monthly, "2026" yearly. The client passes this string
- * straight through as the chart's X-axis category.
- *
- * Why `number | string` in the index signature: TS can't express
- * "every key except `period` is a number" — `{ period: string } &
- * Record<string, number>` collapses to `never` for `period`. The
- * `string` half of the union exists solely to accommodate `period`;
- * every other key is a `number` at runtime.
- */
-export type ChartBucket = {
-  period: string;
-} & Record<string, number | string>;
-
-/**
- * Common response shape across all analytics chart endpoints. The
- * server filters and groups differently per chart, but the wire shape
- * is the same so a single Mantine `<AreaChart>` can consume it
- * generically (`buckets` → `data`, `items` → `series`).
- */
-export type AnalyticsChartResponse = {
-  currency: string;
-  items: ChartItem[];
-  buckets: ChartBucket[];
-};
-
 // ─── By category & tag ────────────────────────────────────────────────────
 
 /**
@@ -172,6 +139,17 @@ export const netWorthQuery = baseChartQuery;
 export type NetWorthQuery = z.infer<typeof netWorthQuery>;
 
 // ─── Shared response shapes ───────────────────────────────────────────────
+/**
+ * Common response shape across all analytics chart endpoints. The
+ * server filters and groups differently per chart, but the wire shape
+ * is the same so a single Mantine `<AreaChart>` can consume it
+ * generically (`buckets` → `data`, `items` → `series`).
+ */
+export type AnalyticsChartResponse = {
+  currency: string;
+  items: ChartItem[];
+  buckets: ChartBucket[];
+};
 
 /**
  * One series in the chart (a stacked area + a legend chip). Used by
@@ -192,3 +170,24 @@ export type ChartItem = {
   id: string | null;
   name: string;
 };
+
+/**
+ * One row of chart data — the value of every series at a single
+ * period. Each `ChartItem.id` becomes a property on this object,
+ * whose value is the series' sum for that period in major currency
+ * units (the chart consumes plain numbers, not bigint strings).
+ *
+ * `period` is a granularity-shaped label produced by Postgres
+ * `to_char`: "2026-04-28" daily, "Apr 26" weekly (Sun-starting),
+ * "2026-04" monthly, "2026" yearly. The client passes this string
+ * straight through as the chart's X-axis category.
+ *
+ * Why `number | string` in the index signature: TS can't express
+ * "every key except `period` is a number" — `{ period: string } &
+ * Record<string, number>` collapses to `never` for `period`. The
+ * `string` half of the union exists solely to accommodate `period`;
+ * every other key is a `number` at runtime.
+ */
+export type ChartBucket = {
+  period: string;
+} & Record<string, number | string>;
