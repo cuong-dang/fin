@@ -154,7 +154,7 @@ function RefundForm({
   };
 
   return (
-    <PageShell title="Create refund">
+    <PageShell title="Create refund" withBackLink={false}>
       <form onSubmit={handleSubmit}>
         <Stack>
           <Card>

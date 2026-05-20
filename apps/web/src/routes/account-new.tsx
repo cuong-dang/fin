@@ -51,7 +51,7 @@ export function AccountNewRoute() {
   }
 
   return (
-    <PageShell title="New account">
+    <PageShell title="New account" withBackLink={false}>
       <AccountForm
         allAccounts={accountsQ.data ?? []}
         categories={categoriesQ.data ?? []}

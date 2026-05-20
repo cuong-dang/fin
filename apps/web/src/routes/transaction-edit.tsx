@@ -130,7 +130,7 @@ export function TransactionEditRoute() {
     const canRefund = props.tx.type === "expense" && props.tx.date !== null;
 
     return (
-      <PageShell title="Edit transaction">
+      <PageShell title="Edit transaction" withBackLink={false}>
         <TransactionForm
           accounts={props.accounts}
           bills={props.bills}
@@ -237,7 +237,7 @@ export function TransactionEditRoute() {
     });
 
     return (
-      <PageShell title="Edit transaction">
+      <PageShell title="Edit transaction" withBackLink={false}>
         <form
           onSubmit={(e) => {
             e.preventDefault();

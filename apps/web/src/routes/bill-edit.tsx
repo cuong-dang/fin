@@ -104,7 +104,7 @@ function Form({
   const cancelled = bill.cancelledAt !== null;
 
   return (
-    <PageShell title="Edit bill">
+    <PageShell title="Edit bill" withBackLink={false}>
       {cancelled && (
         <Alert color="black">
           This bill has been cancelled. Past transactions still reference it;

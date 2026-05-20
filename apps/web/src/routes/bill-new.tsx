@@ -37,7 +37,7 @@ export function BillNewRoute() {
   }
 
   return (
-    <PageShell title="New bill">
+    <PageShell title="New bill" withBackLink={false}>
       <BillForm
         accounts={accountsQ.data ?? []}
         categories={categoriesQ.data ?? []}

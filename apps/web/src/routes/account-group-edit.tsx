@@ -36,7 +36,7 @@ function Form({ group }: { group: AccountGroup }) {
   });
 
   return (
-    <PageShell title="Edit account group">
+    <PageShell title="Edit account group" withBackLink={false}>
       <form
         onSubmit={(e) => {
           e.preventDefault();

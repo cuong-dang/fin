@@ -135,7 +135,7 @@ function EditForm({
   };
 
   return (
-    <PageShell title="Edit account">
+    <PageShell title="Edit account" withBackLink={false}>
       <AccountForm
         allAccounts={allAccounts}
         categories={categories}

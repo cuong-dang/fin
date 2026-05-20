@@ -50,7 +50,7 @@ export function TransactionNewRoute() {
   }
 
   return (
-    <PageShell title="New transaction">
+    <PageShell title="New transaction" withBackLink={false}>
       <TransactionForm
         accounts={accountsQ.data ?? []}
         bills={billsQ.data ?? []}
