@@ -3,6 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- iOS: open from home-screen without browser chrome. The two
+         meta tags (legacy `apple-` plus the standardized
+         `mobile-web-app-capable`) keep behavior consistent across
+         older iOS and current Chromium-based browsers. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="fin" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <title>fin</title>
   </head>
   <body>
