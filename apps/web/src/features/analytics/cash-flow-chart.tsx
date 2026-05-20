@@ -108,7 +108,7 @@ export function CashFlowChart({
         <Group justify="space-between">
           <ChartTitle
             info="How much cash is going in and out of your everyday accounts each period — checking, savings, and credit cards. Loan payments count as cash out (real cash leaves your account, even though they're recorded as transfers), but purchases charged directly to a loan account (e.g., BNPL) don't — that's debt incurred, not cash leaving, and surfaces here only when you actually pay the loan. Useful for: do I have enough cushion this month? Could I afford another $X recurring payment?"
-            title="Cash flow"
+            title="Cashflow"
           />
           <Group>
             <SegmentedControl

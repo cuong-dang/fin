@@ -144,7 +144,7 @@ export function CashFlowComparisonChart({
             week; monthly vs. last month and same month last year; yearly vs. last year. Daily is
             not applicable. X-axis is day-of-period so lines align (day 15 of this month vs. day 15
             of last month); months of different lengths draw lines of different lengths."
-            title="Cumulative comparison"
+            title="Cashflow pace"
           />
           <Group>
             <SegmentedControl
