@@ -1,4 +1,5 @@
 import { useCurrencyFormatters } from "@/features/analytics/use-currency-formatters";
+import { useTouchAwareTooltip } from "@/features/analytics/use-touch-aware-tooltip";
 import { currencyDivisor, formatMoney } from "@/lib/money";
 
 import type { BudgetHistoryResponse } from "@fin/schemas";
@@ -27,6 +28,11 @@ export function BudgetHistoryChart({
 }) {
   const { budget, points } = history;
   const fmt = useCurrencyFormatters(budget.currency);
+  const {
+    tooltipProps: touchTooltipProps,
+    wrapperRef,
+    resetKey,
+  } = useTouchAwareTooltip();
   const amount = Number(BigInt(budget.amount));
   const divisor = currencyDivisor(budget.currency);
   const amountMajor = amount / divisor;
@@ -71,25 +77,29 @@ export function BudgetHistoryChart({
           {BUDGET_FREQUENCY_SHORT[budget.frequency]}
         </Text>
       </Group>
-      <BarChart
-        data={data}
-        dataKey="period"
-        getBarColor={(v) => (v >= amountMajor ? "red" : "teal")}
-        h={300}
-        referenceLines={[
-          {
-            y: amountMajor,
-            label: "Budget",
-            color: "dark",
-            labelPosition: "insideTopRight",
-          },
-        ]}
-        series={[{ name: "actual", label: "Spent", color: "teal" }]}
-        withTooltip
-        {...(withPointLabels && { withBarValueLabel: true })}
-        yAxisProps={yAxisProps}
-        {...(fmt && { valueFormatter: fmt.tooltipFormatter })}
-      />
+      <div ref={wrapperRef}>
+        <BarChart
+          key={resetKey}
+          data={data}
+          dataKey="period"
+          getBarColor={(v) => (v >= amountMajor ? "red" : "teal")}
+          h={300}
+          referenceLines={[
+            {
+              y: amountMajor,
+              label: "Budget",
+              color: "dark",
+              labelPosition: "insideTopRight",
+            },
+          ]}
+          series={[{ name: "actual", label: "Spent", color: "teal" }]}
+          tooltipProps={touchTooltipProps}
+          withTooltip
+          {...(withPointLabels && { withBarValueLabel: true })}
+          yAxisProps={yAxisProps}
+          {...(fmt && { valueFormatter: fmt.tooltipFormatter })}
+        />
+      </div>
     </Stack>
   );
 }

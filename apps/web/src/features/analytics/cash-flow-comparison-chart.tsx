@@ -21,6 +21,7 @@ import {
   type Period,
 } from "./period-comparison";
 import { useCurrencyFormatters } from "./use-currency-formatters";
+import { useTouchAwareTooltip } from "./use-touch-aware-tooltip";
 
 type Direction = "out" | "in";
 
@@ -133,6 +134,11 @@ export function CashFlowComparisonChart({
   }));
 
   const fmt = useCurrencyFormatters(currency);
+  const {
+    tooltipProps: touchTooltipProps,
+    wrapperRef,
+    resetKey,
+  } = useTouchAwareTooltip();
 
   return (
     <Card>
@@ -155,45 +161,50 @@ export function CashFlowComparisonChart({
             {groups.length > 0 && (
               <Select
                 aria-label="Account group"
+                clearable={accountGroupId !== ALL_GROUPS}
                 data={[
                   { value: ALL_GROUPS, label: "All groups" },
                   ...groups.map((g) => ({ value: g.id, label: g.name })),
                 ]}
                 value={accountGroupId}
-                onChange={(v) => v && setAccountGroupId(v)}
+                onChange={(v) => setAccountGroupId(v ?? ALL_GROUPS)}
               />
             )}
           </Group>
         </Group>
-        {periods.length === 0 ? (
-          <Text c="dimmed">Not applicable for daily granularity.</Text>
-        ) : isLoading ? (
-          <Text c="dimmed">Loading…</Text>
-        ) : firstError ? (
-          <Text c="red">Failed to load: {firstError.message}</Text>
-        ) : data.length === 0 ? (
-          <Text c="dimmed">No data for this view.</Text>
-        ) : (
-          <LineChart
-            curveType="monotone"
-            data={data}
-            dataKey="day"
-            h={300}
-            series={series}
-            withLegend
-            withPointLabels={withPointLabels}
-            {...(fmt && {
-              // Mantine calls `valueFormatter` for every (row × series)
-              // cell, including ones where the series has no value
-              // (e.g., days past the current period's last bucket).
-              // Without this guard those cells render "$NaN" as point
-              // labels — empty string instead so nothing prints.
-              valueFormatter: (v) =>
-                Number.isFinite(v) ? fmt.tooltipFormatter(v) : "",
-              yAxisProps: { tickFormatter: fmt.axisFormatter },
-            })}
-          />
-        )}
+        <div ref={wrapperRef}>
+          {periods.length === 0 ? (
+            <Text c="dimmed">Not applicable for daily granularity.</Text>
+          ) : isLoading ? (
+            <Text c="dimmed">Loading…</Text>
+          ) : firstError ? (
+            <Text c="red">Failed to load: {firstError.message}</Text>
+          ) : data.length === 0 ? (
+            <Text c="dimmed">No data for this view.</Text>
+          ) : (
+            <LineChart
+              key={resetKey}
+              curveType="monotone"
+              data={data}
+              dataKey="day"
+              h={300}
+              series={series}
+              tooltipProps={touchTooltipProps}
+              withLegend
+              withPointLabels={withPointLabels}
+              {...(fmt && {
+                // Mantine calls `valueFormatter` for every (row × series)
+                // cell, including ones where the series has no value
+                // (e.g., days past the current period's last bucket).
+                // Without this guard those cells render "$NaN" as point
+                // labels — empty string instead so nothing prints.
+                valueFormatter: (v) =>
+                  Number.isFinite(v) ? fmt.tooltipFormatter(v) : "",
+                yAxisProps: { tickFormatter: fmt.axisFormatter },
+              })}
+            />
+          )}
+        </div>
       </Stack>
     </Card>
   );

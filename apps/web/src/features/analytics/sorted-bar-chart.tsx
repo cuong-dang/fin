@@ -8,6 +8,7 @@ import { useMemo } from "react";
 import type { TooltipContentProps } from "recharts";
 
 import { PALETTE } from "./palette";
+import { useTouchAwareTooltip } from "./use-touch-aware-tooltip";
 
 type CompositeChartProps = ComponentProps<typeof CompositeChart>;
 
@@ -62,6 +63,12 @@ export function SortedBarChart({
   withPointLabels = false,
   ...rest
 }: SortedBarChartProps) {
+  const {
+    tooltipProps: touchTooltipProps,
+    wrapperRef,
+    resetKey,
+  } = useTouchAwareTooltip();
+
   // Sort + color
   const sortedSeries = useMemo(() => {
     const totals = new Map<string, number>();
@@ -168,16 +175,23 @@ export function SortedBarChart({
   );
 
   return (
-    <CompositeChart
-      barProps={{ stackId: "stack" }}
-      data={augmentedData}
-      legendProps={{ itemSorter: legendItemSorter, ...legendProps }}
-      series={compositeSeries}
-      tooltipProps={{ content: renderTooltip, ...tooltipProps }}
-      withDots={false}
-      withPointLabels={withPointLabels}
-      {...(valueFormatter && { valueFormatter })}
-      {...rest}
-    />
+    <div ref={wrapperRef}>
+      <CompositeChart
+        key={resetKey}
+        barProps={{ stackId: "stack" }}
+        data={augmentedData}
+        legendProps={{ itemSorter: legendItemSorter, ...legendProps }}
+        series={compositeSeries}
+        tooltipProps={{
+          content: renderTooltip,
+          ...touchTooltipProps,
+          ...tooltipProps,
+        }}
+        withDots={false}
+        withPointLabels={withPointLabels}
+        {...(valueFormatter && { valueFormatter })}
+        {...rest}
+      />
+    </div>
   );
 }

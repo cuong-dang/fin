@@ -2,6 +2,7 @@ import { CompositeChart, type CompositeChartSeries } from "@mantine/charts";
 import type { ComponentProps } from "react";
 
 import { POINT_LABEL_MARGIN_RIGHT } from "./chart-config";
+import { useTouchAwareTooltip } from "./use-touch-aware-tooltip";
 
 type CompositeChartProps = ComponentProps<typeof CompositeChart>;
 
@@ -44,6 +45,11 @@ export function DivergingNetChart({
   withPointLabels?: boolean;
   h?: number;
 }) {
+  const {
+    tooltipProps: touchTooltipProps,
+    wrapperRef,
+    resetKey,
+  } = useTouchAwareTooltip();
   const series: CompositeChartSeries[] = [
     {
       name: positive.name,
@@ -77,23 +83,27 @@ export function DivergingNetChart({
   };
 
   return (
-    <CompositeChart
-      composedChartProps={composedChartProps}
-      curveType="monotone"
-      data={data}
-      dataKey="period"
-      h={h}
-      legendProps={{
-        itemSorter: (item) => {
-          const idx = legendOrder.indexOf(String(item.dataKey));
-          return idx === -1 ? legendOrder.length : idx;
-        },
-      }}
-      series={series}
-      withLegend
-      withPointLabels={withPointLabels}
-      {...(valueFormatter && { valueFormatter })}
-      {...(yAxisProps && { yAxisProps })}
-    />
+    <div ref={wrapperRef}>
+      <CompositeChart
+        key={resetKey}
+        composedChartProps={composedChartProps}
+        curveType="monotone"
+        data={data}
+        dataKey="period"
+        h={h}
+        legendProps={{
+          itemSorter: (item) => {
+            const idx = legendOrder.indexOf(String(item.dataKey));
+            return idx === -1 ? legendOrder.length : idx;
+          },
+        }}
+        series={series}
+        tooltipProps={touchTooltipProps}
+        withLegend
+        withPointLabels={withPointLabels}
+        {...(valueFormatter && { valueFormatter })}
+        {...(yAxisProps && { yAxisProps })}
+      />
+    </div>
   );
 }
