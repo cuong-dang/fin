@@ -8,6 +8,7 @@ import {
   Box,
   Card,
   Group,
+  Mark,
   Progress,
   Select,
   Stack,
@@ -273,7 +274,9 @@ function BudgetRow({
         </Group>
         <Text c="dimmed" ff="monospace" size="xs">
           {formatMoney(actual, snapshot.currency)} spent {" · "}
-          {formatMoney(budgeted - actual, snapshot.currency)} left
+          <Mark color={color}>
+            {formatMoney(budgeted - actual, snapshot.currency)} left
+          </Mark>
         </Text>
       </Group>
       <Box pos="relative">
@@ -300,7 +303,7 @@ function BudgetRow({
           {formatMoney(budgeted, snapshot.currency)}
           {BUDGET_FREQUENCY_SHORT[snapshot.frequency]}
         </Text>
-        <Text c={color} ff="monospace" size="xs">
+        <Text c="dimmed" ff="monospace" size="xs">
           Pace {formatMoney(expectedMinor, snapshot.currency)}
           {" · "}
           {delta === 0n

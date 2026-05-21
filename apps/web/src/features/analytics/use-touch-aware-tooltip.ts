@@ -18,7 +18,7 @@ import { useEffect, useRef, useState } from "react";
  *
  * Critical: we listen on `click` (not `mousedown` / `touchstart`).
  * Recharts handles the click-to-show on `mousedown`, so an earlier
- * outside-click listener would race with it on chart-internal taps
+ * mousedown-listener would race with it on chart-internal taps
  * and starve Recharts of the event. `click` fires after the chart
  * has done its work — by then "inside vs outside" is decided
  * cleanly via `contains()` and the outside reset doesn't interfere.
