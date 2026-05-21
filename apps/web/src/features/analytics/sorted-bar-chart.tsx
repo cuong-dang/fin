@@ -1,56 +1,68 @@
-import { BarChart, ChartTooltip } from "@mantine/charts";
+import {
+  ChartTooltip,
+  CompositeChart,
+  type CompositeChartSeries,
+} from "@mantine/charts";
 import type { ComponentProps } from "react";
 import { useMemo } from "react";
 import type { TooltipContentProps } from "recharts";
 
 import { PALETTE } from "./palette";
 
-type BarChartProps = ComponentProps<typeof BarChart>;
-type BarChartSeries = BarChartProps["series"][number];
+type CompositeChartProps = ComponentProps<typeof CompositeChart>;
 
-// Caller passes series without a color — SortedBarChart assigns
-// palette colors itself based on sort rank. Anything else
-// (`name`, `label`) passes through.
-type SortedBarSeries = Omit<BarChartSeries, "color">;
+// Caller passes series without a color or type — SortedBarChart
+// assigns palette colors itself based on sort rank and forces
+// `type: "bar"` on every entry.
+type SortedBarSeries = { name: string; label: string };
 
-type SortedBarChartProps = Omit<BarChartProps, "series"> & {
+type SortedBarChartProps = Omit<CompositeChartProps, "series" | "type"> & {
   series: SortedBarSeries[];
+  /**
+   * When true, label the total above each stack (one label per
+   * bucket). Implemented via an invisible line series — see comment
+   * below.
+   */
+  withPointLabels?: boolean;
 };
 
-/**
- * Drop-in replacement for `<BarChart>` with three opinionated
- * defaults for stacked bar charts:
- *
- *   1. `series` is sorted ascending by absolute total across `data`
- *      so the largest contributor sits at the *top* of the stack
- *      (Recharts paints `series[0]` at the bottom, last on top).
- *
- *   2. Colors are reassigned *after* the sort: the largest stack
- *      (top of the bar, left of the legend, top of the tooltip)
- *      gets `PALETTE[0]`, the next-largest `PALETTE[1]`, and so on.
- *      Any caller-supplied `color` on a series entry is overridden —
- *      consistent color ordering across the three views is the point.
- *
- *   3. The tooltip's payload, and the legend's order, are both
- *      reordered to read largest-first. The legend's payload is
- *      built by Recharts from chart context (the `payload` prop on
- *      `<Legend>` is ignored), so we steer it via `itemSorter`
- *      (Recharts feeds that to `sortBy`, ascending). For the
- *      tooltip, Mantine's `<BarChart>` installs its own `content`
- *      that bypasses Recharts' tooltip itemSorter, so we override
- *      the tooltip content here too.
- *
- * Net: stack (top-down), legend (left-to-right), and tooltip
- * (top-down) all read biggest-first *and* in the same color order.
- *
- * Point-label / bar-value labels are intentionally *not* exposed —
- * `withBarValueLabel` is incompatible with `type="stacked"`, which is
- * what every consumer here uses.
- */
-export function SortedBarChart(props: SortedBarChartProps) {
-  const { data, series, legendProps, tooltipProps, valueFormatter, ...rest } =
-    props;
+// Sentinel data-field + series name for the invisible "total" line
+// that carries the per-bucket sum used for top-of-stack labels.
+// Chosen to be unlikely to collide with a real series id.
+const TOTAL_KEY = "__sorted_bar_total__";
 
+/**
+ * Stacked bar chart with three opinionated defaults:
+ *
+ *   1. Series sorted ascending by abs total — the largest contributor
+ *      ends up at the top of the stack (Recharts paints `series[0]`
+ *      at the bottom, last on top).
+ *
+ *   2. Palette colors assigned by rank post-sort — biggest stack
+ *      gets `PALETTE[0]`, then `PALETTE[1]`, and so on. Consistent
+ *      color ordering across views is the point.
+ *
+ *   3. Tooltip + legend reorder to read largest-first.
+ *
+ * Total labels (`withPointLabels`) are a hack on top of Mantine's
+ * `CompositeChart`: Mantine's `withBarValueLabel` labels every
+ * stacked segment, not the stack's total. To get one label per
+ * bucket, we add an invisible `type: "line"` series whose y value at
+ * each x is the bucket sum, with `withDots={false}` and transparent
+ * stroke, then let Mantine's `withPointLabels` draw labels at those
+ * (x, total) anchor points. The line itself doesn't render — only
+ * its labels.
+ */
+export function SortedBarChart({
+  data,
+  series,
+  legendProps,
+  tooltipProps,
+  valueFormatter,
+  withPointLabels = false,
+  ...rest
+}: SortedBarChartProps) {
+  // Sort + color
   const sortedSeries = useMemo(() => {
     const totals = new Map<string, number>();
     for (const s of series) {
@@ -64,21 +76,55 @@ export function SortedBarChart(props: SortedBarChartProps) {
     const sorted = [...series].sort(
       (a, b) => (totals.get(a.name) ?? 0) - (totals.get(b.name) ?? 0),
     );
-    // Color by rank, biggest-first. `sorted` is ascending by total,
-    // so the LAST entry is the top of the stack — it should get
-    // `PALETTE[0]`. Index from the end.
     const n = sorted.length;
     return sorted.map((s, i) => ({
-      ...s,
-      color: PALETTE[(n - 1 - i) % PALETTE.length],
+      name: s.name,
+      label: s.label,
+      color: PALETTE[(n - 1 - i) % PALETTE.length]!,
+      type: "bar" as const,
     }));
   }, [series, data]);
 
-  // Recharts derives the Legend's payload from chart context and
-  // ignores any `payload` prop passed to `<Legend>`. The supported
-  // way to influence its order is `itemSorter`, which it feeds to
-  // lodash/es-toolkit `sortBy` (ascending). We want descending by
-  // total, so return the negative.
+  // Inject a `_total` field per bucket when point labels are on; the
+  // line series reads it.
+  const augmentedData = useMemo(() => {
+    if (!withPointLabels) return data;
+    return (data as Record<string, unknown>[]).map((row) => {
+      let total = 0;
+      for (const s of series) {
+        const v = row[s.name];
+        if (typeof v === "number") total += v;
+      }
+      return { ...row, [TOTAL_KEY]: total };
+    });
+  }, [data, series, withPointLabels]);
+
+  const compositeSeries: CompositeChartSeries[] = useMemo(
+    () =>
+      withPointLabels
+        ? [
+            ...sortedSeries,
+            // `color: "none"` is load-bearing twice: (1) Recharts'
+            // `<Line stroke="none">` doesn't render, so the line + dots
+            // are invisible and only the `withPointLabels` labels show;
+            // (2) Mantine's `ChartLegend` auto-filters payload items
+            // whose color is "none" (see `getFilteredChartLegendPayload`
+            // in @mantine/charts), so the total series doesn't appear
+            // as a legend entry.
+            {
+              name: TOTAL_KEY,
+              label: "Total",
+              color: "none",
+              type: "line",
+            },
+          ]
+        : sortedSeries,
+    [sortedSeries, withPointLabels],
+  );
+
+  // Legend item order: largest stack first. Recharts 3 dropped the
+  // public `legendProps.payload` override, so we steer via
+  // `itemSorter` (sorted ascending → return negative for descending).
   const totalsByName = useMemo(() => {
     const m = new Map<string, number>();
     for (const s of sortedSeries) {
@@ -111,9 +157,9 @@ export function SortedBarChart(props: SortedBarChartProps) {
       label={labelFormatter && payload ? labelFormatter(label, payload) : label}
       payload={
         payload
-          ? [...payload].sort(
-              (a, b) => (Number(b.value) || 0) - (Number(a.value) || 0),
-            )
+          ? [...payload]
+              .filter((p) => p.dataKey !== TOTAL_KEY)
+              .sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0))
           : payload
       }
       series={sortedSeries}
@@ -122,11 +168,14 @@ export function SortedBarChart(props: SortedBarChartProps) {
   );
 
   return (
-    <BarChart
-      data={data}
+    <CompositeChart
+      barProps={{ stackId: "stack" }}
+      data={augmentedData}
       legendProps={{ itemSorter: legendItemSorter, ...legendProps }}
-      series={sortedSeries}
+      series={compositeSeries}
       tooltipProps={{ content: renderTooltip, ...tooltipProps }}
+      withDots={false}
+      withPointLabels={withPointLabels}
       {...(valueFormatter && { valueFormatter })}
       {...rest}
     />

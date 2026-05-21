@@ -53,11 +53,13 @@ export function CategoryTagChart({
   start,
   end,
   currency,
+  withPointLabels,
 }: {
   granularity: Granularity;
   start: string;
   end: string;
   currency: string;
+  withPointLabels: boolean;
 }) {
   const [direction, setDirection] = useState<CategoryChartDirection>("expense");
   // ALL_TAGS / UNTAGGED / tag UUID. Translated to the wire format when
@@ -206,8 +208,8 @@ export function CategoryTagChart({
             dataKey="period"
             h={300}
             series={series}
-            type="stacked"
             withLegend
+            withPointLabels={withPointLabels}
             {...(fmt && {
               valueFormatter: fmt.tooltipFormatter,
               yAxisProps: { tickFormatter: fmt.axisFormatter },

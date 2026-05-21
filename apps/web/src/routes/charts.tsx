@@ -98,6 +98,7 @@ export function ChartsRoute() {
         end={end}
         granularity={granularity}
         start={start}
+        withPointLabels={withPointLabels}
       />
       <NetWorthChart
         currency={activeCurrency}

@@ -194,8 +194,8 @@ export function CashFlowChart({
             dataKey="period"
             h={300}
             series={series}
-            type="stacked"
             withLegend
+            withPointLabels={withPointLabels}
             {...(fmt && {
               valueFormatter: fmt.tooltipFormatter,
               yAxisProps: { tickFormatter: fmt.axisFormatter },

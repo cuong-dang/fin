@@ -79,7 +79,7 @@ export function DivergingNetChart({
   return (
     <CompositeChart
       composedChartProps={composedChartProps}
-      curveType="natural"
+      curveType="monotone"
       data={data}
       dataKey="period"
       h={h}
