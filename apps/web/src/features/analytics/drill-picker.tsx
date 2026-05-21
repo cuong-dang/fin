@@ -23,7 +23,6 @@ export function DrillPicker({
       clearable={false}
       data={options.map((o) => ({ value: o.id, label: o.label }))}
       placeholder="Drill into…"
-      searchable
       value={null}
       onChange={(value) => {
         if (value) onPick(value);

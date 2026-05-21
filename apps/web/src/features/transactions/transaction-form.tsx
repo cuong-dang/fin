@@ -596,8 +596,9 @@ function PaymentLoanPicker({
 
 // Single picker covering all bill types. Mantine `Select` (vs the
 // `NativeSelect` used elsewhere in this form) is required because we
-// want grouped options + searchable filtering. Bills are grouped by
-// `type` so the user can scroll-with-context or type to filter.
+// want grouped options. Bills are grouped by `type` so the user can
+// scroll-with-context. Search is deliberately off — see AccountSelect
+// comment for the rationale.
 function PaymentBillPicker({
   billOptions,
   billId,
@@ -642,13 +643,11 @@ function PaymentBillPicker({
   }).filter((g) => g.items.length > 0);
   return (
     <Select
-      clearable={false}
       data={data}
       description="Account and lines auto-fill from the bill's defaults; you can edit either."
       label="Bill"
       placeholder="Select a bill…"
       required
-      searchable
       value={billId || null}
       onChange={(v) => onChange(v ?? "")}
     />

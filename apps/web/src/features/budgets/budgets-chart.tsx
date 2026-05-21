@@ -85,7 +85,6 @@ export function BudgetsChart({
               clearable
               data={selectOptions}
               placeholder="View history of…"
-              searchable
               value={budgetId}
               onChange={setPickedId}
             />

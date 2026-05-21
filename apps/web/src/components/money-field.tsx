@@ -1,5 +1,5 @@
 import { ActionIcon, Popover, TextInput } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
+import { useDisclosure, useMediaQuery } from "@mantine/hooks";
 import { Calculator } from "lucide-react";
 import { type KeyboardEvent, useEffect, useReducer, useRef } from "react";
 
@@ -62,8 +62,16 @@ export function MoneyField({
    *  unset, which is correct for the vast majority of currencies. */
   currency?: string;
 }) {
-  const [opened, { toggle, close }] = useDisclosure(false);
+  const [opened, { toggle, open, close }] = useDisclosure(false);
   const decimals = currency ? currencyDecimals(currency) : 2;
+
+  // Touch / coarse-pointer devices don't have a hardware keyboard,
+  // and the soft keyboard eats half the screen. On those, the
+  // calculator is a strictly nicer input UX, so we make tapping the
+  // field open it directly — and mark the input read-only so the OS
+  // doesn't pop the soft keyboard. Desktop (fine pointer) keeps the
+  // current behavior: type freely, calculator via the icon button.
+  const isCoarsePointer = useMediaQuery("(pointer: coarse)") ?? false;
 
   const [state, dispatch] = useReducer(
     (s: CalcState, a: CalcAction) => reduce(s, a, decimals),
@@ -171,6 +179,7 @@ export function MoneyField({
           // for safety / mid-typing). Server re-validates.
           {...(showPattern ? { pattern: "^[-−]?\\d*\\.?\\d{0,4}$" } : {})}
           placeholder="0.00"
+          readOnly={isCoarsePointer}
           required={required}
           rightSection={
             <ActionIcon
@@ -182,6 +191,7 @@ export function MoneyField({
               <Calculator size={16} />
             </ActionIcon>
           }
+          style={isCoarsePointer ? { cursor: "pointer" } : undefined}
           type="text"
           value={displayed}
           onBlur={() => {
@@ -192,6 +202,12 @@ export function MoneyField({
           onChange={() => {
             // Engine owns the visible value — discard native input
             // events. React will re-render with `displayed`.
+          }}
+          onClick={() => {
+            // On coarse-pointer (touch) devices, tapping the field
+            // opens the calculator instead of focusing the input
+            // (which would otherwise be a no-op since it's read-only).
+            if (isCoarsePointer && !opened) open();
           }}
           onKeyDown={handleKeyDown}
         />

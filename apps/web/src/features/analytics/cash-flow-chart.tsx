@@ -121,12 +121,16 @@ export function CashFlowChart({
             {groups.length > 0 && (
               <Select
                 aria-label="Account group"
+                // Only surface the clear (X) button when an actual
+                // filter is set — clearing the default sentinel would
+                // be a visible no-op.
+                clearable={accountGroupId !== ALL_GROUPS}
                 data={[
-                  { value: ALL_GROUPS, label: "All account groups" },
+                  { value: ALL_GROUPS, label: "All groups" },
                   ...groups.map((g) => ({ value: g.id, label: g.name })),
                 ]}
                 value={accountGroupId}
-                onChange={(v) => v && setAccountGroupId(v)}
+                onChange={(v) => setAccountGroupId(v ?? ALL_GROUPS)}
               />
             )}
           </Group>

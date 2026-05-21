@@ -156,7 +156,7 @@ export function CashFlowComparisonChart({
               <Select
                 aria-label="Account group"
                 data={[
-                  { value: ALL_GROUPS, label: "All account groups" },
+                  { value: ALL_GROUPS, label: "All groups" },
                   ...groups.map((g) => ({ value: g.id, label: g.name })),
                 ]}
                 value={accountGroupId}

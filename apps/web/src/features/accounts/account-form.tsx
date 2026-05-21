@@ -1,5 +1,5 @@
-import { CreatableSelect } from "@/components/creatable-select";
 import { MoneyField } from "@/components/money-field";
+import { PickOrCreate } from "@/components/pick-or-create";
 import {
   CcFields,
   LoanPlanFields,
@@ -123,17 +123,21 @@ export function AccountForm({
   );
 
   const hasGroups = groups.length > 0;
-  const groupName =
-    groups.find((g) => g.id === accountGroupId)?.name ?? newGroupName;
-  const handleGroupName = (text: string) => {
-    const match = groups.find((g) => g.name === text);
-    if (match) {
-      setAccountGroupId(match.id);
-      setNewGroupName("");
-    } else {
-      setAccountGroupId("");
-      setNewGroupName(text);
-    }
+
+  const groupValue = accountGroupId || (newGroupName ? "" : null);
+  const groupOptions = [
+    ...groups.map((g) => ({ value: g.id, label: g.name })),
+    ...(newGroupName ? [{ value: "", label: `${newGroupName} (new)` }] : []),
+  ];
+  const pickGroup = (v: string | null) => {
+    if (v === "") return;
+    const match = groups.find((g) => g.id === v);
+    setAccountGroupId(match?.id ?? "");
+    setNewGroupName("");
+  };
+  const createGroup = (name: string) => {
+    setAccountGroupId("");
+    setNewGroupName(name);
   };
 
   const checkingAccounts = allAccounts.filter(
@@ -237,12 +241,15 @@ export function AccountForm({
           />
         )}
         {hasGroups ? (
-          <CreatableSelect
-            data={groups.map((g) => g.name)}
+          <PickOrCreate
+            data={groupOptions}
             label="Account group"
+            modalTitle="New account group"
+            placeholder="Pick an account group"
             required
-            value={groupName}
-            onChange={handleGroupName}
+            value={groupValue}
+            onChange={pickGroup}
+            onCreate={createGroup}
           />
         ) : (
           <TextInput
@@ -251,7 +258,7 @@ export function AccountForm({
             placeholder="Banks"
             required
             value={newGroupName}
-            onChange={(e) => handleGroupName(e.target.value)}
+            onChange={(e) => setNewGroupName(e.target.value)}
           />
         )}
         {type === "credit_card" && (
@@ -280,7 +287,7 @@ export function AccountForm({
         )}
         <MoneyField
           description={balanceDescription(type, isEdit)}
-          label={isEdit ? "Balance" : "Starting balance (optional)"}
+          label={isEdit ? "Balance" : "Starting balance"}
           required={false}
           value={balance}
           onChange={setBalance}

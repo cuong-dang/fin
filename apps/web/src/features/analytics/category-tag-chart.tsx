@@ -172,9 +172,13 @@ export function CategoryTagChart({
             />
             <Select
               aria-label="Tag filter"
+              // Only surface the clear (X) button when an actual
+              // filter is set — clearing the default sentinel would
+              // be a visible no-op.
+              clearable={tag !== ALL_TAGS}
               data={tagOptions(tags)}
               value={tag}
-              onChange={(v) => v && setTag(v)}
+              onChange={(v) => setTag(v ?? ALL_TAGS)}
             />
           </Group>
         </Group>

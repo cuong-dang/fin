@@ -62,7 +62,7 @@ export function CcFields({
           accounts={payFromAccounts}
           allowNone
           description="Pre-fills the source account when paying this card."
-          label="Default pay-from account (optional)"
+          label="Default pay-from account"
           value={defaultPayFromAccountId}
           onChange={setDefaultPayFromAccountId}
         />
@@ -131,7 +131,7 @@ export function LoanPlanFields({
           accounts={payFromAccounts}
           allowNone
           description="Pre-fills the source when paying this loan."
-          label="Default pay-from account (optional)"
+          label="Default pay-from account"
           value={defaultPayFromAccountId}
           onChange={setDefaultPayFromAccountId}
         />

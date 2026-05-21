@@ -1,4 +1,6 @@
+import { CreateNameModal } from "@/components/create-name-modal";
 import { MoneyField } from "@/components/money-field";
+import { PickOrCreate } from "@/components/pick-or-create";
 import { SectionHeader } from "@/components/section-header";
 
 import type { CategoryWithSubs, TransactionLineBody } from "@fin/schemas";
@@ -8,15 +10,13 @@ import {
   Button,
   Card,
   Group,
+  Input,
   Stack,
-  TagsInput,
   Text,
   UnstyledButton,
 } from "@mantine/core";
-import { Plus, Tag, Trash2 } from "lucide-react";
+import { Plus, Trash2, X } from "lucide-react";
 import { useState } from "react";
-
-import { CreatableSelect } from "./creatable-select";
 
 /**
  * One-line editor: a single amount + category + tags. Used by transaction
@@ -137,7 +137,7 @@ export function MultiLineEditor({
               </ActionIcon>
             </Group>
             <MoneyField
-              label={amountOptional ? "Amount (optional)" : "Amount"}
+              label="Amount"
               min={0}
               required={!amountOptional}
               value={line.amount}
@@ -191,15 +191,22 @@ export function MultiLineEditor({
 }
 
 /**
- * Category + subcategory picker with implicit-create UX. Each axis
- * renders a `Combobox` (search-as-you-type + dropdown):
- *   - typing filters the list of existing options
- *   - if no exact match exists for the typed text, a "+ Create '…'"
- *     entry surfaces at the top of the dropdown
- *   - clicking either an existing option or the "+ Create…" entry
- *     commits the value; leaving the field with non-matching text
- *     also commits to create (the form state already has the typed
- *     text under `newCategoryName`).
+ * Category + subcategory picker.
+ *
+ * Each field is a tap-only `<Select>` (no search input → no mobile
+ * keyboard) paired with a "+" button that opens a small modal for
+ * creating a new name. Once created, the new name renders as a
+ * "$name (new)" pseudo-option in the Select so the user can see what
+ * they're about to submit; the form state carries it under
+ * `newCategoryName` / `newSubcategoryName`, mirroring the old
+ * implicit-create flow.
+ *
+ * The synthetic "(new)" option's value is `""` — the same sentinel
+ * the form state already uses for "no id assigned yet"
+ * (`categoryId === ""`), so the picker doesn't need an extra magic
+ * string. Mantine's clearable button returns `null` (not `""`), so
+ * tapping the synthetic option stays unambiguously distinguishable
+ * from clearing the field.
  */
 function CategorySelector({
   categories,
@@ -222,70 +229,84 @@ function CategorySelector({
   newSubcategoryName: string;
   setNewSubcategoryName: (v: string) => void;
 }) {
-  const creatingNewCategory = categoryId === "";
+  const creatingNewCategory = categoryId === "" && newCategoryName !== "";
+  const categoryValue = categoryId || (newCategoryName ? "" : null);
+  const categoryOptions = [
+    ...categories.map((c) => ({ value: c.id, label: c.name })),
+    ...(newCategoryName
+      ? [{ value: "", label: `${newCategoryName} (new)` }]
+      : []),
+  ];
 
-  const categoryText =
-    categories.find((c) => c.id === categoryId)?.name ?? newCategoryName;
+  function pickCategory(v: string | null) {
+    // Tapping the "(new)" pseudo-option is a no-op — it's already
+    // selected, and there's no id to assign.
+    if (v === "") return;
+    const match = categories.find((c) => c.id === v);
+    setCategoryId(match?.id ?? "");
+    setNewCategoryName("");
+    setSubcategoryId("");
+    setNewSubcategoryName("");
+  }
 
-  function handleCategoryText(text: string) {
-    const match = categories.find((c) => c.name === text);
-    if (match) {
-      setCategoryId(match.id);
-      setNewCategoryName("");
-    } else {
-      setCategoryId("");
-      setNewCategoryName(text);
-    }
-    // Switching the category invalidates any subcategory selection
-    // tied to the previous category.
+  function createCategory(name: string) {
+    setCategoryId("");
+    setNewCategoryName(name);
     setSubcategoryId("");
     setNewSubcategoryName("");
   }
 
   const subcategoriesForPicker =
     categories.find((c) => c.id === categoryId)?.subcategories ?? [];
+  const subcategoryValue = subcategoryId || (newSubcategoryName ? "" : null);
+  const subcategoryOptions = [
+    ...subcategoriesForPicker.map((s) => ({ value: s.id, label: s.name })),
+    ...(newSubcategoryName
+      ? [{ value: "", label: `${newSubcategoryName} (new)` }]
+      : []),
+  ];
 
-  const subcategoryText =
-    subcategoriesForPicker.find((s) => s.id === subcategoryId)?.name ??
-    newSubcategoryName;
+  function pickSubcategory(v: string | null) {
+    if (v === "") return;
+    const match = subcategoriesForPicker.find((s) => s.id === v);
+    setSubcategoryId(match?.id ?? "");
+    setNewSubcategoryName("");
+  }
 
-  function handleSubcategoryText(text: string) {
-    if (creatingNewCategory) {
-      // No existing subcategories under a yet-to-be-created category;
-      // any text is "create new" by definition.
-      setSubcategoryId("");
-      setNewSubcategoryName(text);
-      return;
-    }
-    const match = subcategoriesForPicker.find((s) => s.name === text);
-    if (match) {
-      setSubcategoryId(match.id);
-      setNewSubcategoryName("");
-    } else {
-      setSubcategoryId("");
-      setNewSubcategoryName(text);
-    }
+  function createSubcategory(name: string) {
+    setSubcategoryId("");
+    setNewSubcategoryName(name);
   }
 
   return (
     <>
-      <CreatableSelect
-        data={categories.map((c) => c.name)}
+      <PickOrCreate
+        data={categoryOptions}
         label="Category"
-        placeholder="Select or type to create…"
+        modalTitle="New category"
+        placeholder="Pick a category"
         required
-        value={categoryText}
-        onChange={handleCategoryText}
+        value={categoryValue}
+        onChange={pickCategory}
+        onCreate={createCategory}
       />
       {(creatingNewCategory || categoryId !== "") && (
-        <CreatableSelect
-          data={
-            creatingNewCategory ? [] : subcategoriesForPicker.map((s) => s.name)
-          }
+        <PickOrCreate
+          data={subcategoryOptions}
+          // When the parent category is itself unsaved, there's no
+          // existing subcategory list to pick from — the user must
+          // create. Disable the Select rather than show empty data.
+          disabled={creatingNewCategory && !newSubcategoryName}
           label="Subcategory"
-          placeholder="Select or type to create…"
-          value={subcategoryText}
-          onChange={handleSubcategoryText}
+          modalTitle="New subcategory"
+          placeholder={
+            creatingNewCategory
+              ? "No existing subcategories — tap + to add"
+              : "Pick a subcategory"
+          }
+          value={subcategoryValue}
+          onChange={pickSubcategory}
+          onCreate={createSubcategory}
         />
       )}
     </>
@@ -293,19 +314,14 @@ function CategorySelector({
 }
 
 /**
- * Tag entry field. Type-and-space hardens a tag into a pill; backspace or ×
- * removes one. While focused, existing-tag suggestions appear horizontally
- * below the input — clicking one adds it. The list filters as the user types.
+ * Tag field — tap-only chip picker. Selected tags render as filled,
+ * removable badges; unselected tags from the workspace render below
+ * as outlined pills (tap to add). A "+" button opens a small modal
+ * to create a brand-new tag. No text input — no surprise keyboard
+ * pop on mobile.
  *
- * `data={[]}` + `openOnFocus={false}` suppress Mantine's vertical dropdown
- * since we render our own horizontal suggestions. `acceptValueOnBlur={false}`
- * stops Mantine from auto-committing the typed-but-uncommitted search when
- * focus shifts to a suggestion pill — otherwise typing "es" then clicking
- * "essential" would commit both. We then re-implement the "commit on blur"
- * ourselves at the Stack level: if focus leaves the whole field (e.g., user
- * clicked Save without pressing space), the typed search is committed as a
- * new tag. Suggestion pills are children of the Stack, so clicking one
- * doesn't trigger this path.
+ * The same UX runs on desktop for consistency; the "+" button is
+ * still tappable with a mouse.
  */
 function TagsField({
   label,
@@ -318,72 +334,78 @@ function TagsField({
   value: string[];
   onChange: (v: string[]) => void;
 }) {
-  const [search, setSearch] = useState("");
-  const [focused, setFocused] = useState(false);
-  const trimmed = search.trim().toLowerCase();
-  const suggestions = allTags
-    .filter((t) => !value.includes(t))
-    .filter((t) => trimmed === "" || t.toLowerCase().includes(trimmed));
+  const [creating, setCreating] = useState(false);
+  const available = allTags.filter((t) => !value.includes(t));
+
+  const add = (t: string) => {
+    if (!value.includes(t)) onChange([...value, t]);
+  };
+  const remove = (t: string) => onChange(value.filter((x) => x !== t));
 
   return (
-    <Stack
-      onBlur={(e) => {
-        // Keep focused while focus moves to a child (e.g., a suggestion pill).
-        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-        setFocused(false);
-        const pending = search.trim();
-        if (pending && !value.includes(pending)) {
-          onChange([...value, pending]);
-        }
-        setSearch("");
-      }}
-      onFocus={() => setFocused(true)}
-    >
-      <TagsInput
-        acceptValueOnBlur={false}
-        data={[]}
-        label={label}
-        leftSection={<Tag size={14} />}
-        openOnFocus={false}
-        placeholder="Type a tag and press space"
-        searchValue={search}
-        splitChars={[" ", ","]}
-        value={value}
-        onChange={onChange}
-        onSearchChange={setSearch}
-      />
-      {focused && suggestions.length > 0 && (
+    <Input.Wrapper label={label}>
+      <Stack>
+        {value.length > 0 && (
+          <Group>
+            {value.map((t) => (
+              <Badge
+                key={t}
+                color="dark"
+                rightSection={
+                  <ActionIcon
+                    aria-label={`Remove tag ${t}`}
+                    color="white"
+                    size={12}
+                    variant="transparent"
+                    onClick={() => remove(t)}
+                  >
+                    <X />
+                  </ActionIcon>
+                }
+                tt="none"
+              >
+                {t}
+              </Badge>
+            ))}
+          </Group>
+        )}
         <Group>
-          {suggestions.map((t) => (
+          <UnstyledButton
+            aria-label={`Create new tag`}
+            onClick={() => setCreating(true)}
+          >
+            <Badge style={{ cursor: "pointer" }} tt="none" variant="outline">
+              New
+            </Badge>
+          </UnstyledButton>
+          {available.map((t) => (
             <UnstyledButton
               key={t}
               aria-label={`Add tag ${t}`}
-              // Prevent the pill from stealing focus from the
-              // TagsInput. We need `pointerdown` (not `mousedown`)
-              // because on touch the synthesized mousedown fires
-              // *after* touchend → blur → unmount, far too late to
-              // matter. `pointerdown` fires for mouse + touch + pen
-              // before blur, and `preventDefault()` on it suppresses
-              // the focus shift without canceling the click that
-              // follows.
-              onClick={() => {
-                onChange([...value, t]);
-                setSearch("");
-              }}
-              onPointerDown={(e) => e.preventDefault()}
+              onClick={() => add(t)}
             >
               <Badge
-                color="black"
+                color="gray"
                 style={{ cursor: "pointer" }}
                 tt="none"
-                variant="light"
+                variant="outline"
               >
-                #{t}
+                {t}
               </Badge>
             </UnstyledButton>
           ))}
         </Group>
+      </Stack>
+      {creating && (
+        <CreateNameModal
+          title="New tag"
+          onCancel={() => setCreating(false)}
+          onSubmit={(name) => {
+            add(name);
+            setCreating(false);
+          }}
+        />
       )}
-    </Stack>
+    </Input.Wrapper>
   );
 }

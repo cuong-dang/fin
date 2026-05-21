@@ -9,8 +9,8 @@ import { useMemo } from "react";
  * Account picker that renders Mantine `Select` with options grouped by
  * `accountGroupId`. The caller pre-filters the `accounts` pool (CASA
  * only, CC only, exclude-current, etc.); this component only handles
- * the UI presentation — fetching the account-group names, building the
- * grouped data, and surfacing search.
+ * the UI presentation — fetching the account-group names and building
+ * the grouped data.
  *
  * The cached `["accountGroups"]` query is shared across instances —
  * callers don't need to wire up an extra `useQuery`.
@@ -18,6 +18,10 @@ import { useMemo } from "react";
  * `allowNone` toggles Mantine's built-in clear button (the X). When
  * cleared, the parent receives "" (empty string) as the new value.
  * Required pickers omit it — there's no clear affordance.
+ *
+ * Deliberately not searchable: search-as-you-type would pop the mobile
+ * soft keyboard on tap, which eats half the screen. Account lists are
+ * small enough to scroll.
  */
 export function AccountSelect({
   accounts,
@@ -75,7 +79,6 @@ export function AccountSelect({
       label={label}
       placeholder={placeholder}
       required={required}
-      searchable
       value={value || null}
       onChange={(v) => onChange(v ?? "")}
     />

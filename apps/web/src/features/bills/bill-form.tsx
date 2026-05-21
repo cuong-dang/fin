@@ -171,7 +171,7 @@ export function BillForm({
           accounts={payFromAccounts}
           allowNone
           description="Charges for this bill will pre-fill the source account."
-          label="Default source account (optional)"
+          label="Default source account"
           value={defaultPayFromAccountId}
           onChange={setDefaultPayFromAccountId}
         />
