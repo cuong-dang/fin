@@ -228,7 +228,14 @@ function buildChartRows(
   queries: { data?: AnalyticsChartResponse | undefined }[],
   direction: Direction,
 ): Row[] {
-  // First pass: per-period daily deltas + each period's last bucket day.
+  // First pass: per-period daily deltas + each period's extent. The
+  // extent is the day index the line should draw up to:
+  //   - Current (in-progress): today's day-of-period, regardless of
+  //     whether there's actually data through today. A spend-free
+  //     Friday should still see the line extend out to Friday at the
+  //     prior running total, not stop at Thursday.
+  //   - Prior (closed): the last bucket with data — that's the period's
+  //     full real span (e.g., 30 or 31 for a calendar month).
   const deltas = periods.map((period, i) => {
     const buckets = queries[i]?.data?.buckets ?? [];
     const dailyDelta = new Map<number, number>();
@@ -242,25 +249,27 @@ function buildChartRows(
       dailyDelta.set(day, (dailyDelta.get(day) ?? 0) + delta);
       if (day > lastBucketDay) lastBucketDay = day;
     }
-    return { period, dailyDelta, lastBucketDay };
+    const extent = period.isCurrent
+      ? dayOfPeriod(period.end, period.start)
+      : lastBucketDay;
+    return { period, dailyDelta, extent };
   });
 
-  const maxDay = deltas.reduce((m, d) => Math.max(m, d.lastBucketDay), 0);
+  const maxDay = deltas.reduce((m, d) => Math.max(m, d.extent), 0);
   if (maxDay === 0) return [];
 
   // Second pass: walk every day for each period. Prior (closed) periods
   // run to `maxDay` and inherit their last running total past their
   // own last bucket — line extends flat to the chart's right edge so
   // the visual comparison spans the full width. The *current*
-  // (in-progress) period stops at its own last bucket so the line
-  // ends honestly at today rather than implying a flat plateau into
-  // the future.
+  // (in-progress) period stops at today so the line ends honestly
+  // rather than implying a flat plateau into the future.
   const rows: Row[] = Array.from({ length: maxDay }, (_, i) => ({
     day: i + 1,
   }));
-  for (const { period, dailyDelta, lastBucketDay } of deltas) {
-    if (lastBucketDay === 0) continue;
-    const stop = period.isCurrent ? lastBucketDay : maxDay;
+  for (const { period, dailyDelta, extent } of deltas) {
+    if (extent === 0) continue;
+    const stop = period.isCurrent ? extent : maxDay;
     let running = 0;
     for (let day = 1; day <= stop; day++) {
       running += dailyDelta.get(day) ?? 0;
