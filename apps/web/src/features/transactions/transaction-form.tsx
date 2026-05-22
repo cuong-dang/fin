@@ -137,11 +137,21 @@ export function TransactionForm({
     setDestinationAccountId(ccId);
     if (!ccId) {
       setAccountId("");
+      setTransferAmount("");
       return;
     }
     const cc = accounts.find((a) => a.id === ccId);
     if (cc?.defaultPayFromAccountId) {
       setAccountId(cc.defaultPayFromAccountId);
+    }
+    if (cc) {
+      // Pre-fill with the card's outstanding balance — the
+      // overwhelming common case is "pay this off in full." Credit
+      // cards carry a negative present balance (debt), so flip the
+      // sign. A non-negative balance means there's nothing to pay
+      // (zero or a credit) — leave the field blank for manual entry.
+      const owed = -BigInt(cc.presentBalance);
+      setTransferAmount(owed > 0n ? formatMoneyPlain(owed, cc.currency) : "");
     }
   }
 

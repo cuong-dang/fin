@@ -229,7 +229,7 @@ function AccountItem({
           <Text c="dimmed" ff="monospace">
             {formatMoney(present, account.currency)}
           </Text>
-          {hasPending && !isCc && (
+          {hasPending && !isCc && !isLoan && (
             <Text c="dimmed" ff="monospace">
               avail {formatMoney(available, account.currency)}
             </Text>
