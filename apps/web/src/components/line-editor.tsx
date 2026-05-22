@@ -136,13 +136,6 @@ export function MultiLineEditor({
                 <Trash2 size={14} />
               </ActionIcon>
             </Group>
-            <MoneyField
-              label="Amount"
-              min={0}
-              required={!amountOptional}
-              value={line.amount}
-              onChange={(v) => onUpdate(i, { amount: v })}
-            />
             {/* All the following type assertions are guaranteed by `emptyLine` in
             account-form-fields. */}
             <CategorySelector
@@ -157,6 +150,13 @@ export function MultiLineEditor({
               }
               setSubcategoryId={(v) => onUpdate(i, { subcategoryId: v })}
               subcategoryId={line.subcategoryId!}
+            />
+            <MoneyField
+              label="Amount"
+              min={0}
+              required={!amountOptional}
+              value={line.amount}
+              onChange={(v) => onUpdate(i, { amount: v })}
             />
             <TagsField
               allTags={allTags}
