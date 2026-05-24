@@ -243,7 +243,8 @@ function BudgetRow({
   const pctElapsed = elapsedPct(snapshot.cycleStart, snapshot.cycleEnd, today);
   const expectedMinor =
     (budgeted * BigInt(Math.round(pctElapsed * 100))) / 10000n;
-  const delta = actual - expectedMinor; // positive = over pace
+  const delta = actual - budgeted; // positive = over
+  const deltaPace = actual - expectedMinor;
 
   // Color reflects status relative to two thresholds, matching the
   // credit-limit bar palette used in the accounts sidebar:
@@ -275,7 +276,8 @@ function BudgetRow({
         <Text c="dimmed" ff="monospace" size="xs">
           {formatMoney(actual, snapshot.currency)} spent {" · "}
           <Mark color={color}>
-            {formatMoney(budgeted - actual, snapshot.currency)} left
+            {formatMoney(delta > 0n ? delta : -delta, snapshot.currency)}{" "}
+            {delta > 0n ? "over" : "left"}
           </Mark>
         </Text>
       </Group>
@@ -306,10 +308,10 @@ function BudgetRow({
         <Text c="dimmed" ff="monospace" size="xs">
           Pace {formatMoney(expectedMinor, snapshot.currency)}
           {" · "}
-          {delta === 0n
+          {deltaPace === 0n
             ? "on pace"
-            : `${formatMoney(delta > 0n ? delta : -delta, snapshot.currency)} ${
-                delta > 0n ? "over" : "under"
+            : `${formatMoney(deltaPace > 0n ? deltaPace : -deltaPace, snapshot.currency)} ${
+                deltaPace > 0n ? "over" : "under"
               }`}
         </Text>
       </Group>
