@@ -187,3 +187,23 @@ export function dayOfPeriod(bucketDate: string, periodStart: string): number {
   const ms = Date.UTC(by, bm - 1, bd) - Date.UTC(sy, sm - 1, sd);
   return Math.floor(ms / 86_400_000) + 1;
 }
+
+/**
+ * Month-of-period index (1-based). Used by the yearly comparison
+ * view, which fetches monthly buckets (1–12 over the year) rather
+ * than daily buckets (1–365). `bucketLabel` is the "YYYY-MM" string
+ * emitted by the monthly cash-flow query; `periodStart` is the
+ * "YYYY-MM-DD" start of the period (e.g., Jan 1 of the year).
+ */
+export function monthOfPeriod(
+  bucketLabel: string,
+  periodStart: string,
+): number {
+  const [by, bm] = bucketLabel.split("-").map(Number) as [number, number];
+  const [sy, sm] = periodStart.split("-").map(Number) as [
+    number,
+    number,
+    number,
+  ];
+  return (by - sy) * 12 + (bm - sm) + 1;
+}

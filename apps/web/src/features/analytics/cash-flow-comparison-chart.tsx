@@ -18,6 +18,7 @@ import { ChartTitle } from "./chart-title";
 import {
   comparisonPeriods,
   dayOfPeriod,
+  monthOfPeriod,
   type Period,
 } from "./period-comparison";
 import { useCurrencyFormatters } from "./use-currency-formatters";
@@ -79,6 +80,13 @@ export function CashFlowComparisonChart({
   // acceptable for this chart).
   const periods = useMemo(() => comparisonPeriods(granularity), [granularity]);
 
+  // Yearly periods cover up to 365 days — far too many points to plot
+  // meaningfully. Aggregate to monthly buckets (1–12 across the year)
+  // instead. The bucket-index helper changes shape accordingly:
+  // `dayOfPeriod` for daily buckets, `monthOfPeriod` for monthly.
+  const bucketGranularity = granularity === "yearly" ? "monthly" : "daily";
+  const bucketIndex = granularity === "yearly" ? monthOfPeriod : dayOfPeriod;
+
   const queries = useQueries({
     queries: periods.map((p) => ({
       queryKey: [
@@ -88,10 +96,11 @@ export function CashFlowComparisonChart({
         p.end,
         currency,
         activeAccountGroupId,
+        bucketGranularity,
       ],
       queryFn: () =>
         getCashFlow({
-          granularity: "daily",
+          granularity: bucketGranularity,
           start: p.start,
           end: p.end,
           currency,
@@ -106,12 +115,12 @@ export function CashFlowComparisonChart({
   const firstError = queries.find((q) => q.error)?.error as Error | undefined;
 
   // Build the merged chart rows: { day: 1, "This month": 50, "Last month": 30, ... }.
-  // Per period, sum the chosen direction's daily values cumulatively
-  // and key by day-of-period. Out is flipped to positive to match the
+  // Per period, sum the chosen direction's bucketed values cumulatively
+  // and key by bucket-of-period. Out is flipped to positive to match the
   // CashFlowChart convention (out is shown as a positive magnitude).
   const data = useMemo(
-    () => buildChartRows(periods, queries, direction),
-    [periods, queries, direction],
+    () => buildChartRows(periods, queries, direction, bucketIndex),
+    [periods, queries, direction, bucketIndex],
   );
 
   // Only render series that actually have data in at least one row.
@@ -148,8 +157,9 @@ export function CashFlowComparisonChart({
             info="Compares the running total of cash flow in the current period against the same
             point in prior periods. Each granularity has its own comparison set: weekly vs. last
             week; monthly vs. last month and same month last year; yearly vs. last year. Daily is
-            not applicable. X-axis is day-of-period so lines align (day 15 of this month vs. day 15
-            of last month); months of different lengths draw lines of different lengths."
+            not applicable. X-axis is bucket-of-period so lines align — day-of-period for weekly /
+            monthly (day 15 of this month vs. day 15 of last month), month-of-year for yearly
+            (1–12); months of different lengths draw lines of different lengths."
             title="Cashflow pace"
           />
           <Group>
@@ -227,21 +237,22 @@ function buildChartRows(
   periods: Period[],
   queries: { data?: AnalyticsChartResponse | undefined }[],
   direction: Direction,
+  bucketIndex: (bucketLabel: string, periodStart: string) => number,
 ): Row[] {
-  // First pass: per-period daily deltas + each period's extent. The
-  // extent is the day index the line should draw up to:
-  //   - Current (in-progress): today's day-of-period, regardless of
+  // First pass: per-period bucketed deltas + each period's extent. The
+  // extent is the bucket index the line should draw up to:
+  //   - Current (in-progress): today's bucket-of-period, regardless of
   //     whether there's actually data through today. A spend-free
   //     Friday should still see the line extend out to Friday at the
   //     prior running total, not stop at Thursday.
-  //   - Prior (closed): the last bucket with data — that's the period's
-  //     full real span (e.g., 30 or 31 for a calendar month).
+  //   - Prior (closed): the last bucket with data — the period's full
+  //     real span (e.g., 30 or 31 for a calendar month, 12 for a year).
   const deltas = periods.map((period, i) => {
     const buckets = queries[i]?.data?.buckets ?? [];
     const dailyDelta = new Map<number, number>();
     let lastBucketDay = 0;
     for (const b of buckets) {
-      const day = dayOfPeriod(String(b.period), period.start);
+      const day = bucketIndex(String(b.period), period.start);
       if (day < 1) continue;
       // Out's server values are negative; flip to positive for display.
       const raw = (b[direction] as number | undefined) ?? 0;
@@ -250,7 +261,7 @@ function buildChartRows(
       if (day > lastBucketDay) lastBucketDay = day;
     }
     const extent = period.isCurrent
-      ? dayOfPeriod(period.end, period.start)
+      ? bucketIndex(period.end, period.start)
       : lastBucketDay;
     return { period, dailyDelta, extent };
   });
