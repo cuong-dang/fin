@@ -114,33 +114,46 @@ export function TransactionsList({
     if (!over) return;
     const activeId = active.id as string;
     const overId = over.id as string;
-    if (activeId === overId) return;
 
-    const activeDate = findDateOfId(localByDay, activeId);
-    const overDate = findDateOfId(localByDay, overId);
-    if (!activeDate || !overDate) {
-      throw new Error("Invariant: drag ids must live in localByDay");
+    const currentDate = findDateOfId(localByDay, activeId);
+    if (!currentDate) {
+      throw new Error("Invariant: drag id must live in localByDay");
     }
-    if (activeDate !== overDate) {
-      throw new Error(
-        "Invariant: onDragOver should have unified activeDate and overDate",
-      );
-    }
-
-    const dayTxs = localByDay.get(activeDate);
+    const dayTxs = localByDay.get(currentDate);
     if (!dayTxs) {
-      throw new Error("Invariant: activeDate must be a key of localByDay");
+      throw new Error("Invariant: currentDate must be a key of localByDay");
     }
-    const oldIndex = dayTxs.findIndex((t) => t.id === activeId);
-    const newIndex = dayTxs.findIndex((t) => t.id === overId);
-    if (oldIndex === newIndex) return;
 
-    const movedDayTxs = arrayMove(dayTxs, oldIndex, newIndex);
+    // Apply the final same-day reorder. We do NOT early-return on
+    // `activeId === overId` — that case is legal and common in the
+    // cross-day path: `onDragOver` already moved the tx into the new
+    // day, so the dragged tx is sitting under the cursor at release,
+    // making `over === active`. Bailing out here would silently drop
+    // the cross-day move on the floor (the bug fix).
+    let finalDayTxs = dayTxs;
+    if (activeId !== overId) {
+      const oldIndex = dayTxs.findIndex((t) => t.id === activeId);
+      const newIndex = dayTxs.findIndex((t) => t.id === overId);
+      if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+        finalDayTxs = arrayMove(dayTxs, oldIndex, newIndex);
+      }
+    }
+
+    // No-op detection: same day + identical order as server → nothing
+    // to submit. Catches both "released without moving" and "dragged
+    // away and back to original position."
+    const originalDate = findDateOfId(serverByDay, activeId);
+    const sameDay = currentDate === originalDate;
+    const serverDayTxs = serverByDay.get(currentDate) ?? [];
+    const sameOrder =
+      finalDayTxs.length === serverDayTxs.length &&
+      finalDayTxs.every((t, i) => t.id === serverDayTxs[i]?.id);
+    if (sameDay && sameOrder) return;
+
     const reordered = new Map(localByDay);
-    reordered.set(activeDate, movedDayTxs);
-
-    const targetIds = movedDayTxs.map((t) => t.id);
-    mutation.mutate({ date: overDate, movingId: activeId, ids: targetIds });
+    reordered.set(currentDate, finalDayTxs);
+    const targetIds = finalDayTxs.map((t) => t.id);
+    mutation.mutate({ date: currentDate, movingId: activeId, ids: targetIds });
     setLocalByDay(reordered);
   }
 
