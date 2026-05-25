@@ -282,7 +282,7 @@ function BudgetRow({
         </Text>
       </Group>
       <Box pos="relative">
-        <Progress.Root size="lg">
+        <Progress.Root size="md">
           <Progress.Section color={color} value={Math.min(pct, 100)} />
         </Progress.Root>
         {/* Today-pace tick: a 2px vertical line at pctElapsed%. */}
