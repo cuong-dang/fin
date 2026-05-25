@@ -21,6 +21,7 @@ import { beforeEach, describe, it } from "node:test";
 import {
   seedAccount,
   seedAccountGroup,
+  seedBill,
   seedCategory,
   seedSubcategory,
   seedTransaction,
@@ -681,5 +682,183 @@ describe("runCashFlow — drill into one expense category (outExpensesByCategory
     const bucket = res.buckets[0]!;
     assert.equal(bucket[produce], 20);
     assert.equal(bucket[meat], 35);
+  });
+});
+
+describe("runCashFlow — outBills / outBillsByType refund handling", () => {
+  beforeEach(truncateAll);
+
+  it("nets a refund of a bill charge back out of the bill's type bucket", async () => {
+    const { workspaceId, userId } = await seedWorkspaceAndUser();
+    const groupId = await seedAccountGroup(workspaceId);
+    const checking = await seedAccount({
+      workspaceId,
+      accountGroupId: groupId,
+      name: "Checking",
+      type: "checking_savings",
+    });
+    const utilities = await seedCategory(workspaceId, "Utilities", "expense");
+    const billId = await seedBill({
+      workspaceId,
+      name: "Electric",
+      type: "utility",
+    });
+
+    const originalId = await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-03-05",
+      type: "expense",
+      billId,
+      legs: [{ accountId: checking, amount: -usd(50) }],
+      lines: [{ categoryId: utilities, amount: usd(50) }],
+    });
+    // Refund tx has `bill_id = NULL` — the bill linkage flows through
+    // `refundedTransactionId → original_tx.bill_id`. Pre-fix, the
+    // refund was silently dropped from outBills because the inner
+    // join keyed on `tx.bill_id` alone.
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-03-20",
+      type: "refund",
+      refundedTransactionId: originalId,
+      legs: [{ accountId: checking, amount: usd(30) }],
+      lines: [{ categoryId: utilities, amount: usd(30) }],
+    });
+
+    const res = await runCashFlow(
+      {
+        granularity: "monthly",
+        currency: "USD",
+        dimension: "outBills",
+        ...WINDOW,
+      },
+      workspaceId,
+    );
+
+    // utility bucket = 50 charge − 30 refund = 20
+    assert.equal(res.buckets[0]!["utility"], 20);
+  });
+
+  it("nets the same refund out of the per-bill drill (outBillsByType)", async () => {
+    const { workspaceId, userId } = await seedWorkspaceAndUser();
+    const groupId = await seedAccountGroup(workspaceId);
+    const checking = await seedAccount({
+      workspaceId,
+      accountGroupId: groupId,
+      name: "Checking",
+      type: "checking_savings",
+    });
+    const entertainment = await seedCategory(
+      workspaceId,
+      "Entertainment",
+      "expense",
+    );
+    const billId = await seedBill({
+      workspaceId,
+      name: "Netflix",
+      type: "subscription",
+    });
+
+    const originalId = await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-03-05",
+      type: "expense",
+      billId,
+      legs: [{ accountId: checking, amount: -usd(15) }],
+      lines: [{ categoryId: entertainment, amount: usd(15) }],
+    });
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-03-20",
+      type: "refund",
+      refundedTransactionId: originalId,
+      legs: [{ accountId: checking, amount: usd(15) }],
+      lines: [{ categoryId: entertainment, amount: usd(15) }],
+    });
+
+    const res = await runCashFlow(
+      {
+        granularity: "monthly",
+        currency: "USD",
+        dimension: "outBillsByType",
+        billType: "subscription",
+        ...WINDOW,
+      },
+      workspaceId,
+    );
+
+    // Full netting: bucket may be absent (zero-row short-circuit) or
+    // present at 0 — both valid per the shape contract.
+    const bucket = res.buckets[0];
+    if (bucket) {
+      assert.equal(bucket[billId] ?? 0, 0);
+    }
+  });
+
+  it("attributes a cross-period bill refund back to the original tx's bucket", async () => {
+    const { workspaceId, userId } = await seedWorkspaceAndUser();
+    const groupId = await seedAccountGroup(workspaceId);
+    const checking = await seedAccount({
+      workspaceId,
+      accountGroupId: groupId,
+      name: "Checking",
+      type: "checking_savings",
+    });
+    const utilities = await seedCategory(workspaceId, "Utilities", "expense");
+    const billId = await seedBill({
+      workspaceId,
+      name: "Water",
+      type: "utility",
+    });
+
+    // March $50 charge, May $30 refund.
+    const originalId = await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-03-15",
+      type: "expense",
+      billId,
+      legs: [{ accountId: checking, amount: -usd(50) }],
+      lines: [{ categoryId: utilities, amount: usd(50) }],
+    });
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-05-10",
+      type: "refund",
+      refundedTransactionId: originalId,
+      legs: [{ accountId: checking, amount: usd(30) }],
+      lines: [{ categoryId: utilities, amount: usd(30) }],
+    });
+
+    // March: refund attributes here via effective-date, leaving $20.
+    const march = await runCashFlow(
+      {
+        granularity: "monthly",
+        currency: "USD",
+        dimension: "outBills",
+        start: "2026-03-01",
+        end: "2026-03-31",
+      },
+      workspaceId,
+    );
+    assert.equal(march.buckets[0]!["utility"], 20);
+
+    // May: no bill activity — the refund bucketed back into March.
+    const may = await runCashFlow(
+      {
+        granularity: "monthly",
+        currency: "USD",
+        dimension: "outBills",
+        start: "2026-05-01",
+        end: "2026-05-31",
+      },
+      workspaceId,
+    );
+    assert.equal(may.buckets.length, 0);
   });
 });

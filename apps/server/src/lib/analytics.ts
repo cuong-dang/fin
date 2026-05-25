@@ -155,6 +155,13 @@ const refundAwareLineSum = sql<string>`SUM(
 // dimension to restrict to legs whose amount is signed-negative.
 const outflowLegFilter = sql`${schema.transactionLegs.amount} < 0`;
 
+// Same as `outflowLegFilter` but also admits refund txs (whose legs
+// are positive but should be counted as offsetting outflow in the
+// same effective-date bucket). Used by `handleOutTop`, `handleOutBills`,
+// and `handleOutBillsByType`. Pair with `SUM(-leg.amount)`, which
+// flips the positive refund leg to a negative contribution.
+const outflowOrRefundLeg = sql`(${schema.transactionLegs.amount} < 0 OR ${schema.transactions.type} = 'refund')`;
+
 // Adjustments are bookkeeping touch-ups, not real cash-flow events;
 // excluded from the outflow and net dimensions.
 const excludeAdjustments = ne(schema.transactions.type, "adjustment");
@@ -293,11 +300,6 @@ async function handleOutTop(ctx: CashFlowCtx): Promise<Row[]> {
     WHEN ${schema.transactions.type} = 'expense' THEN 'expense'
     WHEN ${schema.transactions.type} = 'refund' THEN 'expense'
   END`;
-
-  // The default `outflowLegFilter` requires `leg.amount < 0`. Refund
-  // legs are positive, so we widen the filter to also admit refund-
-  // typed rows.
-  const outflowOrRefundLeg = sql`(${schema.transactionLegs.amount} < 0 OR ${schema.transactions.type} = 'refund')`;
 
   return db
     .select({
@@ -539,44 +541,50 @@ async function handleOutBills(ctx: CashFlowCtx): Promise<Row[]> {
   // Stack per bill type (utility / subscription / other). The type
   // string itself doubles as both id and name for the wire — the
   // client renders a friendly label from the enum.
+  //
+  // Refund-aware: a refund of a bill charge has `tx.bill_id = NULL`
+  // but `originalTx.bill_id` points at the bill being refunded. The
+  // bills join uses `COALESCE` so refund rows inherit the bill via
+  // their original. `outflowOrRefundLeg` admits the refund's positive
+  // leg; `SUM(-leg.amount)` flips it negative so the refund offsets
+  // the original charge in the same effective-date bucket.
   const typeExpr = sql<string>`${schema.bills.type}`;
-  return (
-    db
-      .select({
-        period: periodExpr,
-        itemId: typeExpr,
-        itemName: typeExpr,
-        amountMinor: legAmountExpr,
-      })
-      .from(schema.transactionLegs)
-      .innerJoin(
-        schema.transactions,
-        eq(schema.transactions.id, schema.transactionLegs.transactionId),
-      )
-      // Bills never have refunds attached (refunds target raw expenses,
-      // not bill charges). LeftJoin so `truncExpr` is valid SQL.
-      .leftJoin(
-        originalTx,
-        eq(originalTx.id, schema.transactions.refundedTransactionId),
-      )
-      .innerJoin(
-        schema.accounts,
-        eq(schema.accounts.id, schema.transactionLegs.accountId),
-      )
-      .innerJoin(schema.bills, eq(schema.bills.id, schema.transactions.billId))
-      .where(
-        and(
-          eq(schema.transactions.workspaceId, workspaceId),
-          eq(schema.accounts.currency, currency),
-          outflowLegFilter,
-          everydayAccountFilter,
-          inDateRange(start, end, effectiveDateExpr),
-          accountGroupFilter(accountGroupId),
-        ),
-      )
-      .groupBy(truncExpr, schema.bills.type)
-      .orderBy(truncExpr)
-  );
+  return db
+    .select({
+      period: periodExpr,
+      itemId: typeExpr,
+      itemName: typeExpr,
+      amountMinor: legAmountExpr,
+    })
+    .from(schema.transactionLegs)
+    .innerJoin(
+      schema.transactions,
+      eq(schema.transactions.id, schema.transactionLegs.transactionId),
+    )
+    .leftJoin(
+      originalTx,
+      eq(originalTx.id, schema.transactions.refundedTransactionId),
+    )
+    .innerJoin(
+      schema.accounts,
+      eq(schema.accounts.id, schema.transactionLegs.accountId),
+    )
+    .innerJoin(
+      schema.bills,
+      sql`${schema.bills.id} = COALESCE(${schema.transactions.billId}, ${originalTx.billId})`,
+    )
+    .where(
+      and(
+        eq(schema.transactions.workspaceId, workspaceId),
+        eq(schema.accounts.currency, currency),
+        outflowOrRefundLeg,
+        everydayAccountFilter,
+        inDateRange(start, end, effectiveDateExpr),
+        accountGroupFilter(accountGroupId),
+      ),
+    )
+    .groupBy(truncExpr, schema.bills.type)
+    .orderBy(truncExpr);
 }
 
 async function handleOutBillsByType(ctx: CashFlowCtx): Promise<Row[]> {
@@ -596,6 +604,8 @@ async function handleOutBillsByType(ctx: CashFlowCtx): Promise<Row[]> {
   // Per-bill stacks. `billType` filter restricts to one bill type
   // (e.g., all subscription bills). `billId` filter restricts to a
   // single bill (leaf — series shape is the same, just one item).
+  // Refund-aware via the same COALESCE join + `outflowOrRefundLeg`
+  // pattern as `handleOutBills` — see comment there for the rationale.
   return db
     .select({
       period: periodExpr,
@@ -616,12 +626,15 @@ async function handleOutBillsByType(ctx: CashFlowCtx): Promise<Row[]> {
       schema.accounts,
       eq(schema.accounts.id, schema.transactionLegs.accountId),
     )
-    .innerJoin(schema.bills, eq(schema.bills.id, schema.transactions.billId))
+    .innerJoin(
+      schema.bills,
+      sql`${schema.bills.id} = COALESCE(${schema.transactions.billId}, ${originalTx.billId})`,
+    )
     .where(
       and(
         eq(schema.transactions.workspaceId, workspaceId),
         eq(schema.accounts.currency, currency),
-        outflowLegFilter,
+        outflowOrRefundLeg,
         everydayAccountFilter,
         inDateRange(start, end, effectiveDateExpr),
         accountGroupFilter(accountGroupId),
@@ -790,7 +803,12 @@ function buildCategoryTagCtx(
   const { granularity, tagId, categoryId } = params;
 
   const fmtLit = sql.raw(`'${PERIOD_FORMAT[granularity]}'`);
-  const truncExpr = truncExprFor(granularity, sql`${schema.transactions.date}`);
+  // Refund-aware bucketing: refund lines attribute to the original
+  // tx's date (so a January refund of a December expense lands in
+  // December), and contribute as signed-negative so they cancel the
+  // original expense line in the same category bucket. Handler must
+  // JOIN `originalTx` for `effectiveDateExpr` to resolve.
+  const truncExpr = truncExprFor(granularity, effectiveDateExpr);
 
   const tagFilter =
     tagId === "__none__"
@@ -812,7 +830,7 @@ function buildCategoryTagCtx(
     drilling: !!categoryId,
     periodExpr: sql<string>`to_char(${truncExpr}, ${fmtLit})`,
     truncExpr,
-    amountExpr: sql<string>`SUM(${schema.transactionLines.amount})::text`,
+    amountExpr: refundAwareLineSum,
     tagFilter,
   };
 }

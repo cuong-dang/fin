@@ -134,6 +134,43 @@ export async function seedSubcategory(
   return row!.id;
 }
 
+// ─── Bills ───────────────────────────────────────────────────────────────
+
+export type SeedBillOpts = {
+  workspaceId: string;
+  name: string;
+  type: "utility" | "subscription" | "other";
+  frequency?: "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly";
+  currency?: string;
+};
+
+export async function seedBill(opts: SeedBillOpts): Promise<string> {
+  const [row] = await db
+    .insert(schema.bills)
+    .values({
+      workspaceId: opts.workspaceId,
+      name: opts.name,
+      type: opts.type,
+      frequency: opts.frequency ?? "monthly",
+      currency: opts.currency ?? "USD",
+    })
+    .returning({ id: schema.bills.id });
+  return row!.id;
+}
+
+// ─── Tags ────────────────────────────────────────────────────────────────
+
+export async function seedTag(
+  workspaceId: string,
+  name: string,
+): Promise<string> {
+  const [row] = await db
+    .insert(schema.tags)
+    .values({ workspaceId, name })
+    .returning({ id: schema.tags.id });
+  return row!.id;
+}
+
 // ─── Transactions ────────────────────────────────────────────────────────
 
 export type SeedTxOpts = {
@@ -150,6 +187,7 @@ export type SeedTxOpts = {
     subcategoryId?: string;
     amount: bigint;
     currency?: string;
+    tagIds?: string[];
   }[];
 };
 
@@ -181,15 +219,28 @@ export async function seedTransaction(opts: SeedTxOpts): Promise<string> {
   );
 
   if (opts.lines?.length) {
-    await db.insert(schema.transactionLines).values(
-      opts.lines.map((l) => ({
-        transactionId: tx!.id,
-        categoryId: l.categoryId,
-        subcategoryId: l.subcategoryId ?? null,
-        amount: l.amount,
-        currency: l.currency ?? "USD",
-      })),
-    );
+    const lineRows = await db
+      .insert(schema.transactionLines)
+      .values(
+        opts.lines.map((l) => ({
+          transactionId: tx!.id,
+          categoryId: l.categoryId,
+          subcategoryId: l.subcategoryId ?? null,
+          amount: l.amount,
+          currency: l.currency ?? "USD",
+        })),
+      )
+      .returning({ id: schema.transactionLines.id });
+    // Attach line-tags in order. `lineRows` and `opts.lines` are
+    // index-aligned (Postgres preserves insert order for a single
+    // multi-row INSERT).
+    const tagRows = lineRows.flatMap((row, i) => {
+      const tagIds = opts.lines![i]?.tagIds ?? [];
+      return tagIds.map((tagId) => ({ lineId: row.id, tagId }));
+    });
+    if (tagRows.length > 0) {
+      await db.insert(schema.transactionLineTags).values(tagRows);
+    }
   }
 
   return tx!.id;
