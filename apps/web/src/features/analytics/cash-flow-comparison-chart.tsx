@@ -14,6 +14,7 @@ import {
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
+import { POINT_LABEL_MARGIN_RIGHT } from "./chart-config";
 import { ChartTitle } from "./chart-title";
 import {
   comparisonPeriods,
@@ -198,6 +199,14 @@ export function CashFlowComparisonChart({
               data={data}
               dataKey="day"
               h={300}
+              // Reserve right-side margin when point labels are on so
+              // the last bucket's label doesn't clip the SVG edge —
+              // same convention as DivergingNetChart.
+              {...(withPointLabels && {
+                lineChartProps: {
+                  margin: { right: POINT_LABEL_MARGIN_RIGHT },
+                },
+              })}
               series={series}
               tooltipProps={touchTooltipProps}
               withLegend
