@@ -303,7 +303,16 @@ function fold(s: CalcState, decimals: number): number {
 
 function backspace(s: CalcState): CalcState {
   if (s.currentInput !== "") {
-    return { ...s, currentInput: s.currentInput.slice(0, -1) };
+    // Backspace on a finalized value (just-evaluated result, or a
+    // seeded prefill like "100") enters edit mode: subsequent digits
+    // should append (`100` → backspace → `10` → `5` → `105`), not
+    // replace. Clearing `justEvaluated` here flips the engine out of
+    // "treat current as finalized" semantics.
+    return {
+      ...s,
+      currentInput: s.currentInput.slice(0, -1),
+      justEvaluated: false,
+    };
   }
   // Sitting after a pending operator with no right operand — pop the
   // op and restore the prior operand so the user can edit it. Works
