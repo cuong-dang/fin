@@ -16,3 +16,11 @@ body,
     font-size: 16px !important;
   }
 }
+
+/* Custom legend item for SortedBarChart — mirrors Mantine's own
+ * ChartLegend hover styling (defined in @mantine/charts) so our
+ * click-enabled custom legend feels native. Inline `style` doesn't
+ * support pseudo-classes, hence the class. */
+.sorted-bar-legend-item:hover {
+  background-color: var(--mantine-color-default-hover);
+}
