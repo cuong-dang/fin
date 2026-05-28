@@ -1,16 +1,10 @@
+import { MultiSelectChecklist } from "@/components/multi-select-checklist";
 import { getCategoryTag, listTags } from "@/lib/endpoints";
 
-import type { CategoryChartDirection, Granularity, Tag } from "@fin/schemas";
-import {
-  Card,
-  Group,
-  SegmentedControl,
-  Select,
-  Stack,
-  Text,
-} from "@mantine/core";
+import type { CategoryChartDirection, Granularity } from "@fin/schemas";
+import { Card, Group, SegmentedControl, Stack, Text } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { ChartTitle } from "./chart-title";
 import { DrillBreadcrumb } from "./drill-breadcrumb";
@@ -23,10 +17,9 @@ const DIRECTION_OPTIONS: { value: CategoryChartDirection; label: string }[] = [
   { value: "income", label: "Income" },
 ];
 
-// Two client-only sentinels for the tag picker. `ALL_TAGS` means "no
-// filter" and is omitted from the request; `UNTAGGED` matches the
-// server's "__none__" sentinel for untagged-only.
-const ALL_TAGS = "__all__";
+// Client-side sentinel matching the server's "untagged" filter — a
+// virtual tag that, when present in the selection, includes lines
+// with no tags alongside any concrete tags also selected.
 const UNTAGGED = "__none__";
 
 // Two drill levels, mirroring cash-flow's category branch: a
@@ -62,9 +55,6 @@ export function CategoryTagChart({
   withPointLabels: boolean;
 }) {
   const [direction, setDirection] = useState<CategoryChartDirection>("expense");
-  // ALL_TAGS / UNTAGGED / tag UUID. Translated to the wire format when
-  // building the query (see `tagIdArg` below).
-  const [tag, setTag] = useState<string>(ALL_TAGS);
   const [drill, setDrill] = useState<DrillSeg[]>([]);
 
   // Tag list scoped by direction — only tags that have been used on
@@ -74,11 +64,31 @@ export function CategoryTagChart({
     queryKey: ["tags", direction],
     queryFn: () => listTags(direction),
   });
-  const tags = tagsQ.data ?? [];
+  const tags = useMemo(() => tagsQ.data ?? [], [tagsQ.data]);
 
-  const tagIdArg = tag === ALL_TAGS ? undefined : tag;
+  // Multi-select for the tag filter. `null` = uninitialized (use all
+  // tags including untagged, no filter sent to server); a string[] =
+  // explicit user selection (`UNTAGGED` as a member is valid and
+  // matches lines with no tags). Empty array = "show none".
+  const [selectedTagIds, setSelectedTagIds] = useState<string[] | null>(null);
+  const allTagIds = useMemo(() => [UNTAGGED, ...tags.map((t) => t.id)], [tags]);
+  const tagIdsArg = useMemo(() => {
+    if (selectedTagIds === null) return undefined;
+    if (
+      selectedTagIds.length === allTagIds.length &&
+      selectedTagIds.every((id) => allTagIds.includes(id))
+    )
+      return undefined;
+    return selectedTagIds;
+  }, [selectedTagIds, allTagIds]);
+
   const categorySeg = drill.find((s) => s.kind === "category");
   const subcategorySeg = drill.find((s) => s.kind === "subcategory");
+
+  // User explicitly emptied the multi-select → show nothing. Same
+  // reasoning as `CashFlowChart`: empty array serializes to no query
+  // param, which the server would misread as "no filter".
+  const filterIsEmpty = selectedTagIds !== null && selectedTagIds.length === 0;
 
   const q = useQuery({
     queryKey: [
@@ -91,7 +101,7 @@ export function CategoryTagChart({
         direction,
         categoryId: categorySeg?.id ?? null,
         subcategoryId: subcategorySeg?.id ?? null,
-        tagId: tagIdArg ?? null,
+        tagIds: tagIdsArg ?? null,
       },
     ],
     queryFn: () =>
@@ -103,9 +113,9 @@ export function CategoryTagChart({
         direction,
         ...(categorySeg && { categoryId: categorySeg.id }),
         ...(subcategorySeg && { subcategoryId: subcategorySeg.id }),
-        ...(tagIdArg && { tagId: tagIdArg }),
+        ...(tagIdsArg && { tagIds: tagIdsArg }),
       }),
-    enabled: !!currency,
+    enabled: !!currency && !filterIsEmpty,
   });
 
   const items = q.data?.items ?? [];
@@ -130,7 +140,8 @@ export function CategoryTagChart({
   const onDirectionChange = (next: CategoryChartDirection) => {
     setDirection(next);
     setDrill([]);
-    setTag(ALL_TAGS);
+    // Reset to "all" since the new direction's tag list is different.
+    setSelectedTagIds(null);
   };
 
   // Drillable items by depth:
@@ -170,15 +181,15 @@ export function CategoryTagChart({
               value={direction}
               onChange={(v) => onDirectionChange(v as CategoryChartDirection)}
             />
-            <Select
-              aria-label="Tag filter"
-              // Only surface the clear (X) button when an actual
-              // filter is set — clearing the default sentinel would
-              // be a visible no-op.
-              clearable={tag !== ALL_TAGS}
-              data={tagOptions(tags)}
-              value={tag}
-              onChange={(v) => setTag(v ?? ALL_TAGS)}
+            <MultiSelectChecklist
+              allLabel="All tags"
+              ariaLabel="Tags"
+              options={[
+                { value: UNTAGGED, label: "Untagged" },
+                ...tags.map((t) => ({ value: t.id, label: t.name })),
+              ]}
+              value={selectedTagIds}
+              onChange={setSelectedTagIds}
             />
           </Group>
         </Group>
@@ -223,12 +234,4 @@ export function CategoryTagChart({
       </Stack>
     </Card>
   );
-}
-
-function tagOptions(tags: Tag[]): { value: string; label: string }[] {
-  return [
-    { value: ALL_TAGS, label: "All tags" },
-    { value: UNTAGGED, label: "Untagged" },
-    ...tags.map((t) => ({ value: t.id, label: t.name })),
-  ];
 }

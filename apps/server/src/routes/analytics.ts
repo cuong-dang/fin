@@ -57,14 +57,19 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
   app.get("/cash-flow", async (req, reply): Promise<AnalyticsChartResponse> => {
     const params = cashFlowQuery.parse(req.query);
 
-    if (params.accountGroupId) {
-      const group = await findOwned(
-        schema.accountGroups,
-        params.accountGroupId,
-        req.auth.workspaceId,
-      );
-      if (!group) {
-        return reply.code(404).send({ error: "Account group not found" });
+    if (params.accountGroupIds && params.accountGroupIds.length > 0) {
+      // Verify each selected group is workspace-owned. Reject the
+      // whole request on the first miss — partial filtering would
+      // silently drop the unowned IDs and confuse the caller.
+      for (const id of params.accountGroupIds) {
+        const group = await findOwned(
+          schema.accountGroups,
+          id,
+          req.auth.workspaceId,
+        );
+        if (!group) {
+          return reply.code(404).send({ error: "Account group not found" });
+        }
       }
     }
 
@@ -110,13 +115,12 @@ export const analyticsRoutes: FastifyPluginAsync = async (app) => {
         }
       }
 
-      if (params.tagId && params.tagId !== "__none__") {
-        const tag = await findOwned(
-          schema.tags,
-          params.tagId,
-          req.auth.workspaceId,
-        );
-        if (!tag) return reply.code(400).send({ error: "Tag not found" });
+      if (params.tagIds && params.tagIds.length > 0) {
+        for (const id of params.tagIds) {
+          if (id === "__none__") continue;
+          const tag = await findOwned(schema.tags, id, req.auth.workspaceId);
+          if (!tag) return reply.code(400).send({ error: "Tag not found" });
+        }
       }
 
       return runCategoryTag(params, req.auth.workspaceId);

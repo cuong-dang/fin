@@ -206,7 +206,8 @@ export const getCashFlow = (q: CashFlowQuery) => {
   });
   if (q.categoryId) qs.set("categoryId", q.categoryId);
   if (q.subcategoryId) qs.set("subcategoryId", q.subcategoryId);
-  if (q.accountGroupId) qs.set("accountGroupId", q.accountGroupId);
+  if (q.accountGroupIds)
+    for (const id of q.accountGroupIds) qs.append("accountGroupIds", id);
   if (q.billType) qs.set("billType", q.billType);
   if (q.billId) qs.set("billId", q.billId);
   if (q.loanId) qs.set("loanId", q.loanId);
@@ -223,7 +224,7 @@ export const getCategoryTag = (q: CategoryTagQuery) => {
   });
   if (q.categoryId) qs.set("categoryId", q.categoryId);
   if (q.subcategoryId) qs.set("subcategoryId", q.subcategoryId);
-  if (q.tagId) qs.set("tagId", q.tagId);
+  if (q.tagIds) for (const id of q.tagIds) qs.append("tagIds", id);
   return api<AnalyticsChartResponse>(`/api/analytics/category-tag?${qs}`);
 };
 

@@ -118,16 +118,17 @@ export function stateToQuery(
     start: string;
     end: string;
     currency: string;
-    /** Optional account-group filter — applied at every dimension. */
-    accountGroupId?: string | undefined;
+    /** Optional multi-select account-group filter — applied at every
+     *  dimension. Undefined = no filter; empty array = "show none". */
+    accountGroupIds?: string[] | undefined;
   },
 ): CashFlowQuery {
   const { direction, drill } = state;
-  // The schema's `accountGroupId` field is optional under
+  // The schema's `accountGroupIds` field is optional under
   // exactOptionalPropertyTypes; build a partial-spread so we never emit
-  // an explicit `accountGroupId: undefined`.
-  const common = base.accountGroupId
-    ? { ...base, accountGroupId: base.accountGroupId }
+  // an explicit `accountGroupIds: undefined`.
+  const common = base.accountGroupIds
+    ? { ...base, accountGroupIds: base.accountGroupIds }
     : base;
 
   if (direction === "net") return { ...common, dimension: "net" };

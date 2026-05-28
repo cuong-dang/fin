@@ -1,16 +1,10 @@
+import { MultiSelectChecklist } from "@/components/multi-select-checklist";
 import { getCashFlow, listAccountGroups } from "@/lib/endpoints";
 
 import type { Granularity } from "@fin/schemas";
 import type { AnalyticsChartResponse } from "@fin/schemas";
 import { LineChart, type LineChartSeries } from "@mantine/charts";
-import {
-  Card,
-  Group,
-  SegmentedControl,
-  Select,
-  Stack,
-  Text,
-} from "@mantine/core";
+import { Card, Group, SegmentedControl, Stack, Text } from "@mantine/core";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
@@ -31,8 +25,6 @@ const DIRECTION_OPTIONS: { value: Direction; label: string }[] = [
   { value: "out", label: "Out" },
   { value: "in", label: "In" },
 ];
-
-const ALL_GROUPS = "__all__";
 
 /** Color of the current-period (solid) line. Prior periods carry
  *  their own colors on the `Period` definition. */
@@ -66,15 +58,27 @@ export function CashFlowComparisonChart({
   withPointLabels: boolean;
 }) {
   const [direction, setDirection] = useState<Direction>("out");
-  const [accountGroupId, setAccountGroupId] = useState<string>(ALL_GROUPS);
-  const activeAccountGroupId =
-    accountGroupId === ALL_GROUPS ? undefined : accountGroupId;
 
   const groupsQ = useQuery({
     queryKey: ["account-groups"],
     queryFn: listAccountGroups,
   });
-  const groups = groupsQ.data ?? [];
+  const groups = useMemo(() => groupsQ.data ?? [], [groupsQ.data]);
+
+  // See `CashFlowChart` for the multi-select semantics — same here.
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[] | null>(
+    null,
+  );
+  const allGroupIds = useMemo(() => groups.map((g) => g.id), [groups]);
+  const accountGroupIds = useMemo(() => {
+    if (selectedGroupIds === null) return undefined;
+    if (
+      selectedGroupIds.length === allGroupIds.length &&
+      selectedGroupIds.every((id) => allGroupIds.includes(id))
+    )
+      return undefined;
+    return selectedGroupIds;
+  }, [selectedGroupIds, allGroupIds]);
 
   // Recompute period ranges only when the granularity changes (today
   // shifts at midnight; a stale "today" for the lifetime of a tab is
@@ -88,6 +92,12 @@ export function CashFlowComparisonChart({
   const bucketGranularity = granularity === "yearly" ? "monthly" : "daily";
   const bucketIndex = granularity === "yearly" ? monthOfPeriod : dayOfPeriod;
 
+  // Same trick as `CashFlowChart`: if the user has explicitly emptied
+  // the multi-select, skip the fetch (empty array serializes to no
+  // query param, which the server would misread as "no filter").
+  const filterIsEmpty =
+    selectedGroupIds !== null && selectedGroupIds.length === 0;
+
   const queries = useQueries({
     queries: periods.map((p) => ({
       queryKey: [
@@ -96,7 +106,7 @@ export function CashFlowComparisonChart({
         p.start,
         p.end,
         currency,
-        activeAccountGroupId,
+        accountGroupIds,
         bucketGranularity,
       ],
       queryFn: () =>
@@ -106,9 +116,9 @@ export function CashFlowComparisonChart({
           end: p.end,
           currency,
           dimension: "net",
-          ...(activeAccountGroupId && { accountGroupId: activeAccountGroupId }),
+          ...(accountGroupIds && { accountGroupIds }),
         }),
-      enabled: !!currency && periods.length > 0,
+      enabled: !!currency && periods.length > 0 && !filterIsEmpty,
     })),
   });
 
@@ -170,15 +180,12 @@ export function CashFlowComparisonChart({
               onChange={(v) => setDirection(v as Direction)}
             />
             {groups.length > 0 && (
-              <Select
-                aria-label="Account group"
-                clearable={accountGroupId !== ALL_GROUPS}
-                data={[
-                  { value: ALL_GROUPS, label: "All groups" },
-                  ...groups.map((g) => ({ value: g.id, label: g.name })),
-                ]}
-                value={accountGroupId}
-                onChange={(v) => setAccountGroupId(v ?? ALL_GROUPS)}
+              <MultiSelectChecklist
+                allLabel="All groups"
+                ariaLabel="Account groups"
+                options={groups.map((g) => ({ value: g.id, label: g.name }))}
+                value={selectedGroupIds}
+                onChange={setSelectedGroupIds}
               />
             )}
           </Group>

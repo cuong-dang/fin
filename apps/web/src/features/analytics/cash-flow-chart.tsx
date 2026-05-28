@@ -1,14 +1,8 @@
+import { MultiSelectChecklist } from "@/components/multi-select-checklist";
 import { getCashFlow, listAccountGroups } from "@/lib/endpoints";
 
 import type { Granularity } from "@fin/schemas";
-import {
-  Card,
-  Group,
-  SegmentedControl,
-  Select,
-  Stack,
-  Text,
-} from "@mantine/core";
+import { Card, Group, SegmentedControl, Stack, Text } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
@@ -39,8 +33,6 @@ const DIRECTION_OPTIONS: { value: Direction; label: string }[] = [
   { value: "net", label: DIRECTION_LABEL.net },
 ];
 
-const ALL_GROUPS = "__all__";
-
 export function CashFlowChart({
   granularity,
   start,
@@ -58,15 +50,37 @@ export function CashFlowChart({
     direction: "out",
     drill: [],
   });
-  const [accountGroupId, setAccountGroupId] = useState<string>(ALL_GROUPS);
-  const activeAccountGroupId =
-    accountGroupId === ALL_GROUPS ? undefined : accountGroupId;
 
   const groupsQ = useQuery({
     queryKey: ["account-groups"],
     queryFn: listAccountGroups,
   });
-  const groups = groupsQ.data ?? [];
+  // Memoize so the `?? []` fallback doesn't mint a fresh array on
+  // every render (which would invalidate `allGroupIds` below).
+  const groups = useMemo(() => groupsQ.data ?? [], [groupsQ.data]);
+
+  // Multi-select of account groups. `null` = not initialized (use all
+  // groups, no filter sent to server); a string[] = explicit user
+  // selection (an empty array means "show none" — see the schema).
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[] | null>(
+    null,
+  );
+  // Effective filter to send to the server:
+  //   - null (uninitialized) → omit param entirely.
+  //   - selection equals the full set → omit param so the query key is
+  //     stable + the server doesn't burn an IN(<all>) clause.
+  //   - empty array → send as-is; server returns nothing (matches the
+  //     multi-select "empty = show none" contract).
+  const allGroupIds = useMemo(() => groups.map((g) => g.id), [groups]);
+  const accountGroupIds = useMemo(() => {
+    if (selectedGroupIds === null) return undefined;
+    if (
+      selectedGroupIds.length === allGroupIds.length &&
+      selectedGroupIds.every((id) => allGroupIds.includes(id))
+    )
+      return undefined;
+    return selectedGroupIds;
+  }, [selectedGroupIds, allGroupIds]);
 
   const query = useMemo(
     () =>
@@ -75,15 +89,23 @@ export function CashFlowChart({
         start,
         end,
         currency,
-        accountGroupId: activeAccountGroupId,
+        ...(accountGroupIds && { accountGroupIds }),
       }),
-    [state, granularity, start, end, currency, activeAccountGroupId],
+    [state, granularity, start, end, currency, accountGroupIds],
   );
+
+  // User explicitly emptied the multi-select → show nothing. We skip
+  // the fetch entirely because an empty `accountGroupIds` array would
+  // serialize to no query param at all (the for-loop in `getCashFlow`
+  // iterates zero times), which the server reads as "no filter" — the
+  // opposite of what the user meant.
+  const filterIsEmpty =
+    selectedGroupIds !== null && selectedGroupIds.length === 0;
 
   const q = useQuery({
     queryKey: ["cash-flow", query],
     queryFn: () => getCashFlow(query),
-    enabled: !!currency,
+    enabled: !!currency && !filterIsEmpty,
   });
 
   const items = q.data?.items ?? [];
@@ -119,18 +141,12 @@ export function CashFlowChart({
               }
             />
             {groups.length > 0 && (
-              <Select
-                aria-label="Account group"
-                // Only surface the clear (X) button when an actual
-                // filter is set — clearing the default sentinel would
-                // be a visible no-op.
-                clearable={accountGroupId !== ALL_GROUPS}
-                data={[
-                  { value: ALL_GROUPS, label: "All groups" },
-                  ...groups.map((g) => ({ value: g.id, label: g.name })),
-                ]}
-                value={accountGroupId}
-                onChange={(v) => setAccountGroupId(v ?? ALL_GROUPS)}
+              <MultiSelectChecklist
+                allLabel="All groups"
+                ariaLabel="Account groups"
+                options={groups.map((g) => ({ value: g.id, label: g.name }))}
+                value={selectedGroupIds}
+                onChange={setSelectedGroupIds}
               />
             )}
           </Group>

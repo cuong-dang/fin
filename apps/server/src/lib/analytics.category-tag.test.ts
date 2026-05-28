@@ -286,7 +286,7 @@ describe("runCategoryTag — tag filter", () => {
         granularity: "monthly",
         currency: "USD",
         direction: "expense",
-        tagId: family,
+        tagIds: [family],
         ...WINDOW,
       },
       workspaceId,
@@ -295,7 +295,7 @@ describe("runCategoryTag — tag filter", () => {
     assert.equal(res.buckets[0]![groceries], 30);
   });
 
-  it("with tagId='__none__', includes only untagged lines", async () => {
+  it("with tagIds=['__none__'], includes only untagged lines", async () => {
     const { workspaceId, userId } = await seedWorkspaceAndUser();
     const groupId = await seedAccountGroup(workspaceId);
     const checking = await seedAccount({
@@ -329,7 +329,7 @@ describe("runCategoryTag — tag filter", () => {
         granularity: "monthly",
         currency: "USD",
         direction: "expense",
-        tagId: "__none__",
+        tagIds: ["__none__"],
         ...WINDOW,
       },
       workspaceId,

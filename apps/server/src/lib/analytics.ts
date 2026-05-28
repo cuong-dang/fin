@@ -176,11 +176,15 @@ const excludeAdjustments = ne(schema.transactions.type, "adjustment");
 // loan payment.
 const everydayAccountFilter = sql`${schema.accounts.type} IN ('checking_savings', 'credit_card')`;
 
-// Optional drill on a single account group (the "Spending" /
-// "Savings" picker on the cash-flow chart). Returns `undefined` when
-// nothing's picked so `and(...)` collapses it cleanly.
-function accountGroupFilter(id: string | undefined | null) {
-  return id ? eq(schema.accounts.accountGroupId, id) : undefined;
+// Optional multi-select on account groups (the chart's group picker).
+// Semantics:
+//   - undefined → no filter (cleanly collapses in `and(...)`)
+//   - empty array → match nothing (multi-select's "empty = show none")
+//   - non-empty → restrict to legs whose account is in any selected group
+function accountGroupFilter(ids: readonly string[] | undefined | null) {
+  if (!ids) return undefined;
+  if (ids.length === 0) return sql`false`;
+  return inArray(schema.accounts.accountGroupId, ids as string[]);
 }
 
 type CashFlowCtx = { workspaceId: string } & CashFlowQuery & {
@@ -275,7 +279,7 @@ async function handleOutTop(ctx: CashFlowCtx): Promise<Row[]> {
     currency,
     start,
     end,
-    accountGroupId,
+    accountGroupIds,
     periodExpr,
     truncExpr,
     legAmountExpr,
@@ -329,7 +333,7 @@ async function handleOutTop(ctx: CashFlowCtx): Promise<Row[]> {
         outflowOrRefundLeg,
         everydayAccountFilter,
         inDateRange(start, end, effectiveDateExpr),
-        accountGroupFilter(accountGroupId),
+        accountGroupFilter(accountGroupIds),
       ),
     )
     .groupBy(truncExpr, bucket)
@@ -355,7 +359,7 @@ async function handleCategory(
     start,
     end,
     currency,
-    accountGroupId,
+    accountGroupIds,
     categoryId,
     subcategoryId,
     periodExpr,
@@ -413,7 +417,7 @@ async function handleCategory(
     !isIncome ? sql`${schema.transactions.billId} IS NULL` : undefined,
     !isIncome ? everydayAccountFilter : undefined,
     inDateRange(start, end, effectiveDateExpr),
-    accountGroupFilter(accountGroupId),
+    accountGroupFilter(accountGroupIds),
   );
 
   if (drilling) {
@@ -462,7 +466,7 @@ async function handleOutLoans(ctx: CashFlowCtx): Promise<Row[]> {
     start,
     end,
     currency,
-    accountGroupId,
+    accountGroupIds,
     loanId,
     periodExpr,
     truncExpr,
@@ -517,7 +521,7 @@ async function handleOutLoans(ctx: CashFlowCtx): Promise<Row[]> {
           outflowLegFilter,
           everydayAccountFilter,
           inDateRange(start, end, effectiveDateExpr),
-          accountGroupFilter(accountGroupId),
+          accountGroupFilter(accountGroupIds),
           loanId ? eq(destAcc.id, loanId) : undefined,
         ),
       )
@@ -532,7 +536,7 @@ async function handleOutBills(ctx: CashFlowCtx): Promise<Row[]> {
     start,
     end,
     currency,
-    accountGroupId,
+    accountGroupIds,
     periodExpr,
     truncExpr,
     legAmountExpr,
@@ -580,7 +584,7 @@ async function handleOutBills(ctx: CashFlowCtx): Promise<Row[]> {
         outflowOrRefundLeg,
         everydayAccountFilter,
         inDateRange(start, end, effectiveDateExpr),
-        accountGroupFilter(accountGroupId),
+        accountGroupFilter(accountGroupIds),
       ),
     )
     .groupBy(truncExpr, schema.bills.type)
@@ -593,7 +597,7 @@ async function handleOutBillsByType(ctx: CashFlowCtx): Promise<Row[]> {
     start,
     end,
     currency,
-    accountGroupId,
+    accountGroupIds,
     billType: billTypeFilter,
     billId,
     periodExpr,
@@ -637,7 +641,7 @@ async function handleOutBillsByType(ctx: CashFlowCtx): Promise<Row[]> {
         outflowOrRefundLeg,
         everydayAccountFilter,
         inDateRange(start, end, effectiveDateExpr),
-        accountGroupFilter(accountGroupId),
+        accountGroupFilter(accountGroupIds),
         billTypeFilter ? eq(schema.bills.type, billTypeFilter) : undefined,
         billId ? eq(schema.bills.id, billId) : undefined,
       ),
@@ -652,7 +656,7 @@ async function handleNet(ctx: CashFlowCtx): Promise<Row[]> {
     start,
     end,
     currency,
-    accountGroupId,
+    accountGroupIds,
     periodExpr,
     truncExpr,
   } = ctx;
@@ -717,7 +721,7 @@ async function handleNet(ctx: CashFlowCtx): Promise<Row[]> {
     excludeAdjustments,
     excludeInternalTransfers,
     inDateRange(start, end, effectiveDateExpr),
-    accountGroupFilter(accountGroupId),
+    accountGroupFilter(accountGroupIds),
   );
 
   // Cast the awaited chain — the combination of an aliased self-join
@@ -786,7 +790,7 @@ type CategoryTagCtx = {
   direction: "income" | "expense";
   categoryId?: string | undefined;
   subcategoryId?: string | undefined;
-  tagId?: string | undefined;
+  tagIds?: readonly (string | "__none__")[] | undefined;
 
   // derived
   drilling: boolean;
@@ -800,7 +804,7 @@ function buildCategoryTagCtx(
   params: CategoryTagQuery,
   workspaceId: string,
 ): CategoryTagCtx {
-  const { granularity, tagId, categoryId } = params;
+  const { granularity, tagIds, categoryId } = params;
 
   const fmtLit = sql.raw(`'${PERIOD_FORMAT[granularity]}'`);
   // Refund-aware bucketing: refund lines attribute to the original
@@ -810,19 +814,12 @@ function buildCategoryTagCtx(
   // JOIN `originalTx` for `effectiveDateExpr` to resolve.
   const truncExpr = truncExprFor(granularity, effectiveDateExpr);
 
-  const tagFilter =
-    tagId === "__none__"
-      ? sql`NOT EXISTS (
-          SELECT 1 FROM transaction_line_tags lt
-          WHERE lt.line_id = ${schema.transactionLines.id}
-        )`
-      : tagId
-        ? sql`EXISTS (
-          SELECT 1 FROM transaction_line_tags lt
-          WHERE lt.line_id = ${schema.transactionLines.id}
-            AND lt.tag_id = ${tagId}
-        )`
-        : undefined;
+  // Multi-tag filter (OR / union):
+  //   - undefined            → no filter
+  //   - empty array          → match nothing (multi-select "empty = show none")
+  //   - includes "__none__"  → also include lines with no tags
+  //   - includes UUIDs       → also include lines tagged with any of them
+  const tagFilter = buildTagFilter(tagIds);
 
   return {
     workspaceId,
@@ -833,6 +830,31 @@ function buildCategoryTagCtx(
     amountExpr: refundAwareLineSum,
     tagFilter,
   };
+}
+
+function buildTagFilter(
+  tagIds: readonly (string | "__none__")[] | undefined,
+): SQL | undefined {
+  if (!tagIds) return undefined;
+  if (tagIds.length === 0) return sql`false`;
+  const wantsUntagged = tagIds.includes("__none__");
+  const concrete = tagIds.filter((t): t is string => t !== "__none__");
+  const untaggedClause = sql`NOT EXISTS (
+    SELECT 1 FROM transaction_line_tags lt
+    WHERE lt.line_id = ${schema.transactionLines.id}
+  )`;
+  if (concrete.length === 0) {
+    // Only "__none__" present.
+    return wantsUntagged ? untaggedClause : sql`false`;
+  }
+  const taggedClause = sql`EXISTS (
+    SELECT 1 FROM transaction_line_tags lt
+    WHERE lt.line_id = ${schema.transactionLines.id}
+      AND lt.tag_id IN ${concrete}
+  )`;
+  return wantsUntagged
+    ? sql`(${taggedClause} OR ${untaggedClause})`
+    : taggedClause;
 }
 
 /**

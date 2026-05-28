@@ -18,6 +18,18 @@ const baseChartQuery = z.object({
   currency: currencyField,
 });
 
+/**
+ * Multi-value query param. Fastify's querystring parser returns a
+ * string for `?k=a` and an array for `?k=a&k=b`. Lift the singular
+ * form into a one-element array so callers can rely on `string[]`.
+ */
+const queryArray = <T extends z.ZodTypeAny>(item: T) =>
+  z.preprocess(
+    (v) =>
+      v === undefined || v === null ? undefined : Array.isArray(v) ? v : [v],
+    z.array(item),
+  );
+
 // ─── Cash flow (out / in / net) ───────────────────────────────────────────
 
 /**
@@ -65,9 +77,12 @@ export type CashFlowDimension = z.infer<typeof cashFlowDimension>;
  */
 export const cashFlowQuery = baseChartQuery.extend({
   dimension: cashFlowDimension,
-  // Optional filter to one account group (sidebar UX). Independent of
-  // the drill axis.
-  accountGroupId: optionalUuid,
+  // Optional filter — restrict to legs whose account belongs to one of
+  // the given account groups. Independent of the drill axis. Omitted
+  // (or undefined) = no filter; an empty array intentionally matches
+  // nothing, mirroring the multi-select picker's "empty = show none"
+  // semantic.
+  accountGroupIds: queryArray(z.uuid()).optional(),
   // Drill filters. The client only sends each one with its compatible
   // dimension; the server treats illegal combos as a no-op.
   // - categoryId     : required for `outExpensesByCategory` and `inByCategory`.
@@ -107,19 +122,20 @@ export type CategoryChartDirection = z.infer<typeof categoryChartDirection>;
  *   - `subcategoryId` set (along with `categoryId`) → leaf: a single
  *     series for that one subcategory.
  *
- * `tagId` filters lines by tag (the line→tag M2M is the natural place
- * — tags only land on income/expense lines, never on transfer or
- * adjustment legs):
+ * `tagIds` filters lines by tag (the line→tag M2M is the natural
+ * place — tags only land on income/expense lines, never on transfer
+ * or adjustment legs):
  *   - omitted → no tag filter
- *   - a UUID → only lines tagged with that tag
- *   - "__none__" → only lines with no tags
- * Multi-tag selection isn't supported. (TODO?)
+ *   - any UUIDs → lines tagged with at least one (OR / union)
+ *   - `"__none__"` mixed in → also include untagged lines
+ *   - empty array → match nothing (matches the multi-select picker's
+ *     "empty = show none" semantic)
  */
 export const categoryTagQuery = baseChartQuery.extend({
   direction: categoryChartDirection.default("expense"),
   categoryId: optionalUuid,
   subcategoryId: optionalUuid,
-  tagId: z.union([z.uuid(), z.literal("__none__")]).optional(),
+  tagIds: queryArray(z.union([z.uuid(), z.literal("__none__")])).optional(),
 });
 export type CategoryTagQuery = z.infer<typeof categoryTagQuery>;
 
