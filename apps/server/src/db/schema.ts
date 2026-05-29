@@ -235,6 +235,10 @@ export const subcategories = pgTable(
   ],
 );
 
+// Tags are hard-deleted. Deleting a tag cascades through every
+// `transaction_line_tags`, `bill_default_line_tags`, and
+// `loan_default_line_tags` row that references it — line/template
+// rows themselves stay, just lose the association.
 export const tags = pgTable(
   "tags",
   {
@@ -249,13 +253,8 @@ export const tags = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
-    deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
-  (t) => [
-    uniqueIndex("tags_workspace_name_unique")
-      .on(t.workspaceId, t.name)
-      .where(sql`${t.deletedAt} IS NULL`),
-  ],
+  (t) => [uniqueIndex("tags_workspace_name_unique").on(t.workspaceId, t.name)],
 );
 
 // ─── Transactions, legs, lines ─────────────────────────────────────────────
@@ -374,7 +373,7 @@ export const transactionLineTags = pgTable(
       .references(() => transactionLines.id, { onDelete: "cascade" }),
     tagId: uuid("tag_id")
       .notNull()
-      .references(() => tags.id, { onDelete: "restrict" }),
+      .references(() => tags.id, { onDelete: "cascade" }),
   },
   (t) => [
     primaryKey({ columns: [t.lineId, t.tagId] }),
@@ -445,7 +444,7 @@ export const billDefaultLineTags = pgTable(
       .references(() => billDefaultLines.id, { onDelete: "cascade" }),
     tagId: uuid("tag_id")
       .notNull()
-      .references(() => tags.id, { onDelete: "restrict" }),
+      .references(() => tags.id, { onDelete: "cascade" }),
   },
   (t) => [primaryKey({ columns: [t.lineId, t.tagId] })],
 );
@@ -504,7 +503,7 @@ export const loanDefaultLineTags = pgTable(
       .references(() => loanDefaultLines.id, { onDelete: "cascade" }),
     tagId: uuid("tag_id")
       .notNull()
-      .references(() => tags.id, { onDelete: "restrict" }),
+      .references(() => tags.id, { onDelete: "cascade" }),
   },
   (t) => [primaryKey({ columns: [t.lineId, t.tagId] })],
 );

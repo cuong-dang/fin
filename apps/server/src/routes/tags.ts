@@ -9,7 +9,7 @@ import type { FastifyPluginAsync } from "fastify";
 
 import { schema } from "../db/index.js";
 import { db } from "../db/index.js";
-import { findOwned, listOwnedActive, ownedActive } from "../lib/authz.js";
+import { findOwned } from "../lib/authz.js";
 
 export const tagRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
@@ -17,11 +17,11 @@ export const tagRoutes: FastifyPluginAsync = async (app) => {
   app.get("/", async (req) => {
     const { kind } = listTagsQuery.parse(req.query);
     if (!kind) {
-      return listOwnedActive(
-        schema.tags,
-        req.auth.workspaceId,
-        schema.tags.name,
-      );
+      return db
+        .select({ id: schema.tags.id, name: schema.tags.name })
+        .from(schema.tags)
+        .where(eq(schema.tags.workspaceId, req.auth.workspaceId))
+        .orderBy(schema.tags.name);
     }
     // Filter via EXISTS on the tag→line→category chain. Same shape as
     // the analytics route's tag filter — keeps the row count stable
@@ -31,7 +31,7 @@ export const tagRoutes: FastifyPluginAsync = async (app) => {
       .from(schema.tags)
       .where(
         and(
-          ownedActive(schema.tags, req.auth.workspaceId),
+          eq(schema.tags.workspaceId, req.auth.workspaceId),
           exists(
             db
               .select({ one: sql`1` })
@@ -89,11 +89,10 @@ export const tagRoutes: FastifyPluginAsync = async (app) => {
     const owned = await findOwned(schema.tags, id, req.auth.workspaceId);
     if (!owned) return reply.code(404).send({ error: "Not found" });
 
-    // Soft-delete
-    await db
-      .update(schema.tags)
-      .set({ deletedAt: new Date(), updatedAt: new Date() })
-      .where(eq(schema.tags.id, id));
+    // Hard delete. FKs from `transaction_line_tags`,
+    // `bill_default_line_tags`, and `loan_default_line_tags` cascade
+    // — the tagged line / template row stays, just loses the tag.
+    await db.delete(schema.tags).where(eq(schema.tags.id, id));
     return reply.code(204).send();
   });
 };
