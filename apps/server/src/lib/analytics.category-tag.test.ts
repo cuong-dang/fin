@@ -33,12 +33,15 @@ import {
 } from "../test/helpers.js";
 import { runCategoryTag } from "./analytics.js";
 
-const WINDOW = { start: "2026-03-01", end: "2026-03-31" } as const;
+// March + April. Tests that exercise aggregation seed data in BOTH
+// months (2 txs March, 1 tx April is the typical pattern) so a
+// regression in either period or in cross-period grouping surfaces.
+const WINDOW = { start: "2026-03-01", end: "2026-04-30" } as const;
 
 describe("runCategoryTag — top-level category aggregation", () => {
   beforeEach(truncateAll);
 
-  it("sums expense lines under the same category into one series", async () => {
+  it("sums expense lines under the same category per period", async () => {
     const { workspaceId, userId } = await seedWorkspaceAndUser();
     const groupId = await seedAccountGroup(workspaceId);
     const checking = await seedAccount({
@@ -49,6 +52,7 @@ describe("runCategoryTag — top-level category aggregation", () => {
     });
     const groceries = await seedCategory(workspaceId, "Groceries", "expense");
 
+    // March: 2 txs ($30 + $20 = $50).
     await seedTransaction({
       workspaceId,
       userId,
@@ -65,6 +69,15 @@ describe("runCategoryTag — top-level category aggregation", () => {
       legs: [{ accountId: checking, amount: -usd(20) }],
       lines: [{ categoryId: groceries, amount: usd(20) }],
     });
+    // April: 1 tx ($15).
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-04-08",
+      type: "expense",
+      legs: [{ accountId: checking, amount: -usd(15) }],
+      lines: [{ categoryId: groceries, amount: usd(15) }],
+    });
 
     const res = await runCategoryTag(
       {
@@ -76,10 +89,13 @@ describe("runCategoryTag — top-level category aggregation", () => {
       workspaceId,
     );
 
-    assert.equal(res.buckets[0]![groceries], 50);
+    const march = res.buckets.find((b) => b.period.startsWith("2026-03"));
+    const april = res.buckets.find((b) => b.period.startsWith("2026-04"));
+    assert.equal(march![groceries], 50);
+    assert.equal(april![groceries], 15);
   });
 
-  it("returns one series per distinct expense category", async () => {
+  it("returns one series per distinct expense category, summed per period", async () => {
     const { workspaceId, userId } = await seedWorkspaceAndUser();
     const groupId = await seedAccountGroup(workspaceId);
     const checking = await seedAccount({
@@ -91,6 +107,7 @@ describe("runCategoryTag — top-level category aggregation", () => {
     const groceries = await seedCategory(workspaceId, "Groceries", "expense");
     const dining = await seedCategory(workspaceId, "Dining", "expense");
 
+    // March: 1 Groceries + 1 Dining.
     await seedTransaction({
       workspaceId,
       userId,
@@ -107,6 +124,15 @@ describe("runCategoryTag — top-level category aggregation", () => {
       legs: [{ accountId: checking, amount: -usd(25) }],
       lines: [{ categoryId: dining, amount: usd(25) }],
     });
+    // April: 1 Groceries only.
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-04-12",
+      type: "expense",
+      legs: [{ accountId: checking, amount: -usd(10) }],
+      lines: [{ categoryId: groceries, amount: usd(10) }],
+    });
 
     const res = await runCategoryTag(
       {
@@ -118,8 +144,13 @@ describe("runCategoryTag — top-level category aggregation", () => {
       workspaceId,
     );
 
-    assert.equal(res.buckets[0]![groceries], 40);
-    assert.equal(res.buckets[0]![dining], 25);
+    const march = res.buckets.find((b) => b.period.startsWith("2026-03"))!;
+    const april = res.buckets.find((b) => b.period.startsWith("2026-04"))!;
+    assert.equal(march[groceries], 40);
+    assert.equal(march[dining], 25);
+    assert.equal(april[groceries], 10);
+    // Dining had no April activity — series omitted from that bucket.
+    assert.equal(april[dining], undefined);
   });
 
   it("excludes income categories when direction='expense'", async () => {
@@ -134,6 +165,7 @@ describe("runCategoryTag — top-level category aggregation", () => {
     const groceries = await seedCategory(workspaceId, "Groceries", "expense");
     const salary = await seedCategory(workspaceId, "Salary", "income");
 
+    // March: $30 expense + $2000 income (income should be excluded).
     await seedTransaction({
       workspaceId,
       userId,
@@ -150,6 +182,15 @@ describe("runCategoryTag — top-level category aggregation", () => {
       legs: [{ accountId: checking, amount: usd(2000) }],
       lines: [{ categoryId: salary, amount: usd(2000) }],
     });
+    // April: $45 expense only.
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-04-12",
+      type: "expense",
+      legs: [{ accountId: checking, amount: -usd(45) }],
+      lines: [{ categoryId: groceries, amount: usd(45) }],
+    });
 
     const res = await runCategoryTag(
       {
@@ -161,11 +202,14 @@ describe("runCategoryTag — top-level category aggregation", () => {
       workspaceId,
     );
 
-    assert.equal(res.buckets[0]![groceries], 30);
-    assert.equal(res.buckets[0]![salary], undefined);
+    const march = res.buckets.find((b) => b.period.startsWith("2026-03"))!;
+    const april = res.buckets.find((b) => b.period.startsWith("2026-04"))!;
+    assert.equal(march[groceries], 30);
+    assert.equal(march[salary], undefined);
+    assert.equal(april[groceries], 45);
   });
 
-  it("includes income categories when direction='income'", async () => {
+  it("includes income categories when direction='income', summed per period", async () => {
     const { workspaceId, userId } = await seedWorkspaceAndUser();
     const groupId = await seedAccountGroup(workspaceId);
     const checking = await seedAccount({
@@ -175,7 +219,9 @@ describe("runCategoryTag — top-level category aggregation", () => {
       type: "checking_savings",
     });
     const salary = await seedCategory(workspaceId, "Salary", "income");
+    const bonus = await seedCategory(workspaceId, "Bonus", "income");
 
+    // March: salary + bonus.
     await seedTransaction({
       workspaceId,
       userId,
@@ -183,6 +229,23 @@ describe("runCategoryTag — top-level category aggregation", () => {
       type: "income",
       legs: [{ accountId: checking, amount: usd(2000) }],
       lines: [{ categoryId: salary, amount: usd(2000) }],
+    });
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-03-28",
+      type: "income",
+      legs: [{ accountId: checking, amount: usd(500) }],
+      lines: [{ categoryId: bonus, amount: usd(500) }],
+    });
+    // April: just salary.
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-04-15",
+      type: "income",
+      legs: [{ accountId: checking, amount: usd(2100) }],
+      lines: [{ categoryId: salary, amount: usd(2100) }],
     });
 
     const res = await runCategoryTag(
@@ -195,62 +258,19 @@ describe("runCategoryTag — top-level category aggregation", () => {
       workspaceId,
     );
 
-    assert.equal(res.buckets[0]![salary], 2000);
-  });
-
-  it("buckets by month across a wide date range", async () => {
-    const { workspaceId, userId } = await seedWorkspaceAndUser();
-    const groupId = await seedAccountGroup(workspaceId);
-    const checking = await seedAccount({
-      workspaceId,
-      accountGroupId: groupId,
-      name: "Checking",
-      type: "checking_savings",
-    });
-    const groceries = await seedCategory(workspaceId, "Groceries", "expense");
-
-    await seedTransaction({
-      workspaceId,
-      userId,
-      date: "2026-03-05",
-      type: "expense",
-      legs: [{ accountId: checking, amount: -usd(30) }],
-      lines: [{ categoryId: groceries, amount: usd(30) }],
-    });
-    await seedTransaction({
-      workspaceId,
-      userId,
-      date: "2026-04-10",
-      type: "expense",
-      legs: [{ accountId: checking, amount: -usd(45) }],
-      lines: [{ categoryId: groceries, amount: usd(45) }],
-    });
-
-    const res = await runCategoryTag(
-      {
-        granularity: "monthly",
-        currency: "USD",
-        direction: "expense",
-        start: "2026-03-01",
-        end: "2026-04-30",
-      },
-      workspaceId,
-    );
-
-    assert.equal(res.buckets.length, 2);
-    // Mantine charts read period as the bucket label; assert by
-    // walking the buckets array rather than indexing on string.
-    const march = res.buckets.find((b) => b.period.startsWith("2026-03"));
-    const april = res.buckets.find((b) => b.period.startsWith("2026-04"));
-    assert.equal(march![groceries], 30);
-    assert.equal(april![groceries], 45);
+    const march = res.buckets.find((b) => b.period.startsWith("2026-03"))!;
+    const april = res.buckets.find((b) => b.period.startsWith("2026-04"))!;
+    assert.equal(march[salary], 2000);
+    assert.equal(march[bonus], 500);
+    assert.equal(april[salary], 2100);
+    assert.equal(april[bonus], undefined);
   });
 });
 
 describe("runCategoryTag — tag filter", () => {
   beforeEach(truncateAll);
 
-  it("with a specific tag id, includes only lines carrying that tag", async () => {
+  it("with a specific tag id, includes only lines carrying that tag, summed per period", async () => {
     const { workspaceId, userId } = await seedWorkspaceAndUser();
     const groupId = await seedAccountGroup(workspaceId);
     const checking = await seedAccount({
@@ -262,7 +282,7 @@ describe("runCategoryTag — tag filter", () => {
     const groceries = await seedCategory(workspaceId, "Groceries", "expense");
     const family = await seedTag(workspaceId, "family");
 
-    // Tagged $30.
+    // March: 2 tagged ($30 + $20 = $50) + 1 untagged $50 (noise).
     await seedTransaction({
       workspaceId,
       userId,
@@ -271,7 +291,14 @@ describe("runCategoryTag — tag filter", () => {
       legs: [{ accountId: checking, amount: -usd(30) }],
       lines: [{ categoryId: groceries, amount: usd(30), tagIds: [family] }],
     });
-    // Untagged $50 — should be excluded by the filter.
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-03-12",
+      type: "expense",
+      legs: [{ accountId: checking, amount: -usd(20) }],
+      lines: [{ categoryId: groceries, amount: usd(20), tagIds: [family] }],
+    });
     await seedTransaction({
       workspaceId,
       userId,
@@ -279,6 +306,15 @@ describe("runCategoryTag — tag filter", () => {
       type: "expense",
       legs: [{ accountId: checking, amount: -usd(50) }],
       lines: [{ categoryId: groceries, amount: usd(50) }],
+    });
+    // April: 1 tagged ($15).
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-04-10",
+      type: "expense",
+      legs: [{ accountId: checking, amount: -usd(15) }],
+      lines: [{ categoryId: groceries, amount: usd(15), tagIds: [family] }],
     });
 
     const res = await runCategoryTag(
@@ -292,10 +328,13 @@ describe("runCategoryTag — tag filter", () => {
       workspaceId,
     );
 
-    assert.equal(res.buckets[0]![groceries], 30);
+    const march = res.buckets.find((b) => b.period.startsWith("2026-03"))!;
+    const april = res.buckets.find((b) => b.period.startsWith("2026-04"))!;
+    assert.equal(march[groceries], 50);
+    assert.equal(april[groceries], 15);
   });
 
-  it("with tagIds=['__none__'], includes only untagged lines", async () => {
+  it("with tagIds=['__none__'], includes only untagged lines, per period", async () => {
     const { workspaceId, userId } = await seedWorkspaceAndUser();
     const groupId = await seedAccountGroup(workspaceId);
     const checking = await seedAccount({
@@ -307,6 +346,7 @@ describe("runCategoryTag — tag filter", () => {
     const groceries = await seedCategory(workspaceId, "Groceries", "expense");
     const family = await seedTag(workspaceId, "family");
 
+    // March: 2 untagged ($50 + $20 = $70) + 1 tagged $30 (noise).
     await seedTransaction({
       workspaceId,
       userId,
@@ -323,6 +363,23 @@ describe("runCategoryTag — tag filter", () => {
       legs: [{ accountId: checking, amount: -usd(50) }],
       lines: [{ categoryId: groceries, amount: usd(50) }],
     });
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-03-22",
+      type: "expense",
+      legs: [{ accountId: checking, amount: -usd(20) }],
+      lines: [{ categoryId: groceries, amount: usd(20) }],
+    });
+    // April: 1 untagged ($40).
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-04-08",
+      type: "expense",
+      legs: [{ accountId: checking, amount: -usd(40) }],
+      lines: [{ categoryId: groceries, amount: usd(40) }],
+    });
 
     const res = await runCategoryTag(
       {
@@ -335,14 +392,17 @@ describe("runCategoryTag — tag filter", () => {
       workspaceId,
     );
 
-    assert.equal(res.buckets[0]![groceries], 50);
+    const march = res.buckets.find((b) => b.period.startsWith("2026-03"))!;
+    const april = res.buckets.find((b) => b.period.startsWith("2026-04"))!;
+    assert.equal(march[groceries], 70);
+    assert.equal(april[groceries], 40);
   });
 });
 
 describe("runCategoryTag — currency filter", () => {
   beforeEach(truncateAll);
 
-  it("filters lines by `line.currency`, not by account currency", async () => {
+  it("filters lines by `line.currency`, not by account currency, summed per period", async () => {
     const { workspaceId, userId } = await seedWorkspaceAndUser();
     const groupId = await seedAccountGroup(workspaceId);
     const usdChecking = await seedAccount({
@@ -361,6 +421,7 @@ describe("runCategoryTag — currency filter", () => {
     });
     const groceries = await seedCategory(workspaceId, "Groceries", "expense");
 
+    // March: 2 USD ($40 + $30 = $70) + 1 EUR €25 (noise for USD query).
     await seedTransaction({
       workspaceId,
       userId,
@@ -372,10 +433,27 @@ describe("runCategoryTag — currency filter", () => {
     await seedTransaction({
       workspaceId,
       userId,
+      date: "2026-03-18",
+      type: "expense",
+      legs: [{ accountId: usdChecking, amount: -usd(30) }],
+      lines: [{ categoryId: groceries, amount: usd(30), currency: "USD" }],
+    });
+    await seedTransaction({
+      workspaceId,
+      userId,
       date: "2026-03-10",
       type: "expense",
       legs: [{ accountId: eurChecking, amount: -usd(25) }],
       lines: [{ categoryId: groceries, amount: usd(25), currency: "EUR" }],
+    });
+    // April: 1 USD ($20).
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-04-08",
+      type: "expense",
+      legs: [{ accountId: usdChecking, amount: -usd(20) }],
+      lines: [{ categoryId: groceries, amount: usd(20), currency: "USD" }],
     });
 
     const usdRes = await runCategoryTag(
@@ -387,7 +465,14 @@ describe("runCategoryTag — currency filter", () => {
       },
       workspaceId,
     );
-    assert.equal(usdRes.buckets[0]![groceries], 40);
+    const usdMarch = usdRes.buckets.find((b) =>
+      b.period.startsWith("2026-03"),
+    )!;
+    const usdApril = usdRes.buckets.find((b) =>
+      b.period.startsWith("2026-04"),
+    )!;
+    assert.equal(usdMarch[groceries], 70);
+    assert.equal(usdApril[groceries], 20);
 
     const eurRes = await runCategoryTag(
       {
@@ -398,14 +483,22 @@ describe("runCategoryTag — currency filter", () => {
       },
       workspaceId,
     );
-    assert.equal(eurRes.buckets[0]![groceries], 25);
+    const eurMarch = eurRes.buckets.find((b) =>
+      b.period.startsWith("2026-03"),
+    )!;
+    assert.equal(eurMarch[groceries], 25);
+    // No EUR activity in April — series omitted.
+    assert.equal(
+      eurRes.buckets.find((b) => b.period.startsWith("2026-04")),
+      undefined,
+    );
   });
 });
 
 describe("runCategoryTag — drill into one category", () => {
   beforeEach(truncateAll);
 
-  it("with categoryId set, returns one series per subcategory", async () => {
+  it("with categoryId set, returns one series per subcategory, summed per period", async () => {
     const { workspaceId, userId } = await seedWorkspaceAndUser();
     const groupId = await seedAccountGroup(workspaceId);
     const checking = await seedAccount({
@@ -418,6 +511,7 @@ describe("runCategoryTag — drill into one category", () => {
     const produce = await seedSubcategory(groceries, "Produce");
     const meat = await seedSubcategory(groceries, "Meat");
 
+    // March: 1 Produce + 1 Meat.
     await seedTransaction({
       workspaceId,
       userId,
@@ -435,6 +529,17 @@ describe("runCategoryTag — drill into one category", () => {
       type: "expense",
       legs: [{ accountId: checking, amount: -usd(35) }],
       lines: [{ categoryId: groceries, subcategoryId: meat, amount: usd(35) }],
+    });
+    // April: 1 Produce only.
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-04-12",
+      type: "expense",
+      legs: [{ accountId: checking, amount: -usd(15) }],
+      lines: [
+        { categoryId: groceries, subcategoryId: produce, amount: usd(15) },
+      ],
     });
 
     const res = await runCategoryTag(
@@ -448,11 +553,15 @@ describe("runCategoryTag — drill into one category", () => {
       workspaceId,
     );
 
-    assert.equal(res.buckets[0]![produce], 20);
-    assert.equal(res.buckets[0]![meat], 35);
+    const march = res.buckets.find((b) => b.period.startsWith("2026-03"))!;
+    const april = res.buckets.find((b) => b.period.startsWith("2026-04"))!;
+    assert.equal(march[produce], 20);
+    assert.equal(march[meat], 35);
+    assert.equal(april[produce], 15);
+    assert.equal(april[meat], undefined);
   });
 
-  it("with categoryId + subcategoryId, restricts to that one subcategory", async () => {
+  it("with categoryId + subcategoryId, restricts to that one subcategory across periods", async () => {
     const { workspaceId, userId } = await seedWorkspaceAndUser();
     const groupId = await seedAccountGroup(workspaceId);
     const checking = await seedAccount({
@@ -465,6 +574,7 @@ describe("runCategoryTag — drill into one category", () => {
     const produce = await seedSubcategory(groceries, "Produce");
     const meat = await seedSubcategory(groceries, "Meat");
 
+    // March: 2 Produce ($20 + $10 = $30) + 1 Meat $35 (noise).
     await seedTransaction({
       workspaceId,
       userId,
@@ -478,10 +588,31 @@ describe("runCategoryTag — drill into one category", () => {
     await seedTransaction({
       workspaceId,
       userId,
+      date: "2026-03-18",
+      type: "expense",
+      legs: [{ accountId: checking, amount: -usd(10) }],
+      lines: [
+        { categoryId: groceries, subcategoryId: produce, amount: usd(10) },
+      ],
+    });
+    await seedTransaction({
+      workspaceId,
+      userId,
       date: "2026-03-10",
       type: "expense",
       legs: [{ accountId: checking, amount: -usd(35) }],
       lines: [{ categoryId: groceries, subcategoryId: meat, amount: usd(35) }],
+    });
+    // April: 1 Produce ($25).
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-04-09",
+      type: "expense",
+      legs: [{ accountId: checking, amount: -usd(25) }],
+      lines: [
+        { categoryId: groceries, subcategoryId: produce, amount: usd(25) },
+      ],
     });
 
     const res = await runCategoryTag(
@@ -496,8 +627,11 @@ describe("runCategoryTag — drill into one category", () => {
       workspaceId,
     );
 
-    assert.equal(res.buckets[0]![produce], 20);
-    assert.equal(res.buckets[0]![meat], undefined);
+    const march = res.buckets.find((b) => b.period.startsWith("2026-03"))!;
+    const april = res.buckets.find((b) => b.period.startsWith("2026-04"))!;
+    assert.equal(march[produce], 30);
+    assert.equal(march[meat], undefined);
+    assert.equal(april[produce], 25);
   });
 });
 

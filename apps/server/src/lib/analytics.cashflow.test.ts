@@ -31,12 +31,15 @@ import {
 } from "../test/helpers.js";
 import { runCashFlow } from "./analytics.js";
 
-const WINDOW = { start: "2026-03-01", end: "2026-03-31" } as const;
+// March + April. Aggregation tests seed in both months (2 in March,
+// 1 in April is the common pattern) so a regression in either bucket
+// or in cross-period grouping surfaces.
+const WINDOW = { start: "2026-03-01", end: "2026-04-30" } as const;
 
 describe("runCashFlow — outTop (3-bucket monthly)", () => {
   beforeEach(truncateAll);
 
-  it("sums expenses, loan payments, and bill charges into separate buckets", async () => {
+  it("sums expenses, loan payments, and bill charges into separate buckets, per period", async () => {
     const { workspaceId, userId } = await seedWorkspaceAndUser();
     const groupId = await seedAccountGroup(workspaceId);
     const checking = await seedAccount({
@@ -54,7 +57,20 @@ describe("runCashFlow — outTop (3-bucket monthly)", () => {
     const groceries = await seedCategory(workspaceId, "Groceries", "expense");
     const utilities = await seedCategory(workspaceId, "Utilities", "expense");
 
-    // Plain expense: $30 grocery on 2026-03-10.
+    const { db, schema } = await import("../db/index.js");
+    const [bill] = await db
+      .insert(schema.bills)
+      .values({
+        workspaceId,
+        name: "Electric",
+        type: "utility",
+        frequency: "monthly",
+        currency: "USD",
+      })
+      .returning({ id: schema.bills.id });
+
+    // March: 2 plain expenses ($30 + $20 = $50), 1 loan payment ($200),
+    // 1 bill charge ($50).
     await seedTransaction({
       workspaceId,
       userId,
@@ -63,8 +79,14 @@ describe("runCashFlow — outTop (3-bucket monthly)", () => {
       legs: [{ accountId: checking, amount: -usd(30) }],
       lines: [{ categoryId: groceries, amount: usd(30) }],
     });
-
-    // Loan payment: $200 transfer from checking → mortgage on 2026-03-15.
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-03-22",
+      type: "expense",
+      legs: [{ accountId: checking, amount: -usd(20) }],
+      lines: [{ categoryId: groceries, amount: usd(20) }],
+    });
     await seedTransaction({
       workspaceId,
       userId,
@@ -75,20 +97,6 @@ describe("runCashFlow — outTop (3-bucket monthly)", () => {
         { accountId: loanAcct, amount: usd(200) },
       ],
     });
-
-    // Bill-linked expense: $50 utility on 2026-03-20.
-    const [bill] = await (
-      await import("../db/index.js")
-    ).db
-      .insert((await import("../db/index.js")).schema.bills)
-      .values({
-        workspaceId,
-        name: "Electric",
-        type: "utility",
-        frequency: "monthly",
-        currency: "USD",
-      })
-      .returning({ id: (await import("../db/index.js")).schema.bills.id });
     await seedTransaction({
       workspaceId,
       userId,
@@ -97,6 +105,16 @@ describe("runCashFlow — outTop (3-bucket monthly)", () => {
       billId: bill!.id,
       legs: [{ accountId: checking, amount: -usd(50) }],
       lines: [{ categoryId: utilities, amount: usd(50) }],
+    });
+
+    // April: 1 plain expense ($15) only.
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-04-08",
+      type: "expense",
+      legs: [{ accountId: checking, amount: -usd(15) }],
+      lines: [{ categoryId: groceries, amount: usd(15) }],
     });
 
     const res = await runCashFlow(
@@ -109,11 +127,14 @@ describe("runCashFlow — outTop (3-bucket monthly)", () => {
       workspaceId,
     );
 
-    assert.equal(res.buckets.length, 1, "single monthly bucket");
-    const bucket = res.buckets[0]!;
-    assert.equal(bucket.expense, 30, "expense bucket is the plain grocery");
-    assert.equal(bucket.loan, 200, "loan bucket is the transfer-to-loan");
-    assert.equal(bucket.bill, 50, "bill bucket is the utility charge");
+    const march = res.buckets.find((b) => b.period.startsWith("2026-03"))!;
+    const april = res.buckets.find((b) => b.period.startsWith("2026-04"))!;
+    assert.equal(march.expense, 50, "March expense = 30 + 20");
+    assert.equal(march.loan, 200, "March loan = single payment");
+    assert.equal(march.bill, 50, "March bill = utility charge");
+    assert.equal(april.expense, 15, "April expense = 15");
+    assert.equal(april.loan, undefined, "April had no loan activity");
+    assert.equal(april.bill, undefined, "April had no bill activity");
   });
 
   it("excludes expenses originating from a loan account (BNPL purchases)", async () => {
@@ -219,7 +240,7 @@ describe("runCashFlow — outTop (3-bucket monthly)", () => {
 describe("runCashFlow — outExpenses by category", () => {
   beforeEach(truncateAll);
 
-  it("aggregates expense lines per category", async () => {
+  it("aggregates expense lines per category, summed per period", async () => {
     const { workspaceId, userId } = await seedWorkspaceAndUser();
     const groupId = await seedAccountGroup(workspaceId);
     const checking = await seedAccount({
@@ -231,6 +252,7 @@ describe("runCashFlow — outExpenses by category", () => {
     const groceries = await seedCategory(workspaceId, "Groceries", "expense");
     const dining = await seedCategory(workspaceId, "Dining", "expense");
 
+    // March: 1 Groceries $80, 1 Dining $45.
     await seedTransaction({
       workspaceId,
       userId,
@@ -247,6 +269,15 @@ describe("runCashFlow — outExpenses by category", () => {
       legs: [{ accountId: checking, amount: -usd(45) }],
       lines: [{ categoryId: dining, amount: usd(45) }],
     });
+    // April: 1 Groceries $20.
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-04-12",
+      type: "expense",
+      legs: [{ accountId: checking, amount: -usd(20) }],
+      lines: [{ categoryId: groceries, amount: usd(20) }],
+    });
 
     const res = await runCashFlow(
       {
@@ -258,10 +289,13 @@ describe("runCashFlow — outExpenses by category", () => {
       workspaceId,
     );
 
-    const bucket = res.buckets[0]!;
-    assert.equal(bucket[groceries], 80);
-    assert.equal(bucket[dining], 45);
-    // Two distinct series in the response items.
+    const march = res.buckets.find((b) => b.period.startsWith("2026-03"))!;
+    const april = res.buckets.find((b) => b.period.startsWith("2026-04"))!;
+    assert.equal(march[groceries], 80);
+    assert.equal(march[dining], 45);
+    assert.equal(april[groceries], 20);
+    assert.equal(april[dining], undefined, "no dining in April");
+    // Two distinct series across the whole response.
     assert.equal(res.items.length, 2);
   });
 
@@ -346,7 +380,7 @@ describe("runCashFlow — outExpenses by category", () => {
 describe("runCashFlow — inTop / income", () => {
   beforeEach(truncateAll);
 
-  it("groups income lines by category", async () => {
+  it("groups income lines by category, summed per period", async () => {
     const { workspaceId, userId } = await seedWorkspaceAndUser();
     const groupId = await seedAccountGroup(workspaceId);
     const checking = await seedAccount({
@@ -358,6 +392,7 @@ describe("runCashFlow — inTop / income", () => {
     const salary = await seedCategory(workspaceId, "Salary", "income");
     const freelance = await seedCategory(workspaceId, "Freelance", "income");
 
+    // March: salary + freelance.
     await seedTransaction({
       workspaceId,
       userId,
@@ -374,6 +409,15 @@ describe("runCashFlow — inTop / income", () => {
       legs: [{ accountId: checking, amount: usd(500) }],
       lines: [{ categoryId: freelance, amount: usd(500) }],
     });
+    // April: salary only.
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-04-01",
+      type: "income",
+      legs: [{ accountId: checking, amount: usd(6700) }],
+      lines: [{ categoryId: salary, amount: usd(6700) }],
+    });
 
     const res = await runCashFlow(
       {
@@ -385,16 +429,19 @@ describe("runCashFlow — inTop / income", () => {
       workspaceId,
     );
 
-    const bucket = res.buckets[0]!;
-    assert.equal(bucket[salary], 6500);
-    assert.equal(bucket[freelance], 500);
+    const march = res.buckets.find((b) => b.period.startsWith("2026-03"))!;
+    const april = res.buckets.find((b) => b.period.startsWith("2026-04"))!;
+    assert.equal(march[salary], 6500);
+    assert.equal(march[freelance], 500);
+    assert.equal(april[salary], 6700);
+    assert.equal(april[freelance], undefined);
   });
 });
 
 describe("runCashFlow — net (in / out / net per period)", () => {
   beforeEach(truncateAll);
 
-  it("sums signed legs; net = in + out", async () => {
+  it("sums signed legs; net = in + out, per period", async () => {
     const { workspaceId, userId } = await seedWorkspaceAndUser();
     const groupId = await seedAccountGroup(workspaceId);
     const checking = await seedAccount({
@@ -406,6 +453,7 @@ describe("runCashFlow — net (in / out / net per period)", () => {
     const salary = await seedCategory(workspaceId, "Salary", "income");
     const groceries = await seedCategory(workspaceId, "Groceries", "expense");
 
+    // March: salary $6500 in, 2 expenses ($120 + $80 = $200 out).
     await seedTransaction({
       workspaceId,
       userId,
@@ -422,6 +470,23 @@ describe("runCashFlow — net (in / out / net per period)", () => {
       legs: [{ accountId: checking, amount: -usd(120) }],
       lines: [{ categoryId: groceries, amount: usd(120) }],
     });
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-03-25",
+      type: "expense",
+      legs: [{ accountId: checking, amount: -usd(80) }],
+      lines: [{ categoryId: groceries, amount: usd(80) }],
+    });
+    // April: salary $6700 in only.
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-04-01",
+      type: "income",
+      legs: [{ accountId: checking, amount: usd(6700) }],
+      lines: [{ categoryId: salary, amount: usd(6700) }],
+    });
 
     const res = await runCashFlow(
       {
@@ -433,10 +498,14 @@ describe("runCashFlow — net (in / out / net per period)", () => {
       workspaceId,
     );
 
-    const bucket = res.buckets[0]!;
-    assert.equal(bucket.in, 6500);
-    assert.equal(bucket.out, -120);
-    assert.equal(bucket.net, 6380);
+    const march = res.buckets.find((b) => b.period.startsWith("2026-03"))!;
+    const april = res.buckets.find((b) => b.period.startsWith("2026-04"))!;
+    assert.equal(march.in, 6500);
+    assert.equal(march.out, -200);
+    assert.equal(march.net, 6300);
+    assert.equal(april.in, 6700);
+    assert.equal(april.out, 0);
+    assert.equal(april.net, 6700);
   });
 });
 
@@ -636,7 +705,7 @@ describe("runCashFlow — refund handling (effective date + signed-negative)", (
 describe("runCashFlow — drill into one expense category (outExpensesByCategory)", () => {
   beforeEach(truncateAll);
 
-  it("returns subcategory series within the picked category", async () => {
+  it("returns subcategory series within the picked category, summed per period", async () => {
     const { workspaceId, userId } = await seedWorkspaceAndUser();
     const groupId = await seedAccountGroup(workspaceId);
     const checking = await seedAccount({
@@ -649,6 +718,7 @@ describe("runCashFlow — drill into one expense category (outExpensesByCategory
     const produce = await seedSubcategory(groceries, "Produce");
     const meat = await seedSubcategory(groceries, "Meat");
 
+    // March: 1 Produce + 1 Meat.
     await seedTransaction({
       workspaceId,
       userId,
@@ -667,6 +737,17 @@ describe("runCashFlow — drill into one expense category (outExpensesByCategory
       legs: [{ accountId: checking, amount: -usd(35) }],
       lines: [{ categoryId: groceries, subcategoryId: meat, amount: usd(35) }],
     });
+    // April: 1 Produce only.
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-04-10",
+      type: "expense",
+      legs: [{ accountId: checking, amount: -usd(15) }],
+      lines: [
+        { categoryId: groceries, subcategoryId: produce, amount: usd(15) },
+      ],
+    });
 
     const res = await runCashFlow(
       {
@@ -679,9 +760,12 @@ describe("runCashFlow — drill into one expense category (outExpensesByCategory
       workspaceId,
     );
 
-    const bucket = res.buckets[0]!;
-    assert.equal(bucket[produce], 20);
-    assert.equal(bucket[meat], 35);
+    const march = res.buckets.find((b) => b.period.startsWith("2026-03"))!;
+    const april = res.buckets.find((b) => b.period.startsWith("2026-04"))!;
+    assert.equal(march[produce], 20);
+    assert.equal(march[meat], 35);
+    assert.equal(april[produce], 15);
+    assert.equal(april[meat], undefined);
   });
 });
 
