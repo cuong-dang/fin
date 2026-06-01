@@ -137,6 +137,59 @@ describe("runCashFlow — outTop (3-bucket monthly)", () => {
     assert.equal(april.bill, undefined, "April had no bill activity");
   });
 
+  it("splits loan payments: interest line → expense, principal → loan", async () => {
+    // Loan payment with an interest line: $1500 cash out, $10 categorized
+    // as interest. Loan bucket should report the $1490 principal; the $10
+    // shifts to the expense bucket so cash-flow agrees with the by-cat
+    // chart (which counts interest as an expense line).
+    const { workspaceId, userId } = await seedWorkspaceAndUser();
+    const groupId = await seedAccountGroup(workspaceId);
+    const checking = await seedAccount({
+      workspaceId,
+      accountGroupId: groupId,
+      name: "Checking",
+      type: "checking_savings",
+    });
+    const mortgage = await seedAccount({
+      workspaceId,
+      accountGroupId: groupId,
+      name: "Mortgage",
+      type: "loan",
+    });
+    const interest = await seedCategory(workspaceId, "Interest", "expense");
+
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-03-15",
+      type: "transfer",
+      legs: [
+        { accountId: checking, amount: -usd(1500) },
+        { accountId: mortgage, amount: usd(1500) },
+      ],
+      lines: [{ categoryId: interest, amount: usd(10) }],
+    });
+
+    const res = await runCashFlow(
+      {
+        granularity: "monthly",
+        currency: "USD",
+        dimension: "outTop",
+        ...WINDOW,
+      },
+      workspaceId,
+    );
+
+    const march = res.buckets.find((b) => b.period.startsWith("2026-03"))!;
+    assert.equal(
+      march.loan,
+      1490,
+      "principal = $1500 cash out − $10 interest line",
+    );
+    assert.equal(march.expense, 10, "interest line lands in expense bucket");
+    assert.equal(march.bill, undefined);
+  });
+
   it("excludes expenses originating from a loan account (BNPL purchases)", async () => {
     // A loan-financed purchase (e.g., $400 couch on Affirm) lands as
     // an `expense` whose single leg is on the loan account. Cash

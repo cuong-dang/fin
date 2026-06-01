@@ -273,7 +273,40 @@ export async function runCashFlow(
   );
 }
 
+/**
+ * `outTop` is line-aware for the `expense` and `bill` buckets and
+ * line-subtracting for `loan` — so a loan payment's interest line lands
+ * in `expense` (matching the by-category chart) and only the principal
+ * portion lands in `loan`.
+ *
+ *   bill    : sum of refund-aware *lines* on bill-tagged txs
+ *   expense : sum of refund-aware *lines* on non-bill expense / refund
+ *             / transfer-to-loan txs (interest portion of loan payments)
+ *   loan    : per transfer-to-loan tx, `(-source_leg) − sum(lines)` =
+ *             principal portion only
+ *
+ * For pure expense / bill txs the line sum equals `-leg`, so those
+ * buckets read the same as the prior leg-based implementation. Only
+ * loan payments with line items shift dollars from `loan` to `expense`.
+ */
 async function handleOutTop(ctx: CashFlowCtx): Promise<Row[]> {
+  const [billRows, expenseRows, loanRows] = await Promise.all([
+    outTopLineBucket(ctx, "bill"),
+    outTopLineBucket(ctx, "expense"),
+    outTopLoanPrincipal(ctx),
+  ]);
+  return [...billRows, ...expenseRows, ...loanRows];
+}
+
+/**
+ * Line-based bucket for `outTop`. Sums `transaction_lines` refund-aware,
+ * scoped to transactions that have at least one outflow / refund leg on
+ * an everyday account (so BNPL-on-loan and CASA↔CASA stay excluded).
+ */
+async function outTopLineBucket(
+  ctx: CashFlowCtx,
+  kind: "bill" | "expense",
+): Promise<Row[]> {
   const {
     workspaceId,
     currency,
@@ -282,63 +315,140 @@ async function handleOutTop(ctx: CashFlowCtx): Promise<Row[]> {
     accountGroupIds,
     periodExpr,
     truncExpr,
-    legAmountExpr,
   } = ctx;
 
-  const destType = sql<string>`(
-    SELECT a.type FROM transaction_legs tl
-    JOIN accounts a ON a.id = tl.account_id
-    WHERE tl.transaction_id = ${schema.transactions.id}
-      AND tl.account_id <> ${schema.transactionLegs.accountId}
-    LIMIT 1
+  // EXISTS-filter: at least one outflow (or refund) leg on an everyday
+  // account. Account-group filter, if present, applies inside.
+  const groupClause =
+    accountGroupIds && accountGroupIds.length > 0
+      ? sql` AND a.account_group_id = ANY(${sql.raw(
+          `ARRAY[${accountGroupIds.map((id) => `'${id}'`).join(",")}]::uuid[]`,
+        )})`
+      : sql.empty();
+  const hasEverydayOutflow = sql`EXISTS (
+    SELECT 1 FROM transaction_legs lg
+    JOIN accounts a ON a.id = lg.account_id
+    WHERE lg.transaction_id = ${schema.transactions.id}
+      AND a.type IN ('checking_savings', 'credit_card')
+      AND (lg.amount < 0 OR ${schema.transactions.type} = 'refund')${groupClause}
   )`;
 
-  // Refunds carry a positive leg (money inbound) and `type='refund'`.
-  // We want them to land in the 'expense' bucket as a negative offset
-  // — `SUM(-leg.amount)` already inverts the +leg to a negative
-  // contribution, partially canceling the original outflow in the
-  // same effective-date bucket.
-  const bucket = sql<string>`CASE
-    WHEN ${schema.transactions.billId} IS NOT NULL THEN 'bill'
-    WHEN ${schema.transactions.type} = 'transfer' AND ${destType} = 'loan' THEN 'loan'
-    WHEN ${schema.transactions.type} = 'expense' THEN 'expense'
-    WHEN ${schema.transactions.type} = 'refund' THEN 'expense'
-  END`;
+  const bucketLit = sql.raw(`'${kind}'`);
+  const billCondition =
+    kind === "bill"
+      ? sql`${schema.transactions.billId} IS NOT NULL`
+      : sql`${schema.transactions.billId} IS NULL`;
+  // Expense bucket pulls in `transfer` so loan-payment interest lines
+  // count (their lines are the interest portions). Bill bucket is
+  // expense/refund only.
+  const typeCondition =
+    kind === "bill"
+      ? inArray(schema.transactions.type, ["expense", "refund"])
+      : inArray(schema.transactions.type, ["expense", "refund", "transfer"]);
 
   return db
     .select({
       period: periodExpr,
-      itemId: bucket,
-      itemName: bucket,
-      amountMinor: legAmountExpr,
+      itemId: sql<string>`${bucketLit}`,
+      itemName: sql<string>`${bucketLit}`,
+      amountMinor: refundAwareLineSum,
     })
-    .from(schema.transactionLegs)
+    .from(schema.transactionLines)
     .innerJoin(
       schema.transactions,
-      eq(schema.transactions.id, schema.transactionLegs.transactionId),
+      eq(schema.transactions.id, schema.transactionLines.transactionId),
     )
     .leftJoin(
       originalTx,
       eq(originalTx.id, schema.transactions.refundedTransactionId),
     )
-    .innerJoin(
-      schema.accounts,
-      eq(schema.accounts.id, schema.transactionLegs.accountId),
-    )
     .where(
       and(
         eq(schema.transactions.workspaceId, workspaceId),
-        eq(schema.accounts.currency, currency),
+        eq(schema.transactionLines.currency, currency),
         excludeAdjustments,
-        outflowOrRefundLeg,
-        everydayAccountFilter,
+        billCondition,
+        typeCondition,
         inDateRange(start, end, effectiveDateExpr),
-        accountGroupFilter(accountGroupIds),
+        hasEverydayOutflow,
       ),
     )
-    .groupBy(truncExpr, bucket)
-    .having(sql`${bucket} IS NOT NULL`)
-    .orderBy(truncExpr);
+    .groupBy(truncExpr);
+}
+
+/**
+ * Loan bucket for `outTop`: principal portion of transfer-to-loan
+ * payments — `(-source_leg) − sum(lines per tx)`. The line sum is
+ * computed via a correlated subquery so a multi-line interest split
+ * is captured without joining lines (which would multiply leg rows).
+ */
+async function outTopLoanPrincipal(ctx: CashFlowCtx): Promise<Row[]> {
+  const {
+    workspaceId,
+    currency,
+    start,
+    end,
+    accountGroupIds,
+    periodExpr,
+    truncExpr,
+  } = ctx;
+
+  const destLeg = aliasedTable(schema.transactionLegs, "dest_leg");
+  const destAcc = aliasedTable(schema.accounts, "dest_acc");
+
+  const principalSum = sql<string>`SUM(-${schema.transactionLegs.amount} - COALESCE((
+    SELECT SUM(${schema.transactionLines.amount})
+    FROM ${schema.transactionLines}
+    WHERE ${schema.transactionLines.transactionId} = ${schema.transactions.id}
+  ), 0))::text`;
+
+  return (
+    db
+      .select({
+        period: periodExpr,
+        itemId: sql<string>`'loan'`,
+        itemName: sql<string>`'loan'`,
+        amountMinor: principalSum,
+      })
+      .from(schema.transactionLegs)
+      .innerJoin(
+        schema.transactions,
+        eq(schema.transactions.id, schema.transactionLegs.transactionId),
+      )
+      // Refunds never reach loan-payment legs — kept only so
+      // `effectiveDateExpr` resolves uniformly across handlers.
+      .leftJoin(
+        originalTx,
+        eq(originalTx.id, schema.transactions.refundedTransactionId),
+      )
+      .innerJoin(
+        schema.accounts,
+        eq(schema.accounts.id, schema.transactionLegs.accountId),
+      )
+      .innerJoin(
+        destLeg,
+        and(
+          eq(destLeg.transactionId, schema.transactions.id),
+          ne(destLeg.accountId, schema.transactionLegs.accountId),
+        ),
+      )
+      .innerJoin(
+        destAcc,
+        and(eq(destAcc.id, destLeg.accountId), eq(destAcc.type, "loan")),
+      )
+      .where(
+        and(
+          eq(schema.transactions.workspaceId, workspaceId),
+          eq(schema.accounts.currency, currency),
+          eq(schema.transactions.type, "transfer"),
+          outflowLegFilter,
+          everydayAccountFilter,
+          inDateRange(start, end, effectiveDateExpr),
+          accountGroupFilter(accountGroupIds),
+        ),
+      )
+      .groupBy(truncExpr)
+  );
 }
 
 /**
@@ -470,21 +580,30 @@ async function handleOutLoans(ctx: CashFlowCtx): Promise<Row[]> {
     loanId,
     periodExpr,
     truncExpr,
-    legAmountExpr,
   } = ctx;
 
   // Per-loan breakdown (transfers to loan accounts). With `loanId`
   // set, restricts to a single loan and the result reads as one
   // series — same shape, just one item.
+  //
+  // Reports **principal** per loan (matches `outTop`'s loan bucket
+  // semantics): `(-source_leg) − sum(lines per tx)`. The interest
+  // portion of any payment surfaces in the by-category chart and in
+  // `outTop`'s expense bucket, not here.
   const destLeg = aliasedTable(schema.transactionLegs, "dest_leg");
   const destAcc = aliasedTable(schema.accounts, "dest_acc");
+  const principalSum = sql<string>`SUM(-${schema.transactionLegs.amount} - COALESCE((
+    SELECT SUM(${schema.transactionLines.amount})
+    FROM ${schema.transactionLines}
+    WHERE ${schema.transactionLines.transactionId} = ${schema.transactions.id}
+  ), 0))::text`;
   return (
     db
       .select({
         period: periodExpr,
         itemId: destAcc.id,
         itemName: destAcc.name,
-        amountMinor: legAmountExpr,
+        amountMinor: principalSum,
       })
       .from(schema.transactionLegs)
       .innerJoin(
