@@ -137,6 +137,77 @@ describe("runCashFlow — outTop (3-bucket monthly)", () => {
     assert.equal(april.bill, undefined, "April had no bill activity");
   });
 
+  it("returns buckets in chronological order when periods interleave across buckets", async () => {
+    // Regression: an early version of the line-aware refactor ran three
+    // subqueries (bill/expense/loan) in parallel and concatenated. When
+    // a period existed only in one subquery's output, it was appended
+    // out of chronological order by `shapeResponse`'s Map insertion.
+    // E.g., expense-only on day 1 + day 3, loan-only on day 2, produced
+    // [day 1, day 3, day 2] instead of [day 1, day 2, day 3].
+    const { workspaceId, userId } = await seedWorkspaceAndUser();
+    const groupId = await seedAccountGroup(workspaceId);
+    const checking = await seedAccount({
+      workspaceId,
+      accountGroupId: groupId,
+      name: "Checking",
+      type: "checking_savings",
+    });
+    const mortgage = await seedAccount({
+      workspaceId,
+      accountGroupId: groupId,
+      name: "Mortgage",
+      type: "loan",
+    });
+    const groceries = await seedCategory(workspaceId, "Groceries", "expense");
+
+    // Day 1: expense.
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-03-05",
+      type: "expense",
+      legs: [{ accountId: checking, amount: -usd(30) }],
+      lines: [{ categoryId: groceries, amount: usd(30) }],
+    });
+    // Day 2: loan payment (no line items).
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-03-10",
+      type: "transfer",
+      legs: [
+        { accountId: checking, amount: -usd(500) },
+        { accountId: mortgage, amount: usd(500) },
+      ],
+    });
+    // Day 3: another expense.
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-03-15",
+      type: "expense",
+      legs: [{ accountId: checking, amount: -usd(20) }],
+      lines: [{ categoryId: groceries, amount: usd(20) }],
+    });
+
+    const res = await runCashFlow(
+      {
+        granularity: "daily",
+        currency: "USD",
+        dimension: "outTop",
+        start: "2026-03-01",
+        end: "2026-03-31",
+      },
+      workspaceId,
+    );
+
+    assert.deepEqual(
+      res.buckets.map((b) => b.period),
+      ["2026-03-05", "2026-03-10", "2026-03-15"],
+      "buckets must be chronological even when periods skip a bucket",
+    );
+  });
+
   it("splits loan payments: interest line → expense, principal → loan", async () => {
     // Loan payment with an interest line: $1500 cash out, $10 categorized
     // as interest. Loan bucket should report the $1490 principal; the $10

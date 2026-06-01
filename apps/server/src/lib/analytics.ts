@@ -111,6 +111,12 @@ type Row = {
   itemId: string | null;
   itemName: string | null;
   amountMinor: string;
+  // Optional per-row sort key (raw truncated date as `YYYY-MM-DD`).
+  // Set by handlers that merge multiple subqueries — periods alone
+  // aren't comparable across granularities (e.g., weekly "Mon DD"
+  // doesn't sort chronologically as text). Internal to the handler;
+  // `shapeResponse` ignores it.
+  _sortKey?: string;
 };
 
 // Inclusive date-range filter. Pass `effectiveDateExpr` when the
@@ -295,7 +301,16 @@ async function handleOutTop(ctx: CashFlowCtx): Promise<Row[]> {
     outTopLineBucket(ctx, "expense"),
     outTopLoanPrincipal(ctx),
   ]);
-  return [...billRows, ...expenseRows, ...loanRows];
+  // Each subquery is internally sorted, but concatenating dumps all
+  // of one bucket's periods before the next bucket's. `shapeResponse`
+  // pivots into a Map keyed by period and preserves *insertion*
+  // order — so the output buckets array would come out non-
+  // chronological. Re-sort by the per-row sort key (the truncated
+  // date as `YYYY-MM-DD`, monotonic for every granularity) before
+  // pivoting. Then strip the helper field so the shape matches `Row`.
+  const merged = [...billRows, ...expenseRows, ...loanRows];
+  merged.sort((a, b) => (a._sortKey ?? "").localeCompare(b._sortKey ?? ""));
+  return merged.map(({ _sortKey: _drop, ...row }) => row);
 }
 
 /**
@@ -352,6 +367,7 @@ async function outTopLineBucket(
       itemId: sql<string>`${bucketLit}`,
       itemName: sql<string>`${bucketLit}`,
       amountMinor: refundAwareLineSum,
+      _sortKey: sql<string>`to_char(${truncExpr}, 'YYYY-MM-DD')`,
     })
     .from(schema.transactionLines)
     .innerJoin(
@@ -409,6 +425,7 @@ async function outTopLoanPrincipal(ctx: CashFlowCtx): Promise<Row[]> {
         itemId: sql<string>`'loan'`,
         itemName: sql<string>`'loan'`,
         amountMinor: principalSum,
+        _sortKey: sql<string>`to_char(${truncExpr}, 'YYYY-MM-DD')`,
       })
       .from(schema.transactionLegs)
       .innerJoin(
