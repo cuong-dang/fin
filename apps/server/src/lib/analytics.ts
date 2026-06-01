@@ -512,13 +512,17 @@ async function handleCategory(
 
   // Income direction: only `type='income'` rows. Refunds are NOT
   // income and are excluded automatically by this filter.
-  // Expense direction: include both expense and refund rows. Refund
-  // line amounts come through the CASE-signed `lineAmountExpr` as
+  // Expense direction: include expense, refund, AND transfer rows.
+  // Transfers don't normally carry lines, but loan-payment transfers
+  // can — the line(s) categorize the interest portion. Including
+  // `transfer` here keeps the drilled view consistent with `outTop`'s
+  // expense bucket (which already counts interest lines). Refund line
+  // amounts come through the CASE-signed `lineAmountExpr` as
   // negatives, so they net against the original spend in the same
   // effective-date bucket.
   const typeFilter = isIncome
     ? eq(schema.transactions.type, "income")
-    : inArray(schema.transactions.type, ["expense", "refund"]);
+    : inArray(schema.transactions.type, ["expense", "refund", "transfer"]);
 
   const where = and(
     eq(schema.transactions.workspaceId, workspaceId),

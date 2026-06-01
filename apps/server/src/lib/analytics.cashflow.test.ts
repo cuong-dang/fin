@@ -428,6 +428,54 @@ describe("runCashFlow — outExpenses by category", () => {
 
     assert.equal(res.buckets.length, 0, "bill-linked expense filtered out");
   });
+
+  it("INCLUDES interest lines on loan-payment transfers (matches outTop)", async () => {
+    // Loan payment with a $10 interest line. The interest line should
+    // surface under its expense category when drilling into Expense —
+    // same as `outTop`'s expense bucket and the by-category chart.
+    // Regression for an early version of the line-aware `outTop` that
+    // only updated the top-level handler.
+    const { workspaceId, userId } = await seedWorkspaceAndUser();
+    const groupId = await seedAccountGroup(workspaceId);
+    const checking = await seedAccount({
+      workspaceId,
+      accountGroupId: groupId,
+      name: "Checking",
+      type: "checking_savings",
+    });
+    const mortgage = await seedAccount({
+      workspaceId,
+      accountGroupId: groupId,
+      name: "Mortgage",
+      type: "loan",
+    });
+    const interest = await seedCategory(workspaceId, "Interest", "expense");
+
+    await seedTransaction({
+      workspaceId,
+      userId,
+      date: "2026-03-15",
+      type: "transfer",
+      legs: [
+        { accountId: checking, amount: -usd(1500) },
+        { accountId: mortgage, amount: usd(1500) },
+      ],
+      lines: [{ categoryId: interest, amount: usd(10) }],
+    });
+
+    const res = await runCashFlow(
+      {
+        granularity: "monthly",
+        currency: "USD",
+        dimension: "outExpenses",
+        ...WINDOW,
+      },
+      workspaceId,
+    );
+
+    const march = res.buckets.find((b) => b.period.startsWith("2026-03"))!;
+    assert.equal(march[interest], 10, "interest line under Interest category");
+  });
 });
 
 describe("runCashFlow — inTop / income", () => {

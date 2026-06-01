@@ -3,12 +3,9 @@ import { localDateKey } from "@/lib/dates";
 import type { Granularity } from "@fin/schemas";
 import { SegmentedControl } from "@mantine/core";
 
-// "Weekly (Sun)" makes the Sunday-start convention visible at the
-// granularity selector itself, so the X-axis ticks (each a week's
-// start date) don't need a per-tick "starts on…" annotation.
 const OPTIONS: { value: Granularity; label: string }[] = [
   { value: "daily", label: "Daily" },
-  { value: "weekly", label: "Weekly (Sun)" },
+  { value: "weekly", label: "Weekly" },
   { value: "monthly", label: "Monthly" },
   { value: "yearly", label: "Yearly" },
 ];
