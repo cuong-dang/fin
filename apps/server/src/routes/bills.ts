@@ -258,11 +258,18 @@ async function insertDefaultLines(
     throw new Error("At least one default line is required");
   }
 
-  const amounts = lines.map((l) =>
-    l.amount ? parseMoney(l.amount, currency) : null,
-  );
-  if (amounts.some((m) => m !== null && m <= 0n)) {
-    throw new Error("Each default line amount must be positive when set");
+  // Default line amount semantics: `null` = "fill in per charge".
+  // A user-entered `0` is meaningless as a recurring-charge default
+  // (no bill charges $0) — coerce it to `null` so the form's "clear
+  // the amount" gesture (whether typed as "" or "0") behaves the same
+  // and doesn't 500 the request. Negative amounts are still rejected.
+  const amounts = lines.map((l) => {
+    if (!l.amount) return null;
+    const parsed = parseMoney(l.amount, currency);
+    return parsed === 0n ? null : parsed;
+  });
+  if (amounts.some((m) => m !== null && m < 0n)) {
+    throw new Error("Default line amounts must be non-negative");
   }
 
   for (let i = 0; i < lines.length; i++) {

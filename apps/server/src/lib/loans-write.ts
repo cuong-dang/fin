@@ -41,11 +41,17 @@ async function insertLoanDefaultLines(
   currency: string,
   workspaceId: string,
 ): Promise<void> {
-  const lineAmounts = lines.map((l) =>
-    l.amount ? parseMoney(l.amount, currency) : null,
-  );
-  if (lineAmounts.some((m) => m !== null && m <= 0n)) {
-    throw new Error("Each default line amount must be positive when set");
+  // Same semantic as bill default lines: `null` = "fill in per
+  // charge". A user-typed `0` is meaningless and would otherwise 500
+  // — coerce to `null` so clearing the field (via "" or "0") behaves
+  // the same. Negative amounts are still rejected.
+  const lineAmounts = lines.map((l) => {
+    if (!l.amount) return null;
+    const parsed = parseMoney(l.amount, currency);
+    return parsed === 0n ? null : parsed;
+  });
+  if (lineAmounts.some((m) => m !== null && m < 0n)) {
+    throw new Error("Default line amounts must be non-negative");
   }
 
   for (let i = 0; i < lines.length; i++) {
