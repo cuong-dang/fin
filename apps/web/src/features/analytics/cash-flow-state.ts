@@ -30,8 +30,13 @@ export const DIRECTION_LABEL: Record<Direction, string> = {
   net: "Net",
 };
 
+// Bucket "expense" is the residual after bills and loan-principal —
+// it covers day-to-day spending, one-offs, and the interest portion
+// of loan payments. We surface it as "Other" so it doesn't read as
+// "all expenses" (the by-category chart uses "Expense" for that
+// universe). Wire id stays "expense" for back-compat.
 const BUCKET_LABEL: Record<"expense" | "loan" | "bill", string> = {
-  expense: "Expense",
+  expense: "Other",
   loan: "Loan",
   bill: "Bill",
 };

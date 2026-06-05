@@ -65,7 +65,16 @@ export function NetWorthChart({
             positive={{ name: "assets", label: "Assets" }}
             valueFormatter={fmt?.tooltipFormatter}
             withPointLabels={withPointLabels}
-            yAxisProps={fmt ? { tickFormatter: fmt.axisFormatter } : undefined}
+            // Recharts' YAxis defaults to ~60px width, which crams
+            // 6-figure currency labels (e.g., "$150,000") against the
+            // chart edge. Net worth realistically reaches that range
+            // — give it more room. Other charts (cashflow, by-cat)
+            // typically stay in 4-figure territory so they can keep
+            // the default.
+            yAxisProps={{
+              width: 80,
+              ...(fmt && { tickFormatter: fmt.axisFormatter }),
+            }}
           />
         )}
       </Stack>

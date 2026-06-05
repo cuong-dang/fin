@@ -129,7 +129,14 @@ export function CashFlowChart({
       <Stack>
         <Group justify="space-between">
           <ChartTitle
-            info="How much cash is going in and out of your everyday accounts each period — checking, savings, and credit cards. Loan payments count as cash out (real cash leaves your account, even though they're recorded as transfers), but purchases charged directly to a loan account (e.g., BNPL) don't — that's debt incurred, not cash leaving, and surfaces here only when you actually pay the loan. Useful for: do I have enough cushion this month? Could I afford another $X recurring payment?"
+            info={`How much cash is going in and out of your everyday accounts each period — checking, savings, and credit cards. Loan payments count as cash out (real cash leaves your account, even though they're recorded as transfers), but purchases charged directly to a loan account (e.g., BNPL) don't — that's debt incurred, not cash leaving, and surfaces here only when you actually pay the loan.
+
+Out is split into three buckets:
+• Bill — charges linked to a recurring bill template.
+• Loan — principal portion of loan payments (the part that pays down debt).
+• Other — everything else: day-to-day spending, one-offs, and the interest portion of loan payments. Equals what the by-category chart shows under Expense, minus bills.
+
+Useful for: do I have enough cushion this month? Could I afford another $X recurring payment?`}
             title="Cashflow"
           />
           <Group>
