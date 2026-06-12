@@ -344,9 +344,15 @@ function deriveInitial(tx: EnrichedTransaction): InitialTxValues {
     }
     return {
       ...base,
+      // Use |outLeg| (cash leaving the source), not inLeg. For loan
+      // payments the destination leg carries only the principal
+      // portion (= payment − Σ fee/interest lines), so prefilling
+      // from inLeg would seed the wrong amount and re-subtract the
+      // lines on save. For pure transfers, |outLeg| === inLeg, so
+      // this is a no-op in the common case.
       transferAmount: formatMoneyPlainFromRaw(
-        inLeg.amount,
-        inLeg.accountCurrency,
+        (-BigInt(outLeg.amount)).toString(),
+        outLeg.accountCurrency,
       ),
       accountId: outLeg.accountId,
       destinationAccountId: inLeg.accountId,
