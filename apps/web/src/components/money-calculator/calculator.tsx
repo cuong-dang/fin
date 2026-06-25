@@ -47,7 +47,7 @@ export function MoneyCalculator({
   const display = currentValue(state, decimals);
 
   return (
-    <Stack style={{ minWidth: 300 }}>
+    <Stack>
       {/* History — the running parenthesized expression. Empty until
           the first operator is pressed. */}
       <Text c="dimmed" size="xs" ta="right">

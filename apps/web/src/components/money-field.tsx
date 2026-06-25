@@ -164,6 +164,7 @@ export function MoneyField({
       opened={opened}
       position="bottom"
       shadow="md"
+      width="target"
       withArrow
       onChange={(v) => !v && close()}
     >
