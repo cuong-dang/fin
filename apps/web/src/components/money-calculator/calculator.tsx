@@ -44,6 +44,26 @@ export function MoneyCalculator({
     (s) => ({ ...initialState(s), justEvaluated: true }),
   );
 
+  // Debounce guard, shared across all keys. iOS sometimes fires a
+  // second pointerdown during the same gesture (most likely because
+  // the popover re-renders the button DOM after the first dispatch
+  // and iOS routes a fresh event to the new node still under the
+  // finger). A 50ms guard drops those doubles without blocking real
+  // fast tapping — humans can't tap faster than ~100ms apart.
+  const lastFire = useRef(0);
+  const shouldFire = () => {
+    const now = Date.now();
+    if (now - lastFire.current < 50) return false;
+    lastFire.current = now;
+    return true;
+  };
+  const safeDispatch = (a: CalcAction) => {
+    if (shouldFire()) dispatch(a);
+  };
+  const safeCommit = () => {
+    if (shouldFire()) onCommit(commitValue(state, decimals));
+  };
+
   const display = currentValue(state, decimals);
 
   return (
@@ -57,75 +77,75 @@ export function MoneyCalculator({
         {display}
       </Text>
       <SimpleGrid cols={4} spacing={4}>
-        <KeyButton onClick={() => dispatch({ kind: "clear" })}>C</KeyButton>
-        <KeyButton onClick={() => dispatch({ kind: "negate" })}>±</KeyButton>
-        <KeyButton onClick={() => dispatch({ kind: "backspace" })}>
+        <KeyButton onClick={() => safeDispatch({ kind: "clear" })}>C</KeyButton>
+        <KeyButton onClick={() => safeDispatch({ kind: "negate" })}>±</KeyButton>
+        <KeyButton onClick={() => safeDispatch({ kind: "backspace" })}>
           <Delete size={16} />
         </KeyButton>
         <KeyButton
           variant="filled"
-          onClick={() => dispatch({ kind: "operator", op: "/" })}
+          onClick={() => safeDispatch({ kind: "operator", op: "/" })}
         >
           ÷
         </KeyButton>
 
-        <KeyButton onClick={() => dispatch({ kind: "digit", d: "7" })}>
+        <KeyButton onClick={() => safeDispatch({ kind: "digit", d: "7" })}>
           7
         </KeyButton>
-        <KeyButton onClick={() => dispatch({ kind: "digit", d: "8" })}>
+        <KeyButton onClick={() => safeDispatch({ kind: "digit", d: "8" })}>
           8
         </KeyButton>
-        <KeyButton onClick={() => dispatch({ kind: "digit", d: "9" })}>
+        <KeyButton onClick={() => safeDispatch({ kind: "digit", d: "9" })}>
           9
         </KeyButton>
         <KeyButton
           variant="filled"
-          onClick={() => dispatch({ kind: "operator", op: "*" })}
+          onClick={() => safeDispatch({ kind: "operator", op: "*" })}
         >
           ×
         </KeyButton>
 
-        <KeyButton onClick={() => dispatch({ kind: "digit", d: "4" })}>
+        <KeyButton onClick={() => safeDispatch({ kind: "digit", d: "4" })}>
           4
         </KeyButton>
-        <KeyButton onClick={() => dispatch({ kind: "digit", d: "5" })}>
+        <KeyButton onClick={() => safeDispatch({ kind: "digit", d: "5" })}>
           5
         </KeyButton>
-        <KeyButton onClick={() => dispatch({ kind: "digit", d: "6" })}>
+        <KeyButton onClick={() => safeDispatch({ kind: "digit", d: "6" })}>
           6
         </KeyButton>
         <KeyButton
           variant="filled"
-          onClick={() => dispatch({ kind: "operator", op: "-" })}
+          onClick={() => safeDispatch({ kind: "operator", op: "-" })}
         >
           −
         </KeyButton>
 
-        <KeyButton onClick={() => dispatch({ kind: "digit", d: "1" })}>
+        <KeyButton onClick={() => safeDispatch({ kind: "digit", d: "1" })}>
           1
         </KeyButton>
-        <KeyButton onClick={() => dispatch({ kind: "digit", d: "2" })}>
+        <KeyButton onClick={() => safeDispatch({ kind: "digit", d: "2" })}>
           2
         </KeyButton>
-        <KeyButton onClick={() => dispatch({ kind: "digit", d: "3" })}>
+        <KeyButton onClick={() => safeDispatch({ kind: "digit", d: "3" })}>
           3
         </KeyButton>
         <KeyButton
           variant="filled"
-          onClick={() => dispatch({ kind: "operator", op: "+" })}
+          onClick={() => safeDispatch({ kind: "operator", op: "+" })}
         >
           +
         </KeyButton>
 
-        <KeyButton onClick={() => dispatch({ kind: "digit", d: "0" })}>
+        <KeyButton onClick={() => safeDispatch({ kind: "digit", d: "0" })}>
           0
         </KeyButton>
-        <KeyButton onClick={() => dispatch({ kind: "decimal" })}>.</KeyButton>
+        <KeyButton onClick={() => safeDispatch({ kind: "decimal" })}>.</KeyButton>
         <KeyButton
           color="teal"
           style={{ gridColumn: "span 2" }}
           variant="filled"
-          onClick={() => onCommit(commitValue(state, decimals))}
+          onClick={safeCommit}
         >
           =
         </KeyButton>
@@ -152,31 +172,24 @@ function KeyButton({
   color?: string;
   style?: React.CSSProperties;
 }) {
-  // Dispatch on `pointerdown` instead of `click` so a fast finger can't
-  // drift between buttons mid-tap. iOS Safari fires the synthesized
-  // click at *touchend's* element — if your finger moves a few pixels
-  // between touchstart and touchend (common with rapid column-tapping
-  // like 2-5-8), the click lands on a neighboring button while the
-  // animation correctly shows on the one you first touched.
+  // Dispatch on `pointerdown` only — NOT also on `click`. iOS Safari
+  // fires the synthesized click at *touchend's* element: if your
+  // finger drifts a few pixels between touchstart and touchend
+  // (common with rapid column-tapping like 2-5-8 or 3-2-1), the click
+  // lands on a neighboring button. Earlier we tried tracking
+  // "already fired on pointerdown" via a per-button ref, but each
+  // KeyButton has its own ref — when finger drift makes pointerdown
+  // hit button A and click hit button B, B's ref is still false and
+  // B's click handler fires too, producing TWO dispatches per tap
+  // (the "2585" / "1321" bug).
   //
-  // Tracking via ref: the native click that follows the same gesture
-  // becomes a no-op so we don't double-dispatch. On keyboard (Space /
-  // Enter) only `click` fires — no pointerdown — so the second branch
-  // handles that path. `touchAction: manipulation` is kept as a belt
-  // alongside the suspenders: it removes iOS's 300ms zoom delay so
-  // the visual press feedback is also snappier.
-  const firedOnDown = useRef(false);
-  const handlePointerDown = () => {
-    firedOnDown.current = true;
-    onClick();
-  };
-  const handleClick = () => {
-    if (firedOnDown.current) {
-      firedOnDown.current = false;
-      return;
-    }
-    onClick();
-  };
+  // The reliable fix is to not attach a click handler at all: the
+  // native click event still fires but is a no-op, so finger drift
+  // can no longer trigger a second dispatch. Side effect: the button
+  // is unreachable via keyboard Space/Enter — fine here because the
+  // popover is touch/mouse-only (the inline engine on the money
+  // field owns the keyboard path). `touchAction: manipulation` stays
+  // for snappier visual feedback (kills iOS's 300ms zoom delay).
   const merged: React.CSSProperties = {
     touchAction: "manipulation",
     ...(style ?? {}),
@@ -185,8 +198,7 @@ function KeyButton({
     <Button
       style={merged}
       variant={variant}
-      onClick={handleClick}
-      onPointerDown={handlePointerDown}
+      onPointerDown={onClick}
       {...(color !== undefined && { color })}
     >
       {children}
