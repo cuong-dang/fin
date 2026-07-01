@@ -20,6 +20,13 @@ export const theme = createTheme({
         withBorder: true,
         padding: "xs",
       },
+      // Mantine's Card clips with `overflow: hidden`, which cuts off
+      // chart tooltips (a tall category breakdown extends past the card
+      // edge). Nothing here relies on the clip — we use no `Card.Section`
+      // — so let content escape and tooltips render in full.
+      styles: {
+        root: { overflow: "visible" },
+      },
     }),
     Group: Group.extend({
       defaultProps: {

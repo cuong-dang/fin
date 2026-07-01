@@ -24,3 +24,13 @@ body,
 .sorted-bar-legend-item:hover {
   background-color: var(--mantine-color-default-hover);
 }
+
+/* Chart tooltips overflow their card (see Card overflow override in
+ * theme.ts). Each chart lives in a `position: relative` card with no
+ * z-index, so a tall tooltip in an earlier card would paint *under* a
+ * later card (both are z-index:auto → DOM order wins). A positive
+ * z-index lifts the tooltip above sibling cards. Stays well below
+ * Mantine's modal/overlay layer (200+). */
+.recharts-tooltip-wrapper {
+  z-index: 1;
+}
