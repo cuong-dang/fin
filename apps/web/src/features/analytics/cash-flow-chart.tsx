@@ -219,7 +219,7 @@ Useful for: do I have enough cushion this month? Could I afford another $X recur
           <SortedBarChart
             data={buckets}
             dataKey="period"
-            h={300}
+            h={500}
             series={series}
             withLegend
             withPointLabels={withPointLabels}

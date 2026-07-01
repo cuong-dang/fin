@@ -221,7 +221,7 @@ export function CategoryTagChart({
           <SortedBarChart
             data={buckets}
             dataKey="period"
-            h={300}
+            h={500}
             series={series}
             withLegend
             withPointLabels={withPointLabels}

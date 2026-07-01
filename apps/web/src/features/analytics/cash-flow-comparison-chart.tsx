@@ -205,7 +205,7 @@ export function CashFlowComparisonChart({
               curveType="monotone"
               data={data}
               dataKey="day"
-              h={300}
+              h={500}
               // Reserve right-side margin when point labels are on so
               // the last bucket's label doesn't clip the SVG edge —
               // same convention as DivergingNetChart.

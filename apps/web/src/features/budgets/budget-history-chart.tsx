@@ -83,7 +83,7 @@ export function BudgetHistoryChart({
           data={data}
           dataKey="period"
           getBarColor={(v) => (v >= amountMajor ? "red" : "teal")}
-          h={300}
+          h={500}
           referenceLines={[
             {
               y: amountMajor,

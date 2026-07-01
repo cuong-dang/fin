@@ -31,7 +31,7 @@ export function DivergingNetChart({
   valueFormatter,
   yAxisProps,
   withPointLabels = false,
-  h = 300,
+  h = 500,
 }: {
   data: CompositeChartProps["data"];
   /** Series whose values are ≥ 0 (e.g., assets, cash in). */
