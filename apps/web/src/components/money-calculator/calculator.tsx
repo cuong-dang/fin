@@ -78,7 +78,9 @@ export function MoneyCalculator({
       </Text>
       <SimpleGrid cols={4} spacing={4}>
         <KeyButton onClick={() => safeDispatch({ kind: "clear" })}>C</KeyButton>
-        <KeyButton onClick={() => safeDispatch({ kind: "negate" })}>±</KeyButton>
+        <KeyButton onClick={() => safeDispatch({ kind: "negate" })}>
+          ±
+        </KeyButton>
         <KeyButton onClick={() => safeDispatch({ kind: "backspace" })}>
           <Delete size={16} />
         </KeyButton>
@@ -140,7 +142,9 @@ export function MoneyCalculator({
         <KeyButton onClick={() => safeDispatch({ kind: "digit", d: "0" })}>
           0
         </KeyButton>
-        <KeyButton onClick={() => safeDispatch({ kind: "decimal" })}>.</KeyButton>
+        <KeyButton onClick={() => safeDispatch({ kind: "decimal" })}>
+          .
+        </KeyButton>
         <KeyButton
           color="teal"
           style={{ gridColumn: "span 2" }}

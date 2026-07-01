@@ -174,6 +174,14 @@ export type EnrichedTransaction = {
 };
 
 export type TransactionsListResponse = {
+  // Pending rows have no date and are returned only on the first page
+  // (cursor absent). Subsequent pages return `pending: []`.
   pending: EnrichedTransaction[];
   completed: EnrichedTransaction[];
+  // Oldest date (YYYY-MM-DD) still available beyond this page. Pass it back
+  // as `cursor` to fetch older days; `null` means no more completed rows.
+  // Pages always end on a complete day boundary, so a whole day is never
+  // split across two pages (keeps day-scoped reorder and running balance
+  // correct).
+  nextCursor: string | null;
 };

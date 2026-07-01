@@ -76,9 +76,14 @@ export const unarchiveAccount = (id: string) =>
 
 // ─── Transactions ─────────────────────────────────────────────────────────
 
-export const listTransactions = (accountId?: string) => {
-  const qs = accountId ? `?accountId=${encodeURIComponent(accountId)}` : "";
-  return api<TransactionsListResponse>(`/api/transactions${qs}`);
+export const listTransactions = (accountId?: string, cursor?: string) => {
+  const params = new URLSearchParams();
+  if (accountId) params.set("accountId", accountId);
+  if (cursor) params.set("cursor", cursor);
+  const qs = params.toString();
+  return api<TransactionsListResponse>(
+    `/api/transactions${qs ? `?${qs}` : ""}`,
+  );
 };
 
 export const getTransaction = (id: string) =>

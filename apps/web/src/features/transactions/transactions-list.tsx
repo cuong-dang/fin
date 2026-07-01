@@ -35,9 +35,14 @@ import {
   Text,
   UnstyledButton,
 } from "@mantine/core";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIntersection } from "@mantine/hooks";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { Check, ChevronDown, ChevronRight, GripVertical } from "lucide-react";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 
 import { categoryLabel, isDebtPayment, primaryLabel } from "./tx-display";
@@ -48,15 +53,23 @@ export function TransactionsList({
   accountId: string | undefined;
 }) {
   const qc = useQueryClient();
-  const q = useQuery({
+  const q = useInfiniteQuery({
     queryKey: ["transactions", { accountId }],
-    queryFn: () => listTransactions(accountId),
+    queryFn: ({ pageParam }) => listTransactions(accountId, pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });
 
-  const serverByDay = useMemo(() => {
-    const completed = q.data?.completed ?? [];
-    return groupBy(completed, (t) => t.date!); // completed have date
-  }, [q.data]);
+  // Pages arrive newest→oldest and never split a day, so flattening keeps
+  // global order. Pending rows ride along on the first page only.
+  const completed = useMemo(
+    () => q.data?.pages.flatMap((p) => p.completed) ?? [],
+    [q.data],
+  );
+  const serverByDay = useMemo(
+    () => groupBy(completed, (t) => t.date!), // completed have date
+    [completed],
+  );
   const [localByDay, setLocalByDay] =
     useState<Map<string, EnrichedTransaction[]>>(serverByDay);
   const [lastServerByDay, setLastServerByDay] = useState(serverByDay);
@@ -64,7 +77,7 @@ export function TransactionsList({
     setLastServerByDay(serverByDay);
     setLocalByDay(serverByDay);
   }
-  const pending = q.data?.pending ?? [];
+  const pending = q.data?.pages[0]?.pending ?? [];
 
   const mutation = useMutation({
     mutationFn: reorderTransactions,
@@ -74,6 +87,16 @@ export function TransactionsList({
       qc.invalidateQueries({ queryKey: ["transactions"] });
     },
   });
+
+  // Infinite scroll: fetch the next page when the bottom sentinel scrolls
+  // into view. rootMargin pre-fetches a screenful early so it feels seamless.
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = q;
+  const { ref: sentinelRef, entry } = useIntersection({ rootMargin: "400px" });
+  useEffect(() => {
+    if (entry?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [entry?.isIntersecting, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   // @dnd
   const sensors = useSensors(
@@ -194,6 +217,14 @@ export function TransactionsList({
           </Section>
         ))}
       </DndContext>
+      {/* Bottom sentinel: entering the viewport triggers the next page. */}
+      {hasNextPage && (
+        <Box ref={sentinelRef} py="sm" ta="center">
+          <Text c="dimmed" size="sm">
+            {isFetchingNextPage ? "Loading more…" : ""}
+          </Text>
+        </Box>
+      )}
     </>
   );
 }

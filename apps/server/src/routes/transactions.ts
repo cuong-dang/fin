@@ -7,14 +7,17 @@ import {
   transactionBody,
   type TransactionsListResponse,
 } from "@fin/schemas";
+import { dateString } from "@fin/schemas";
 import {
   and,
   asc,
   desc,
   eq,
+  gte,
   inArray,
   isNotNull,
   isNull,
+  lt,
   sql,
 } from "drizzle-orm";
 import type { FastifyPluginAsync } from "fastify";
@@ -34,9 +37,17 @@ import {
 import { enrichTx, fetchLegsAndLines } from "../lib/transactions-read.js";
 import { insertLegsAndLines } from "../lib/transactions-write.js";
 
-const PAGE_LIMIT = 100;
+// Completed rows are paged by *day*: each page returns up to PAGE_DAYS
+// whole days (never a partial day) so day-scoped reorder and running
+// balance stay correct across the page boundary.
+const PAGE_DAYS = 30;
 
-const listQuery = z.object({ accountId: z.uuid().optional() });
+const listQuery = z.object({
+  accountId: z.uuid().optional(),
+  // Oldest date already seen; this page returns days strictly older than it.
+  // Absent on the first page.
+  cursor: dateString.optional(),
+});
 
 export const transactionRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
@@ -44,7 +55,8 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
   // ─── List ────────────────────────────────────────────────────────────────
 
   app.get("/", async (req): Promise<TransactionsListResponse> => {
-    const { accountId } = listQuery.parse(req.query);
+    const { accountId, cursor } = listQuery.parse(req.query);
+    const firstPage = cursor === undefined;
 
     const filteredTxIds = accountId
       ? db
@@ -60,25 +72,60 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
         : undefined,
     );
 
+    // Only days strictly older than the cursor belong to this page.
+    const olderThanCursor = cursor
+      ? lt(schema.transactions.date, cursor)
+      : undefined;
+
+    // Pick this page's days first (fetch one extra to detect a next page),
+    // then load every row on those days. This guarantees whole-day pages.
+    const dayRows = await db
+      .selectDistinct({ date: schema.transactions.date })
+      .from(schema.transactions)
+      .where(
+        and(baseWhere, isNotNull(schema.transactions.date), olderThanCursor),
+      )
+      .orderBy(desc(schema.transactions.date))
+      .limit(PAGE_DAYS + 1);
+
+    const hasMore = dayRows.length > PAGE_DAYS;
+    const pageDays = dayRows.slice(0, PAGE_DAYS);
+    // Oldest day in this page; also the exclusive bound for the next page.
+    const oldestDay = pageDays.at(-1)?.date ?? null;
+    const nextCursor = hasMore ? oldestDay : null;
+
     const [pendingRows, completedRows] = await Promise.all([
-      db
-        .select()
-        .from(schema.transactions)
-        .where(and(baseWhere, isNull(schema.transactions.date)))
-        .orderBy(asc(schema.transactions.createdAt)),
-      db
-        .select()
-        .from(schema.transactions)
-        .where(and(baseWhere, isNotNull(schema.transactions.date)))
-        .orderBy(
-          desc(schema.transactions.date),
-          desc(schema.transactions.sortKey),
-        )
-        .limit(PAGE_LIMIT),
+      // Pending rows are dateless and belong to no day — return them once,
+      // on the first page only.
+      firstPage
+        ? db
+            .select()
+            .from(schema.transactions)
+            .where(and(baseWhere, isNull(schema.transactions.date)))
+            .orderBy(asc(schema.transactions.createdAt))
+        : Promise.resolve([]),
+      oldestDay
+        ? db
+            .select()
+            .from(schema.transactions)
+            .where(
+              and(
+                baseWhere,
+                gte(schema.transactions.date, oldestDay),
+                olderThanCursor,
+              ),
+            )
+            .orderBy(
+              desc(schema.transactions.date),
+              desc(schema.transactions.sortKey),
+            )
+        : Promise.resolve([]),
     ]);
 
     const txIds = [...pendingRows, ...completedRows].map((t) => t.id);
-    if (txIds.length === 0) return { pending: [], completed: [] };
+    if (txIds.length === 0) {
+      return { pending: [], completed: [], nextCursor };
+    }
 
     const { legsByTx, linesByTx, tagsByLine, billByTx, refundedByTx } =
       await fetchLegsAndLines(txIds);
@@ -88,9 +135,14 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
     // newest row's balanceAfter == the account's present balance.
     const balanceAfterByTx = new Map<string, bigint>();
     if (accountId) {
-      const [{ present }] = await db
+      // Start from the account balance as of this page's newest row: the
+      // sum of every completed leg on this page and older (date < cursor).
+      // On the first page (no cursor) that's every leg, i.e. the present
+      // balance. Whole-day pages make `date < cursor` an exact split, so
+      // this equals the newest row's balanceAfter.
+      const [{ startBalance }] = await db
         .select({
-          present: sql<string>`COALESCE(SUM(${schema.transactionLegs.amount}), 0)`,
+          startBalance: sql<string>`COALESCE(SUM(${schema.transactionLegs.amount}), 0)`,
         })
         .from(schema.transactionLegs)
         .innerJoin(
@@ -101,9 +153,10 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
           and(
             eq(schema.transactionLegs.accountId, accountId),
             isNotNull(schema.transactions.date),
+            olderThanCursor,
           ),
         );
-      let running = BigInt(present);
+      let running = BigInt(startBalance);
       for (const t of completedRows) {
         balanceAfterByTx.set(t.id, running);
         const legs = legsByTx.get(t.id);
@@ -134,6 +187,7 @@ export const transactionRoutes: FastifyPluginAsync = async (app) => {
     return {
       pending: pendingRows.map(enrich),
       completed: completedRows.map(enrich),
+      nextCursor,
     };
   });
 
